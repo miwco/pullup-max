@@ -19,7 +19,7 @@ export function ProgressScreen() {
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Current cycle" title="Progress">
+      <Section eyebrow="Current cycle" title="Progress" variant="summary" compact>
         <div className="cycle-window-note">
           <p>
             This chart shows the current {data.settings.cycleLengthDays}-day
@@ -58,26 +58,26 @@ export function ProgressScreen() {
         />
       </Section>
 
-      <Section eyebrow="Cycle status" title="Window details">
-        <div className="info-grid info-grid--triple">
-          <div className="info-tile">
+      <Section eyebrow="Cycle status" title="Window details" compact>
+        <div className="mini-stat-grid mini-stat-grid--wide">
+          <div className="mini-stat">
             <span className="metric-label">Days elapsed</span>
             <strong>{cycleSummary.daysElapsed}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Days remaining</span>
             <strong>{cycleSummary.daysRemaining}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Cycle progress</span>
             <strong>{cycleSummary.progressPercent}%</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Current phase</span>
             <strong>{cycleSummary.currentPhase}</strong>
           </div>
           {data.settings.bodyweightTrackingEnabled ? (
-            <div className="info-tile">
+            <div className="mini-stat">
               <span className="metric-label">Current weight</span>
               <strong>
                 {latestBodyweightEntry

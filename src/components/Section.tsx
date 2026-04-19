@@ -5,11 +5,31 @@ interface SectionProps {
   eyebrow?: string
   title: string
   children: ReactNode
+  className?: string
+  compact?: boolean
+  variant?: 'flat' | 'summary'
 }
 
-export function Section({ action, eyebrow, title, children }: SectionProps) {
+export function Section({
+  action,
+  eyebrow,
+  title,
+  children,
+  className,
+  compact = false,
+  variant = 'flat',
+}: SectionProps) {
+  const classNames = [
+    'section',
+    `section--${variant}`,
+    compact ? 'section--compact' : '',
+    className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <section className="section">
+    <section className={classNames}>
       <header className="section__header">
         <div>
           {eyebrow ? <p className="section__eyebrow">{eyebrow}</p> : null}

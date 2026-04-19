@@ -50,51 +50,11 @@ export function createDefaultProgramTemplate(
     maxDay: {
       warmup: {
         title: 'Warm-up',
-        steps: [
-          createProgramStep(exercises, {
-            title: 'Dead hang',
-            exerciseName: 'Dead hang',
-            holdSeconds: 20,
-            notes: '',
-          }),
-          createProgramStep(exercises, {
-            title: 'Scapular pull-ups',
-            exerciseName: 'Scapular pull-up',
-            sets: 2,
-            reps: 5,
-            notes: '',
-          }),
-          createProgramStep(exercises, {
-            title: 'Easy band-assisted pull-ups',
-            exerciseName: 'Band-assisted pull-up',
-            sets: 2,
-            reps: 5,
-            bandAllowed: true,
-            bodyweightOption: 'band',
-            notes: '',
-          }),
-          createProgramStep(exercises, {
-            title: 'Easy bodyweight set',
-            exerciseName: 'Pull-up',
-            sets: 1,
-            reps: 3,
-            bodyweightOption: 'bodyweight',
-            notes: 'About 30% of usual max.',
-          }),
-        ],
+        steps: [],
       },
       mainSet: {
         title: 'Main set',
-        steps: [
-          createProgramStep(exercises, {
-            title: 'All-out max set',
-            exerciseName: 'Pull-up',
-            sets: 1,
-            captureAsMaxTest: true,
-            bodyweightOption: 'bodyweight',
-            notes: 'Rest 4 minutes before this set and 6 minutes after.',
-          }),
-        ],
+        steps: [],
       },
       volumeBlock: {
         title: 'Volume block',
@@ -107,7 +67,8 @@ export function createDefaultProgramTemplate(
             sets: 10,
             reps: 4,
             bodyweightOption: 'bodyweight',
-            notes: 'Adjust reps if needed so all 10 minutes stay clean.',
+            notes:
+              'Adjust reps if needed so you can complete all 10 minutes with clean form.',
           }),
         ],
       },
@@ -119,7 +80,8 @@ export function createDefaultProgramTemplate(
             exerciseName: 'Top hold',
             sets: 2,
             holdSeconds: 20,
-            notes: 'Chin above the bar.',
+            notes:
+              'Chin above bar. Gradually try to increase the hold time over the weeks.',
           }),
         ],
       },
@@ -293,7 +255,6 @@ export function getProgramStepsForSession(
   if (sessionType === 'max') {
     return [
       ...cloneSteps(template.maxDay.warmup.steps),
-      ...cloneSteps(template.maxDay.mainSet.steps),
       ...cloneSteps(template.maxDay.volumeBlock.steps),
       ...cloneSteps(template.maxDay.finisher.steps),
     ]

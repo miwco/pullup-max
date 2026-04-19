@@ -68,7 +68,7 @@ export function ExerciseLibraryScreen() {
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Defaults and custom" title="Exercise library">
+      <Section eyebrow="Defaults and custom" title="Exercise library" compact>
         <div className="field">
           <span>Search</span>
           <input
@@ -82,6 +82,7 @@ export function ExerciseLibraryScreen() {
       <Section
         eyebrow="Add or edit"
         title={draft.id ? 'Edit exercise' : 'Add exercise'}
+        compact
       >
         <form className="form-stack" onSubmit={handleSave}>
           <div className="field-grid field-grid--compact">
@@ -169,7 +170,7 @@ export function ExerciseLibraryScreen() {
             {draft.id ? (
               <button
                 type="button"
-                className="button button--ghost"
+                className="button button--ghost button--compact"
                 onClick={() => setDraft(createBlankExercise())}
               >
                 Cancel
@@ -179,7 +180,7 @@ export function ExerciseLibraryScreen() {
         </form>
       </Section>
 
-      <Section eyebrow="Current list" title="Exercises">
+      <Section eyebrow="Current list" title="Exercises" compact>
         <div className="workout-list">
           {filteredExercises.map((exercise) => (
             <article key={exercise.id} className="workout-list__item">
@@ -201,7 +202,7 @@ export function ExerciseLibraryScreen() {
                 <div className="button-row button-row--wrap">
                   <button
                     type="button"
-                    className="button button--ghost"
+                    className="button button--ghost button--compact"
                     onClick={() =>
                       setDraft({
                         id: exercise.id,
@@ -218,7 +219,7 @@ export function ExerciseLibraryScreen() {
                   </button>
                   <button
                     type="button"
-                    className="button button--ghost"
+                    className="button button--ghost button--compact"
                     onClick={() =>
                       updateExercise({
                         ...exercise,
@@ -230,7 +231,7 @@ export function ExerciseLibraryScreen() {
                   </button>
                   <button
                     type="button"
-                    className="button button--ghost"
+                    className="button button--ghost button--compact"
                     onClick={() => void deleteExercise(exercise.id)}
                   >
                     Remove

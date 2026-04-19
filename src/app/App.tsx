@@ -126,6 +126,24 @@ function AppShell() {
     }
   }
 
+  const topPills = [
+    {
+      label: `Next ${data.recommendationState.nextSessionType}`,
+      tone: 'accent' as const,
+    },
+    {
+      label: `Trend ${data.recommendationState.trend}`,
+      tone:
+        data.recommendationState.trend === 'falling'
+          ? ('warning' as const)
+          : ('success' as const),
+    },
+    {
+      label: data.recommendationState.currentPhase,
+      tone: 'neutral' as const,
+    },
+  ]
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -138,14 +156,14 @@ function AppShell() {
           <div className="app-header__actions">
             <button
               type="button"
-              className="button button--ghost"
+              className="button button--ghost button--compact"
               onClick={() => navigateTo('library')}
             >
               Library
             </button>
             <button
               type="button"
-              className="button button--ghost"
+              className="button button--ghost button--compact"
               onClick={() => navigateTo('settings')}
             >
               Program
@@ -154,23 +172,10 @@ function AppShell() {
         </div>
 
         <div className="app-header__meta">
-          <StatusPill
-            label={`Next ${data.recommendationState.nextSessionType}`}
-            tone="accent"
-          />
-          <StatusPill label={data.athleteProfile.mainMovement} tone="neutral" />
-          <StatusPill
-            label={`Trend ${data.recommendationState.trend}`}
-            tone={
-              data.recommendationState.trend === 'falling'
-                ? 'warning'
-                : 'success'
-            }
-          />
-          <StatusPill
-            label={data.recommendationState.currentPhase}
-            tone="neutral"
-          />
+          {topPills.map((pill) => (
+            <StatusPill key={pill.label} label={pill.label} tone={pill.tone} />
+          ))}
+          <span className="app-header__movement">{data.athleteProfile.mainMovement}</span>
         </div>
       </header>
 

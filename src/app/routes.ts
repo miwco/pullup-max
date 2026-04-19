@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 
 export type AppRoute =
   | 'today'
@@ -51,14 +51,13 @@ function subscribe(onStoreChange: () => void) {
 }
 
 function getSnapshot() {
-  return normalizeHash(window.location.hash)
+  return window.location.hash
 }
 
 export function useRouteState() {
-  return useSyncExternalStore(subscribe, getSnapshot, () => ({
-    path: DEFAULT_ROUTE,
-    params: new URLSearchParams(),
-  }))
+  const hash = useSyncExternalStore(subscribe, getSnapshot, () => '')
+
+  return useMemo(() => normalizeHash(hash), [hash])
 }
 
 export function navigateTo(

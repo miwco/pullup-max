@@ -12,7 +12,7 @@ const NAV_ITEMS: Array<{
   { label: 'Today', route: 'today' },
   { label: 'Log', route: 'log' },
   { label: 'History', route: 'history' },
-  { label: 'Library', route: 'library' },
+  { label: 'Progress', route: 'progress' },
   { label: 'Cycle', route: 'cycle' },
 ]
 

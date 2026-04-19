@@ -1,18 +1,21 @@
 import { createSeedData } from '../domain/defaults'
+import { normalizeAppData } from '../domain/normalization'
 import { withComputedRecommendation } from '../domain/selectors'
 import type { AppData } from '../domain/types'
 import { todayDateString } from '../lib/date'
 
 const DATABASE_NAME = 'pullup-max-db'
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 3
 
 const STORE_NAMES = {
   athleteProfile: 'athleteProfile',
   settings: 'settings',
   exercises: 'exercises',
+  bodyweightEntries: 'bodyweightEntries',
   sessions: 'sessions',
   exerciseEntries: 'exerciseEntries',
   maxTests: 'maxTests',
+  programTemplate: 'programTemplate',
   recommendationState: 'recommendationState',
 } as const
 
@@ -54,6 +57,12 @@ async function openDatabase() {
         })
       }
 
+      if (!database.objectStoreNames.contains(STORE_NAMES.bodyweightEntries)) {
+        database.createObjectStore(STORE_NAMES.bodyweightEntries, {
+          keyPath: 'id',
+        })
+      }
+
       if (!database.objectStoreNames.contains(STORE_NAMES.sessions)) {
         database.createObjectStore(STORE_NAMES.sessions, {
           keyPath: 'id',
@@ -72,6 +81,10 @@ async function openDatabase() {
         })
       }
 
+      if (!database.objectStoreNames.contains(STORE_NAMES.programTemplate)) {
+        database.createObjectStore(STORE_NAMES.programTemplate)
+      }
+
       if (
         !database.objectStoreNames.contains(STORE_NAMES.recommendationState)
       ) {
@@ -86,7 +99,7 @@ async function openDatabase() {
   })
 }
 
-export async function loadStoredAppData() {
+export async function loadStoredAppData(today = todayDateString()) {
   const database = await openDatabase()
   const transaction = database.transaction(
     Object.values(STORE_NAMES),
@@ -94,62 +107,51 @@ export async function loadStoredAppData() {
   )
 
   try {
-    const athleteProfileRequest = requestToPromise(
-      transaction
-        .objectStore(STORE_NAMES.athleteProfile)
-        .get('athlete-default'),
-    )
-    const settingsRequest = requestToPromise(
-      transaction.objectStore(STORE_NAMES.settings).get('current'),
-    )
-    const exercisesRequest = requestToPromise(
-      transaction.objectStore(STORE_NAMES.exercises).getAll(),
-    )
-    const sessionsRequest = requestToPromise(
-      transaction.objectStore(STORE_NAMES.sessions).getAll(),
-    )
-    const exerciseEntriesRequest = requestToPromise(
-      transaction.objectStore(STORE_NAMES.exerciseEntries).getAll(),
-    )
-    const maxTestsRequest = requestToPromise(
-      transaction.objectStore(STORE_NAMES.maxTests).getAll(),
-    )
-    const recommendationRequest = requestToPromise(
-      transaction
-        .objectStore(STORE_NAMES.recommendationState)
-        .get('recommendation-current'),
-    )
     const [
       athleteProfile,
       settings,
       exercises,
+      bodyweightEntries,
       sessions,
       exerciseEntries,
       maxTests,
-      recommendationState,
+      programTemplate,
     ] = await Promise.all([
-      athleteProfileRequest,
-      settingsRequest,
-      exercisesRequest,
-      sessionsRequest,
-      exerciseEntriesRequest,
-      maxTestsRequest,
-      recommendationRequest,
+      requestToPromise(
+        transaction
+          .objectStore(STORE_NAMES.athleteProfile)
+          .get('athlete-default'),
+      ),
+      requestToPromise(
+        transaction.objectStore(STORE_NAMES.settings).get('current'),
+      ),
+      requestToPromise(transaction.objectStore(STORE_NAMES.exercises).getAll()),
+      requestToPromise(
+        transaction.objectStore(STORE_NAMES.bodyweightEntries).getAll(),
+      ),
+      requestToPromise(transaction.objectStore(STORE_NAMES.sessions).getAll()),
+      requestToPromise(
+        transaction.objectStore(STORE_NAMES.exerciseEntries).getAll(),
+      ),
+      requestToPromise(transaction.objectStore(STORE_NAMES.maxTests).getAll()),
+      requestToPromise(
+        transaction.objectStore(STORE_NAMES.programTemplate).get('current'),
+      ),
     ])
 
-    if (!athleteProfile || !settings || !recommendationState) {
-      return null
-    }
-
-    return {
-      athleteProfile,
-      settings,
-      exercises,
-      sessions,
-      exerciseEntries,
-      maxTests,
-      recommendationState,
-    } satisfies AppData
+    return normalizeAppData(
+      {
+        athleteProfile,
+        settings,
+        exercises,
+        bodyweightEntries,
+        sessions,
+        exerciseEntries,
+        maxTests,
+        programTemplate,
+      },
+      today,
+    )
   } finally {
     database.close()
   }
@@ -167,11 +169,17 @@ export async function persistAppData(appData: AppData) {
   )
   const settingsStore = transaction.objectStore(STORE_NAMES.settings)
   const exercisesStore = transaction.objectStore(STORE_NAMES.exercises)
+  const bodyweightEntriesStore = transaction.objectStore(
+    STORE_NAMES.bodyweightEntries,
+  )
   const sessionsStore = transaction.objectStore(STORE_NAMES.sessions)
   const exerciseEntriesStore = transaction.objectStore(
     STORE_NAMES.exerciseEntries,
   )
   const maxTestsStore = transaction.objectStore(STORE_NAMES.maxTests)
+  const programTemplateStore = transaction.objectStore(
+    STORE_NAMES.programTemplate,
+  )
   const recommendationStore = transaction.objectStore(
     STORE_NAMES.recommendationState,
   )
@@ -179,17 +187,23 @@ export async function persistAppData(appData: AppData) {
   athleteProfileStore.clear()
   settingsStore.clear()
   exercisesStore.clear()
+  bodyweightEntriesStore.clear()
   sessionsStore.clear()
   exerciseEntriesStore.clear()
   maxTestsStore.clear()
+  programTemplateStore.clear()
   recommendationStore.clear()
 
   athleteProfileStore.put(appData.athleteProfile)
   settingsStore.put(appData.settings, 'current')
   appData.exercises.forEach((exercise) => exercisesStore.put(exercise))
+  appData.bodyweightEntries.forEach((entry) =>
+    bodyweightEntriesStore.put(entry),
+  )
   appData.sessions.forEach((session) => sessionsStore.put(session))
   appData.exerciseEntries.forEach((entry) => exerciseEntriesStore.put(entry))
   appData.maxTests.forEach((maxTest) => maxTestsStore.put(maxTest))
+  programTemplateStore.put(appData.programTemplate, 'current')
   recommendationStore.put(appData.recommendationState)
 
   await transactionToPromise(transaction)
@@ -197,7 +211,7 @@ export async function persistAppData(appData: AppData) {
 }
 
 export async function loadOrSeedAppData(today = todayDateString()) {
-  const stored = await loadStoredAppData()
+  const stored = await loadStoredAppData(today)
 
   if (stored) {
     return withComputedRecommendation(stored, today)

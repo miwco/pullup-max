@@ -1,23 +1,42 @@
-import { createRecommendation, classifyTrend } from './recommendationEngine'
+import {
+  classifyTrend,
+  createRecommendation,
+  getAdjustedProgramSteps,
+  getLatestFailurePoint,
+} from './recommendationEngine'
+import { getSupportFocusFromFailurePoint } from './programTemplate'
+import {
+  buildBodyweightTrendPoints,
+  getLatestBodyweightEntry,
+} from './bodyweight'
+import {
+  getCyclePhase,
+  getCurrentCycleWindow as buildCurrentCycleWindow,
+} from './cycle'
+import { getEntryVolumePoints, getWeeklyVolumeSummary } from './volume'
 import type {
   AppData,
+  BodyweightEntry,
   CycleSummaryData,
+  CyclePhase,
   CycleWindow,
   Exercise,
   ExerciseEntry,
   FailurePoint,
   MaxExposure,
+  MaxHistoryItem,
   MaxTestResult,
+  ProgramEntryDraft,
+  ProgressPoint,
+  ProgramStep,
   RecommendationInput,
+  RecentWorkoutItem,
   SessionType,
+  SupportFocus,
+  WeeklyVolumeSummary,
   WorkoutSession,
 } from './types'
-import {
-  addDays,
-  compareDateAsc,
-  diffInDays,
-  todayDateString,
-} from '../lib/date'
+import { compareDateAsc, diffInDays, todayDateString } from '../lib/date'
 
 function average(values: number[]) {
   if (values.length === 0) {
@@ -44,6 +63,23 @@ export function getSessionCounts(
 ) {
   return sessions.filter((session) => diffInDays(session.date, today) <= days)
     .length
+}
+
+export function getLastWorkoutDate(sessions: WorkoutSession[]) {
+  return sortSessionsByDateDesc(sessions)[0]?.date ?? null
+}
+
+export function getDaysSinceLastWorkout(
+  sessions: WorkoutSession[],
+  today = todayDateString(),
+) {
+  const lastWorkoutDate = getLastWorkoutDate(sessions)
+
+  if (!lastWorkoutDate) {
+    return null
+  }
+
+  return diffInDays(lastWorkoutDate, today)
 }
 
 export function getDaysSinceLastMax(
@@ -76,56 +112,26 @@ export function getDaysSinceLastMax(
 }
 
 export function getRecentSignalAverages(sessions: WorkoutSession[]) {
-  const recentSessions = sortSessionsByDateDesc(sessions).slice(0, 6)
-  const fatigueValues = recentSessions.flatMap((session) =>
-    [session.fatigueBefore, session.fatigueAfter].filter(
-      (value): value is number => typeof value === 'number',
-    ),
-  )
-  const jointPainValues = recentSessions.flatMap((session) =>
-    [session.elbowPain, session.shoulderPain].filter(
-      (value): value is number => typeof value === 'number',
-    ),
-  )
+  const recentSessions = [...sessions]
+    .sort((left, right) => compareDateAsc(left.date, right.date))
+    .slice(-6)
 
   return {
-    fatigueAverage: average(fatigueValues),
-    jointPainAverage: average(jointPainValues),
+    fatigueAverage: average(
+      recentSessions.flatMap((session) =>
+        [session.fatigueBefore, session.fatigueAfter].filter(
+          (value): value is number => typeof value === 'number',
+        ),
+      ),
+    ),
+    jointPainAverage: average(
+      recentSessions.flatMap((session) =>
+        [session.elbowPain, session.shoulderPain].filter(
+          (value): value is number => typeof value === 'number',
+        ),
+      ),
+    ),
   }
-}
-
-export function getRepeatedFailurePoint(
-  maxTests: MaxTestResult[],
-  sessions: WorkoutSession[],
-  movement: string,
-) {
-  const sessionById = new Map(sessions.map((session) => [session.id, session]))
-  const recentRelevant = [...maxTests]
-    .filter(
-      (maxTest) =>
-        maxTest.movement === movement && maxTest.failurePoint !== undefined,
-    )
-    .sort((left, right) => {
-      const leftDate = sessionById.get(left.workoutSessionId)?.date ?? ''
-      const rightDate = sessionById.get(right.workoutSessionId)?.date ?? ''
-      return rightDate.localeCompare(leftDate)
-    })
-    .slice(0, 3)
-
-  const counts = new Map<FailurePoint, number>()
-
-  recentRelevant.forEach((maxTest) => {
-    const failurePoint = maxTest.failurePoint
-
-    if (!failurePoint || failurePoint === 'not sure') {
-      return
-    }
-
-    counts.set(failurePoint, (counts.get(failurePoint) ?? 0) + 1)
-  })
-
-  const repeated = [...counts.entries()].find(([, count]) => count >= 2)
-  return repeated?.[0] ?? null
 }
 
 export function getMaxExposures(
@@ -149,25 +155,18 @@ export function getMaxExposures(
 
 export function getCurrentCycleWindow(
   cycleStartDate: string,
+  cycleLengthDays: number,
   today = todayDateString(),
 ): CycleWindow {
-  if (cycleStartDate > today) {
-    return {
-      start: today,
-      end: addDays(today, 89),
-    }
-  }
+  return buildCurrentCycleWindow(cycleStartDate, cycleLengthDays, today)
+}
 
-  let currentStart = cycleStartDate
-
-  while (addDays(currentStart, 89) < today) {
-    currentStart = addDays(currentStart, 90)
-  }
-
-  return {
-    start: currentStart,
-    end: addDays(currentStart, 89),
-  }
+export function getCurrentCyclePhase(
+  cycleWindow: CycleWindow,
+  cycleLengthDays: number,
+  today = todayDateString(),
+): CyclePhase {
+  return getCyclePhase(cycleWindow, cycleLengthDays, today)
 }
 
 export function getSessionsInCycle(
@@ -217,77 +216,56 @@ export function getSupportVolumeScore(
   entry: ExerciseEntry,
   exerciseLookup: Map<string, Exercise>,
 ) {
-  const exercise = exerciseLookup.get(entry.exerciseId)
-
-  if (!exercise) {
-    return 0
-  }
-
-  const setCount = entry.sets ?? 1
-
-  if (typeof entry.reps === 'number') {
-    return entry.reps * setCount
-  }
-
-  if (typeof entry.durationSeconds === 'number') {
-    return Math.round(entry.durationSeconds / 15)
-  }
-
-  if (exercise.defaultUnit === 'sets') {
-    return setCount * 4
-  }
-
-  return setCount
+  return getEntryVolumePoints(entry, exerciseLookup)
 }
 
 export function buildRecommendationInput(
   data: AppData,
   today = todayDateString(),
 ): RecommendationInput {
-  const { athleteProfile, exercises, maxTests, sessions } = data
   const cycleWindow = getCurrentCycleWindow(
-    athleteProfile.cycleStartDate,
+    data.athleteProfile.cycleStartDate,
+    data.settings.cycleLengthDays,
     today,
   )
-  const cycleAgeDays = diffInDays(cycleWindow.start, today)
-  const lastMaxResults = getMaxExposures(
-    maxTests,
-    sessions,
-    athleteProfile.mainMovement,
-  ).slice(-3)
-  const { fatigueAverage, jointPainAverage } = getRecentSignalAverages(sessions)
+  const cycleMaxResults = getMaxExposures(
+    data.maxTests,
+    data.sessions,
+    data.athleteProfile.mainMovement,
+  ).filter(
+    (result) =>
+      result.date >= cycleWindow.start && result.date <= cycleWindow.end,
+  )
+  const { fatigueAverage, jointPainAverage } = getRecentSignalAverages(
+    data.sessions,
+  )
 
   return {
-    availableExercises: exercises
+    availableExercises: data.exercises
       .filter((exercise) => exercise.active)
       .map((exercise) => exercise.name),
-    cycleAgeDays,
-    daysSinceLastMax: getDaysSinceLastMax(
-      sessions,
-      maxTests,
-      athleteProfile.mainMovement,
+    bandsAvailable: data.settings.bandsAvailable,
+    cycleMaxResults,
+    currentPhase: getCurrentCyclePhase(
+      cycleWindow,
+      data.settings.cycleLengthDays,
       today,
     ),
-    jointPainAverage,
-    lastMaxResults,
-    mainMovement: athleteProfile.mainMovement,
-    fatigueAverage,
-    fatigueSensitivity: athleteProfile.fatigueSensitivity,
-    jointPainSensitivity: athleteProfile.jointPainSensitivity,
-    preferredSupportMethods: athleteProfile.preferredSupportMethods,
-    repeatedFailurePoint: getRepeatedFailurePoint(
-      maxTests,
-      sessions,
-      athleteProfile.mainMovement,
+    daysSinceLastMax: getDaysSinceLastMax(
+      data.sessions,
+      data.maxTests,
+      data.athleteProfile.mainMovement,
+      today,
     ),
-    sessionsLast7: getSessionCounts(sessions, today, 7),
-    sessionsLast14: getSessionCounts(sessions, today, 14),
-    totalMaxSessions: getMaxExposures(
-      maxTests,
-      sessions,
-      athleteProfile.mainMovement,
-    ).length,
-    bandsAvailable: athleteProfile.bandsAvailable,
+    daysSinceLastWorkout: getDaysSinceLastWorkout(data.sessions, today),
+    fatigueAverage,
+    fatigueSensitivity: data.settings.fatigueSensitivity,
+    jointPainAverage,
+    jointPainSensitivity: data.settings.jointPainSensitivity,
+    latestFailurePoint: getLatestFailurePoint(cycleMaxResults),
+    mainMovement: data.athleteProfile.mainMovement,
+    programTemplate: data.programTemplate,
+    sessionsLast7: getSessionCounts(data.sessions, today, 7),
   }
 }
 
@@ -295,51 +273,12 @@ export function withComputedRecommendation(
   data: AppData,
   today = todayDateString(),
 ) {
+  const input = buildRecommendationInput(data, today)
+
   return {
     ...data,
-    recommendationState: createRecommendation(
-      buildRecommendationInput(data, today),
-    ),
+    recommendationState: createRecommendation(input, data.exercises),
   }
-}
-
-function getDeloadPeriods(sessions: WorkoutSession[]) {
-  const deloadSessions = [...sessions]
-    .filter(
-      (session) =>
-        session.sessionType === 'deload' || session.phaseAtTime === 'deload',
-    )
-    .sort((left, right) => compareDateAsc(left.date, right.date))
-
-  if (deloadSessions.length === 0) {
-    return []
-  }
-
-  const periods: Array<{ start: string; end: string }> = []
-
-  deloadSessions.forEach((session) => {
-    const lastPeriod = periods.at(-1)
-
-    if (!lastPeriod) {
-      periods.push({
-        start: session.date,
-        end: session.date,
-      })
-      return
-    }
-
-    if (diffInDays(lastPeriod.end, session.date) <= 10) {
-      lastPeriod.end = session.date
-      return
-    }
-
-    periods.push({
-      start: session.date,
-      end: session.date,
-    })
-  })
-
-  return periods
 }
 
 export function getCycleSummaryData(
@@ -348,63 +287,57 @@ export function getCycleSummaryData(
 ): CycleSummaryData {
   const cycleWindow = getCurrentCycleWindow(
     data.athleteProfile.cycleStartDate,
+    data.settings.cycleLengthDays,
     today,
   )
   const cycleSessions = getSessionsInCycle(data.sessions, cycleWindow)
-  const cycleMax = getBestMax(
+  const cycleBestMax = getBestMax(
     data.maxTests,
     data.sessions,
     data.athleteProfile.mainMovement,
     cycleWindow,
   )
+  const cycleLengthDays = data.settings.cycleLengthDays
+  const daysElapsed = Math.min(
+    cycleLengthDays,
+    diffInDays(cycleWindow.start, today) + 1,
+  )
+  const daysRemaining = Math.max(0, cycleLengthDays - daysElapsed)
+  const progressPercent = Math.round((daysElapsed / cycleLengthDays) * 100)
   const counts = cycleSessions.reduce(
     (summary, session) => {
       summary.totalSessions += 1
 
       if (session.sessionType === 'max') {
         summary.maxSessions += 1
-      }
-
-      if (session.sessionType === 'support') {
+      } else {
         summary.supportSessions += 1
-      }
-
-      if (session.sessionType === 'recovery') {
-        summary.recoverySessions += 1
       }
 
       return summary
     },
     {
       maxSessions: 0,
-      recoverySessions: 0,
       supportSessions: 0,
       totalSessions: 0,
     },
   )
-  const deloadPeriods = getDeloadPeriods(cycleSessions)
-  const summaryParts = [
-    cycleMax !== null
-      ? `Cycle best is ${cycleMax} reps across ${counts.maxSessions} max exposures.`
-      : 'No max exposures logged in this cycle yet.',
-    counts.supportSessions > counts.recoverySessions
-      ? 'Support work currently outweighs recovery work.'
-      : 'Recovery work is keeping pace with support work.',
-    deloadPeriods.length > 0
-      ? `${deloadPeriods.length} deload period${deloadPeriods.length > 1 ? 's are' : ' is'} recorded.`
-      : 'No deload periods have been needed so far.',
-  ]
 
   return {
-    cycleBestMax: cycleMax,
-    deloadPeriods,
-    currentPhase: data.recommendationState.phase,
+    baselineMax: data.recommendationState.baselineMax,
+    cycleBestMax,
+    currentPhase: getCurrentCyclePhase(cycleWindow, cycleLengthDays, today),
     cycleWindow,
+    daysElapsed,
+    daysRemaining,
     maxSessions: counts.maxSessions,
-    recoverySessions: counts.recoverySessions,
+    progressPercent,
     supportSessions: counts.supportSessions,
+    summary:
+      cycleBestMax === null
+        ? 'No max sessions are logged in this cycle yet.'
+        : `${getCurrentCyclePhase(cycleWindow, cycleLengthDays, today)} phase is active. Cycle best is ${cycleBestMax} reps. Baseline is ${data.recommendationState.baselineMax ?? cycleBestMax} reps with ${counts.maxSessions} Max day(s) and ${counts.supportSessions} Support day(s) logged.`,
     totalSessions: counts.totalSessions,
-    summary: summaryParts.join(' '),
   }
 }
 
@@ -412,25 +345,65 @@ export function buildMaxTrendPoints(
   maxTests: MaxTestResult[],
   sessions: WorkoutSession[],
   movement: string,
-) {
-  const exposures = getMaxExposures(maxTests, sessions, movement)
-  return exposures.map((exposure) => ({
-    date: exposure.date,
-    value: exposure.reps,
-    trend:
-      classifyTrend(
-        exposures.filter((item) => item.date <= exposure.date).slice(-3),
-      ) ?? 'stable',
-  }))
+  cycleWindow?: CycleWindow,
+): ProgressPoint[] {
+  return getMaxExposures(maxTests, sessions, movement)
+    .filter((point) => {
+      if (!cycleWindow) {
+        return true
+      }
+
+      return point.date >= cycleWindow.start && point.date <= cycleWindow.end
+    })
+    .map((point) => ({
+      date: point.date,
+      value: point.reps,
+    }))
+}
+
+export function buildMaxHistory(
+  maxTests: MaxTestResult[],
+  sessions: WorkoutSession[],
+  movement: string,
+): MaxHistoryItem[] {
+  const sessionById = new Map(sessions.map((session) => [session.id, session]))
+  const datedMaxTests = [...maxTests]
+    .filter((maxTest) => maxTest.movement === movement)
+    .map((maxTest) => ({
+      ...maxTest,
+      date: sessionById.get(maxTest.workoutSessionId)?.date ?? '',
+    }))
+    .filter((maxTest) => maxTest.date)
+    .sort((left, right) => compareDateAsc(left.date, right.date))
+
+  return datedMaxTests
+    .map((maxTest, index) => ({
+      id: maxTest.id,
+      date: maxTest.date,
+      reps: maxTest.reps,
+      bodyweightKgSnapshot: maxTest.bodyweightKgSnapshot,
+      videoUrl: maxTest.videoUrl,
+      trend: classifyTrend(
+        datedMaxTests
+          .slice(0, index + 1)
+          .map((item) => ({ date: item.date, reps: item.reps })),
+      ),
+      failurePoint: maxTest.failurePoint,
+    }))
+    .reverse()
 }
 
 export function buildRecentWorkouts(
   sessions: WorkoutSession[],
   entries: ExerciseEntry[],
   exercises: Exercise[],
-) {
+  maxTests: MaxTestResult[],
+): RecentWorkoutItem[] {
   const exerciseLookup = new Map(
     exercises.map((exercise) => [exercise.id, exercise]),
+  )
+  const maxTestBySessionId = new Map(
+    maxTests.map((maxTest) => [maxTest.workoutSessionId, maxTest]),
   )
   const entriesBySession = entries.reduce((lookup, entry) => {
     const existing = lookup.get(entry.workoutSessionId) ?? []
@@ -441,32 +414,17 @@ export function buildRecentWorkouts(
 
   return sortSessionsByDateDesc(sessions).map((session) => {
     const sessionEntries = entriesBySession.get(session.id) ?? []
-    const supportVolume = sessionEntries.reduce(
-      (sum, entry) => sum + getSupportVolumeScore(entry, exerciseLookup),
-      0,
-    )
 
     return {
       ...session,
       entries: sessionEntries,
-      supportVolume,
+      supportVolume: sessionEntries.reduce(
+        (sum, entry) => sum + getSupportVolumeScore(entry, exerciseLookup),
+        0,
+      ),
+      maxReps: maxTestBySessionId.get(session.id)?.reps ?? null,
     }
   })
-}
-
-export function getCycleStatsByType(sessions: WorkoutSession[]) {
-  const counts: Record<SessionType, number> = {
-    max: 0,
-    support: 0,
-    recovery: 0,
-    deload: 0,
-  }
-
-  sessions.forEach((session) => {
-    counts[session.sessionType] += 1
-  })
-
-  return counts
 }
 
 export function getMaxTrendClassificationForNewResult(
@@ -481,4 +439,115 @@ export function getMaxTrendClassificationForNewResult(
       reps: nextReps,
     },
   ])
+}
+
+export function getCycleStatsByType(sessions: WorkoutSession[]) {
+  const counts: Record<SessionType, number> = {
+    max: 0,
+    support: 0,
+  }
+
+  sessions.forEach((session) => {
+    counts[session.sessionType] += 1
+  })
+
+  return counts
+}
+
+export function getDefaultSupportFocus(
+  maxTests: MaxTestResult[],
+  sessions: WorkoutSession[],
+  movement: string,
+): SupportFocus {
+  const cycleResults = getMaxExposures(maxTests, sessions, movement)
+  return getSupportFocusFromFailurePoint(getLatestFailurePoint(cycleResults))
+}
+
+export function getProgramStepsForRecommendation(
+  data: AppData,
+  sessionType: SessionType,
+): ProgramStep[] {
+  const input = buildRecommendationInput(data)
+  return getAdjustedProgramSteps(
+    {
+      ...input,
+      daysSinceLastWorkout:
+        sessionType === 'max'
+          ? Math.max(3, input.daysSinceLastWorkout ?? 3)
+          : 0,
+    },
+    sessionType,
+  )
+}
+
+export function buildProgramEntryDrafts(
+  steps: ProgramStep[],
+  exercises: Exercise[],
+): ProgramEntryDraft[] {
+  const exerciseById = new Map(
+    exercises.map((exercise) => [exercise.id, exercise]),
+  )
+
+  return steps.map((step) => {
+    const exercise = exerciseById.get(step.exerciseId)
+    const durationSeconds =
+      step.durationSeconds ??
+      step.holdSeconds ??
+      (step.emomMinutes ? step.emomMinutes * 60 : undefined)
+    const reps = step.emomReps ?? step.reps
+    const sets = step.emomMinutes ?? step.sets
+
+    return {
+      templateStepId: step.id,
+      label: step.title,
+      exerciseId: step.exerciseId,
+      exerciseName: exercise?.name ?? '',
+      sets: sets ? String(sets) : '',
+      reps: reps ? String(reps) : '',
+      durationSeconds: durationSeconds ? String(durationSeconds) : '',
+      bandAssisted: step.bodyweightOption === 'band',
+      effort: '',
+      notes: step.notes,
+    }
+  })
+}
+
+export function getLatestMaxFailurePoint(
+  maxTests: MaxTestResult[],
+  sessions: WorkoutSession[],
+  movement: string,
+): FailurePoint | null {
+  return getLatestFailurePoint(getMaxExposures(maxTests, sessions, movement))
+}
+
+export function getLatestSavedBodyweightEntry(entries: BodyweightEntry[]) {
+  return getLatestBodyweightEntry(entries)
+}
+
+export function buildBodyweightPoints(
+  entries: BodyweightEntry[],
+  cycleWindow?: CycleWindow,
+) {
+  return buildBodyweightTrendPoints(entries, cycleWindow)
+}
+
+export function getCurrentWeekVolumeSummary(
+  data: AppData,
+  today = todayDateString(),
+): WeeklyVolumeSummary {
+  const cycleWindow = getCurrentCycleWindow(
+    data.athleteProfile.cycleStartDate,
+    data.settings.cycleLengthDays,
+    today,
+  )
+
+  return getWeeklyVolumeSummary({
+    cycleWindow,
+    exercises: data.exercises,
+    exerciseEntries: data.exerciseEntries,
+    maxTests: data.maxTests,
+    sessions: data.sessions,
+    today,
+    trend: data.recommendationState.trend,
+  })
 }

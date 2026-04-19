@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { Section } from '../../components/Section'
 import { useAppState } from '../../app/AppProvider'
 import type {
-  Exercise,
   FailurePoint,
+  ProgramEntryDraft,
   QualityFlag,
   SessionType,
 } from '../../domain/types'
-import { createId } from '../../lib/id'
 import { todayDateString } from '../../lib/date'
+import { createId } from '../../lib/id'
 
 interface LogWorkoutScreenProps {
   prefill: boolean
@@ -16,37 +16,27 @@ interface LogWorkoutScreenProps {
   onSaved: () => void
 }
 
-interface EntryDraft {
+interface EntryDraft extends ProgramEntryDraft {
   localId: string
-  exerciseId: string
-  sets: string
-  reps: string
-  durationSeconds: string
-  bandAssisted: boolean
-  effort: string
-  notes: string
 }
 
 const FAILURE_POINTS: FailurePoint[] = [
-  'start',
+  'top',
   'middle',
-  'finish',
-  'grip/hang',
-  'general endurance',
+  'start/bottom',
+  'grip',
   'not sure',
 ]
 
-const QUALITY_FLAGS: QualityFlag[] = [
-  'cleaner',
-  'stronger',
-  'grindy',
-  'partial',
-]
+const QUALITY_FLAGS: QualityFlag[] = ['clean', 'grindy', 'partial']
 
-function createEmptyEntry(exerciseId = ''): EntryDraft {
+function createEmptyEntry(): EntryDraft {
   return {
     localId: createId('draft'),
-    exerciseId,
+    templateStepId: '',
+    label: '',
+    exerciseId: '',
+    exerciseName: '',
     sets: '',
     reps: '',
     durationSeconds: '',
@@ -65,26 +55,11 @@ function parseOptionalNumber(value: string) {
   return Number.isFinite(nextNumber) ? nextNumber : undefined
 }
 
-function matchSuggestedExercises(
-  suggestions: string[],
-  activeExercises: Exercise[],
-) {
-  const lookup = new Map(
-    activeExercises.map((exercise) => [exercise.name.toLowerCase(), exercise]),
-  )
-
-  return suggestions.flatMap((suggestion) => {
-    const match = lookup.get(suggestion.toLowerCase())
-    return match ? [createEmptyEntry(match.id)] : []
-  })
-}
-
-function createInitialEntries(
-  prefill: boolean,
-  suggestions: string[],
-  activeExercises: Exercise[],
-) {
-  return prefill ? matchSuggestedExercises(suggestions, activeExercises) : []
+function toDrafts(prefillRows: ProgramEntryDraft[]) {
+  return prefillRows.map((row) => ({
+    ...row,
+    localId: createId('draft'),
+  }))
 }
 
 export function LogWorkoutScreen({
@@ -92,14 +67,14 @@ export function LogWorkoutScreen({
   requestedType,
   onSaved,
 }: LogWorkoutScreenProps) {
-  const { activeExercises, data, saveSession } = useAppState()
+  const { activeExercises, data, getProgramPrefill, saveSession } =
+    useAppState()
   const recommendedType = data.recommendationState.nextSessionType
-  const [sessionType, setSessionType] = useState<SessionType>(
-    requestedType ?? recommendedType,
-  )
+  const initialType = requestedType ?? recommendedType
+  const [sessionType, setSessionType] = useState<SessionType>(initialType)
   const [date, setDate] = useState(() => todayDateString())
   const [maxReps, setMaxReps] = useState('')
-  const [bodyweight, setBodyweight] = useState('')
+  const [videoLink, setVideoLink] = useState('')
   const [fatigueBefore, setFatigueBefore] = useState('')
   const [fatigueAfter, setFatigueAfter] = useState('')
   const [elbowPain, setElbowPain] = useState('')
@@ -108,11 +83,7 @@ export function LogWorkoutScreen({
   const [qualityFlag, setQualityFlag] = useState<QualityFlag | ''>('')
   const [notes, setNotes] = useState('')
   const [entries, setEntries] = useState<EntryDraft[]>(() =>
-    createInitialEntries(
-      prefill,
-      data.recommendationState.suggestedExercises,
-      activeExercises,
-    ),
+    prefill ? toDrafts(getProgramPrefill(initialType)) : [],
   )
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -124,11 +95,36 @@ export function LogWorkoutScreen({
     )
   }
 
+  function loadPrefill(nextType: SessionType) {
+    setEntries(toDrafts(getProgramPrefill(nextType)))
+  }
+
+  function isValidVideoLink(value: string) {
+    if (!value.trim()) {
+      return true
+    }
+
+    try {
+      const url = new URL(value)
+      return url.protocol === 'http:' || url.protocol === 'https:'
+    } catch {
+      return false
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setFormError(null)
 
-    if (sessionType === 'max' && !maxReps.trim()) {
-      setFormError('Max sessions need the max reps field filled in.')
+    const parsedMaxReps = parseOptionalNumber(maxReps)
+
+    if (sessionType === 'max' && (!parsedMaxReps || parsedMaxReps <= 0)) {
+      setFormError('Max day needs a valid max reps number.')
+      return
+    }
+
+    if (sessionType === 'max' && !isValidVideoLink(videoLink)) {
+      setFormError('Video link must be a valid http or https URL.')
       return
     }
 
@@ -141,7 +137,9 @@ export function LogWorkoutScreen({
         durationSeconds: parseOptionalNumber(entry.durationSeconds),
         bandAssisted: entry.bandAssisted || undefined,
         effort: parseOptionalNumber(entry.effort),
-        notes: entry.notes.trim() || undefined,
+        notes:
+          [entry.label, entry.notes.trim()].filter(Boolean).join(' - ') ||
+          undefined,
         isMaxTest: false,
       }))
 
@@ -149,9 +147,6 @@ export function LogWorkoutScreen({
       session: {
         date,
         sessionType,
-        bodyweightKg: data.athleteProfile.bodyweightTrackingEnabled
-          ? parseOptionalNumber(bodyweight)
-          : undefined,
         fatigueBefore: parseOptionalNumber(fatigueBefore),
         fatigueAfter: parseOptionalNumber(fatigueAfter),
         elbowPain: parseOptionalNumber(elbowPain),
@@ -160,9 +155,10 @@ export function LogWorkoutScreen({
       },
       entries: cleanedEntries,
       maxTest:
-        sessionType === 'max' && maxReps.trim()
+        sessionType === 'max' && parsedMaxReps
           ? {
-              reps: Number(maxReps),
+              reps: parsedMaxReps,
+              videoUrl: videoLink.trim() || undefined,
               failurePoint: failurePoint || undefined,
               qualityFlag: qualityFlag || undefined,
             }
@@ -176,24 +172,40 @@ export function LogWorkoutScreen({
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Fast entry" title="Log workout">
+      <Section eyebrow="Fast logging" title="Log workout">
         <form className="form-stack" onSubmit={handleSubmit}>
-          <div className="segment-row" role="tablist" aria-label="Session type">
-            {(['max', 'support', 'recovery', 'deload'] as SessionType[]).map(
-              (type) => (
+          <div className="subsection">
+            <div className="subsection__header">
+              <div>
+                <h3>Session type</h3>
+                <p>
+                  Recommended today: <strong>{recommendedType}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="segment-row"
+              role="tablist"
+              aria-label="Session type"
+            >
+              {(['max', 'support'] as SessionType[]).map((type) => (
                 <button
                   key={type}
                   type="button"
                   className={`segment-row__item${sessionType === type ? ' is-active' : ''}`}
-                  onClick={() => setSessionType(type)}
+                  onClick={() => {
+                    setSessionType(type)
+                    loadPrefill(type)
+                  }}
                 >
                   {type}
                 </button>
-              ),
-            )}
+              ))}
+            </div>
           </div>
 
-          <div className="field-grid">
+          <div className="field-grid field-grid--compact">
             <label className="field">
               <span>Date</span>
               <input
@@ -202,18 +214,6 @@ export function LogWorkoutScreen({
                 onChange={(event) => setDate(event.target.value)}
               />
             </label>
-
-            {data.athleteProfile.bodyweightTrackingEnabled ? (
-              <label className="field">
-                <span>Bodyweight</span>
-                <input
-                  inputMode="decimal"
-                  placeholder="kg"
-                  value={bodyweight}
-                  onChange={(event) => setBodyweight(event.target.value)}
-                />
-              </label>
-            ) : null}
 
             <label className="field">
               <span>Fatigue before</span>
@@ -259,7 +259,7 @@ export function LogWorkoutScreen({
           {sessionType === 'max' ? (
             <div className="max-panel">
               <label className="field field--max">
-                <span>Main max reps</span>
+                <span>True max reps</span>
                 <input
                   inputMode="numeric"
                   placeholder="0"
@@ -268,7 +268,7 @@ export function LogWorkoutScreen({
                 />
               </label>
 
-              <div className="field-grid">
+              <div className="field-grid field-grid--compact">
                 <label className="field">
                   <span>Failure point</span>
                   <select
@@ -303,75 +303,83 @@ export function LogWorkoutScreen({
                   </select>
                 </label>
               </div>
+
+              <label className="field">
+                <span>Video link</span>
+                <input
+                  inputMode="url"
+                  placeholder="https://..."
+                  value={videoLink}
+                  onChange={(event) => setVideoLink(event.target.value)}
+                />
+              </label>
             </div>
           ) : null}
 
           <div className="subsection">
             <div className="subsection__header">
               <div>
-                <h3>Quick add</h3>
+                <h3>Prefilled workout rows</h3>
                 <p>
-                  Tap a suggestion if you want the default exercise rows added
-                  for this session.
+                  These rows come from the editable default program. You can
+                  change or remove any of them before saving.
                 </p>
               </div>
-              <button
-                type="button"
-                className="button button--ghost"
-                onClick={() =>
-                  setEntries((current) => [...current, createEmptyEntry()])
-                }
-              >
-                Add row
-              </button>
-            </div>
 
-            <div className="chip-row">
-              {data.recommendationState.suggestedExercises.map(
-                (exerciseName) => {
-                  const exercise = activeExercises.find(
-                    (item) => item.name === exerciseName,
-                  )
-
-                  return (
-                    <button
-                      key={exerciseName}
-                      type="button"
-                      className="chip chip--button"
-                      onClick={() =>
-                        setEntries((current) => [
-                          ...current,
-                          createEmptyEntry(exercise?.id ?? ''),
-                        ])
-                      }
-                    >
-                      {exerciseName}
-                    </button>
-                  )
-                },
-              )}
+              <div className="button-row button-row--wrap">
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  onClick={() => loadPrefill(sessionType)}
+                >
+                  Reload defaults
+                </button>
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  onClick={() =>
+                    setEntries((current) => [...current, createEmptyEntry()])
+                  }
+                >
+                  Add row
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="entry-list">
             {entries.length === 0 ? (
               <p className="muted-text">
-                Entries are optional. Max days can be logged with just date,
-                session type, and max reps.
+                No exercise rows added. You can still save the workout.
               </p>
             ) : null}
 
             {entries.map((entry) => (
-              <div key={entry.localId} className="entry-row">
+              <div key={entry.localId} className="entry-row entry-row--compact">
+                <label className="field field--span-2">
+                  <span>Block label</span>
+                  <input
+                    value={entry.label}
+                    onChange={(event) =>
+                      updateEntry(entry.localId, { label: event.target.value })
+                    }
+                  />
+                </label>
+
                 <label className="field field--span-2">
                   <span>Exercise</span>
                   <select
                     value={entry.exerciseId}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const exercise = activeExercises.find(
+                        (item) => item.id === event.target.value,
+                      )
+
                       updateEntry(entry.localId, {
                         exerciseId: event.target.value,
+                        exerciseName: exercise?.name ?? '',
                       })
-                    }
+                    }}
                   >
                     <option value="">Choose exercise</option>
                     {activeExercises.map((exercise) => (
@@ -468,7 +476,7 @@ export function LogWorkoutScreen({
           </div>
 
           <label className="field">
-            <span>Session notes</span>
+            <span>Notes</span>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}

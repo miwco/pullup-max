@@ -4,6 +4,7 @@ export type AppRoute =
   | 'today'
   | 'log'
   | 'history'
+  | 'progress'
   | 'library'
   | 'cycle'
   | 'settings'
@@ -19,6 +20,7 @@ const VALID_ROUTES = new Set<AppRoute>([
   'today',
   'log',
   'history',
+  'progress',
   'library',
   'cycle',
   'settings',

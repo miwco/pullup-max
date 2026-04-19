@@ -6,19 +6,31 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { createSeedData } from '../domain/defaults'
 import {
-  serializeExportBundle,
+  getBodyweightSnapshotValue,
+  upsertBodyweightEntry,
+} from '../domain/bodyweight'
+import {
   parseImportBundle,
+  serializeExportBundle,
 } from '../domain/importExport'
 import {
+  buildBodyweightPoints,
+  buildMaxHistory,
   buildMaxTrendPoints,
+  buildProgramEntryDrafts,
   buildRecentWorkouts,
+  getCurrentWeekVolumeSummary,
   getBestMax,
   getCurrentCycleWindow,
   getCycleSummaryData,
   getDaysSinceLastMax,
+  getDaysSinceLastWorkout,
+  getLatestSavedBodyweightEntry,
   getMaxExposures,
   getMaxTrendClassificationForNewResult,
+  getProgramStepsForRecommendation,
   getSupportVolumeScore,
   withComputedRecommendation,
 } from '../domain/selectors'
@@ -26,11 +38,15 @@ import type {
   AppData,
   AppSettings,
   AthleteProfile,
+  BodyweightEntry,
   Exercise,
+  ProgramEntryDraft,
+  ProgramTemplate,
   SaveSessionInput,
+  SessionType,
 } from '../domain/types'
-import { createId } from '../lib/id'
 import { todayDateString } from '../lib/date'
+import { createId } from '../lib/id'
 import {
   loadOrSeedAppData,
   persistAppData,
@@ -48,24 +64,34 @@ interface AppNotice {
 interface AppContextValue {
   activeExercises: Exercise[]
   allTimeBestMax: number | null
+  bodyweightTrendPoints: Array<{
+    date: string
+    value: number
+  }>
+  cycleMaxTrendPoints: ReturnType<typeof buildMaxTrendPoints>
   cycleSummary: ReturnType<typeof getCycleSummaryData>
   data: AppData
   daysSinceLastMax: number | null
+  daysSinceLastWorkout: number | null
   deleteExercise: (exerciseId: string) => Promise<void>
   errorMessage: string | null
   exportBackup: () => string
+  getProgramPrefill: (sessionType: SessionType) => ProgramEntryDraft[]
   importBackup: (rawText: string) => Promise<boolean>
   isReady: boolean
-  maxTrendPoints: ReturnType<typeof buildMaxTrendPoints>
+  latestBodyweightEntry: BodyweightEntry | null
+  maxHistory: ReturnType<typeof buildMaxHistory>
   notice: AppNotice | null
   recentWorkouts: ReturnType<typeof buildRecentWorkouts>
   resetAllData: () => Promise<void>
+  saveBodyweight: (date: string, weightKg: number) => Promise<boolean>
   saveSession: (input: SaveSessionInput) => Promise<boolean>
   setNotice: (notice: AppNotice | null) => void
   supportVolumeTrend: Array<{
     date: string
     value: number
   }>
+  weeklyVolumeSummary: ReturnType<typeof getCurrentWeekVolumeSummary>
   updateExercise: (
     input: Omit<Exercise, 'id'> & { id?: string },
   ) => Promise<void>
@@ -73,54 +99,13 @@ interface AppContextValue {
     profileUpdates: Partial<AthleteProfile>,
     settingsUpdates?: Partial<AppSettings>,
   ) => Promise<void>
+  updateProgramTemplate: (nextTemplate: ProgramTemplate) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
 
 const EMPTY_APP_DATA = withComputedRecommendation(
-  {
-    athleteProfile: {
-      id: 'athlete-default',
-      mainMovement: 'Pull-up',
-      cycleStartDate: todayDateString(),
-      bodyweightTrackingEnabled: false,
-      bandsAvailable: true,
-      fatigueSensitivity: 3,
-      jointPainSensitivity: 3,
-      preferredSupportMethods: [
-        'Density pull-up block',
-        'Ladder pull-up block',
-        'Cluster pull-up block',
-        'Band-assisted pull-up',
-      ],
-      notes: '',
-    },
-    settings: {
-      defaultMovement: 'Pull-up',
-      bandsAvailable: true,
-      bodyweightTrackingEnabled: false,
-      fatigueSensitivity: 3,
-      jointPainSensitivity: 3,
-      exportFormatVersion: 1,
-    },
-    exercises: [],
-    sessions: [],
-    exerciseEntries: [],
-    maxTests: [],
-    recommendationState: {
-      id: 'recommendation-current',
-      phase: 'build',
-      trend: 'stable',
-      nextSessionType: 'max',
-      suggestedExercises: ['Pull-up'],
-      supportEmphasis: 'establish the first clean max test',
-      deloadLevel: 'none',
-      explanation:
-        'You do not have a max test yet. Start with one clean all-out set to anchor the plan.',
-      computedAt: new Date().toISOString(),
-      maxSessionDue: true,
-    },
-  },
+  createSeedData(todayDateString()),
   todayDateString(),
 )
 
@@ -165,13 +150,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const cycleWindow = getCurrentCycleWindow(
+    data.athleteProfile.cycleStartDate,
+    data.settings.cycleLengthDays,
+  )
   const cycleSummary = getCycleSummaryData(data)
   const recentWorkouts = buildRecentWorkouts(
     data.sessions,
     data.exerciseEntries,
     data.exercises,
+    data.maxTests,
   )
-  const maxTrendPoints = buildMaxTrendPoints(
+  const cycleMaxTrendPoints = buildMaxTrendPoints(
+    data.maxTests,
+    data.sessions,
+    data.athleteProfile.mainMovement,
+    cycleWindow,
+  )
+  const bodyweightTrendPoints = buildBodyweightPoints(
+    data.bodyweightEntries,
+    cycleWindow,
+  )
+  const maxHistory = buildMaxHistory(
     data.maxTests,
     data.sessions,
     data.athleteProfile.mainMovement,
@@ -182,17 +182,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     data.athleteProfile.mainMovement,
   )
   const activeExercises = data.exercises.filter((exercise) => exercise.active)
+  const latestBodyweightEntry = getLatestSavedBodyweightEntry(
+    data.bodyweightEntries,
+  )
   const exerciseLookup = new Map(
     data.exercises.map((exercise) => [exercise.id, exercise]),
   )
-  const cycleWindow = getCurrentCycleWindow(data.athleteProfile.cycleStartDate)
   const supportVolumeTrend = recentWorkouts
     .filter(
       (session) =>
         session.date >= cycleWindow.start &&
-        (session.sessionType === 'support' || session.sessionType === 'deload'),
+        session.date <= cycleWindow.end &&
+        session.sessionType === 'support',
     )
-    .slice(0, 10)
+    .slice(0, 12)
     .reverse()
     .map((session) => ({
       date: session.date,
@@ -201,11 +204,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         0,
       ),
     }))
+  const weeklyVolumeSummary = getCurrentWeekVolumeSummary(data)
   const daysSinceLastMax = getDaysSinceLastMax(
     data.sessions,
     data.maxTests,
     data.athleteProfile.mainMovement,
   )
+  const daysSinceLastWorkout = getDaysSinceLastWorkout(data.sessions)
 
   async function saveNextData(nextData: AppData, successMessage?: string) {
     try {
@@ -232,6 +237,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function getProgramPrefill(sessionType: SessionType) {
+    return buildProgramEntryDrafts(
+      getProgramStepsForRecommendation(data, sessionType),
+      data.exercises,
+    )
+  }
+
+  async function saveBodyweight(date: string, weightKg: number) {
+    return saveNextData(
+      withComputedRecommendation(
+        {
+          ...data,
+          bodyweightEntries: upsertBodyweightEntry(
+            data.bodyweightEntries,
+            date,
+            weightKg,
+          ),
+        },
+        todayDateString(),
+      ),
+      'Bodyweight saved.',
+    )
+  }
+
   async function saveSession(input: SaveSessionInput) {
     const sessionId = createId('session')
     const existingMaxExposures = getMaxExposures(
@@ -239,13 +268,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       data.sessions,
       data.athleteProfile.mainMovement,
     )
-    const phaseAtTime =
-      input.session.sessionType === 'deload'
-        ? 'deload'
-        : data.recommendationState.phase
+    const maxBodyweightSnapshot = getBodyweightSnapshotValue(
+      data.bodyweightEntries,
+      data.settings.bodyweightTrackingEnabled,
+    )
     const session = {
       id: sessionId,
-      phaseAtTime,
       ...input.session,
       notes: input.session.notes ?? '',
     }
@@ -253,6 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...entry,
       id: createId('entry'),
       workoutSessionId: sessionId,
+      notes: entry.notes ?? undefined,
     }))
     const maxTest = input.maxTest
       ? {
@@ -260,6 +289,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           workoutSessionId: sessionId,
           reps: input.maxTest.reps,
           movement: data.athleteProfile.mainMovement,
+          videoUrl: input.maxTest.videoUrl,
+          bodyweightKgSnapshot: maxBodyweightSnapshot,
           failurePoint: input.maxTest.failurePoint,
           qualityFlag: input.maxTest.qualityFlag,
           trendClassification: getMaxTrendClassificationForNewResult(
@@ -269,6 +300,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
         }
       : null
+
     const nextData = withComputedRecommendation(
       {
         ...data,
@@ -329,7 +361,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           },
           todayDateString(),
         ),
-        'Exercise is already in your history, so it was archived instead of deleted.',
+        'Exercise archived because it is already referenced in history.',
       )
       return
     }
@@ -352,54 +384,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     profileUpdates: Partial<AthleteProfile>,
     settingsUpdates?: Partial<AppSettings>,
   ) {
-    const nextProfile: AthleteProfile = {
-      ...data.athleteProfile,
-      ...profileUpdates,
-    }
-    const nextSettings: AppSettings = {
-      ...data.settings,
-      ...settingsUpdates,
-      defaultMovement:
-        settingsUpdates?.defaultMovement ??
-        profileUpdates.mainMovement ??
-        data.settings.defaultMovement,
-      bandsAvailable:
-        settingsUpdates?.bandsAvailable ??
-        profileUpdates.bandsAvailable ??
-        data.settings.bandsAvailable,
-      bodyweightTrackingEnabled:
-        settingsUpdates?.bodyweightTrackingEnabled ??
-        profileUpdates.bodyweightTrackingEnabled ??
-        data.settings.bodyweightTrackingEnabled,
-      fatigueSensitivity:
-        settingsUpdates?.fatigueSensitivity ??
-        profileUpdates.fatigueSensitivity ??
-        data.settings.fatigueSensitivity,
-      jointPainSensitivity:
-        settingsUpdates?.jointPainSensitivity ??
-        profileUpdates.jointPainSensitivity ??
-        data.settings.jointPainSensitivity,
-    }
-
-    const syncedProfile: AthleteProfile = {
-      ...nextProfile,
-      mainMovement: nextSettings.defaultMovement,
-      bandsAvailable: nextSettings.bandsAvailable,
-      bodyweightTrackingEnabled: nextSettings.bodyweightTrackingEnabled,
-      fatigueSensitivity: nextSettings.fatigueSensitivity,
-      jointPainSensitivity: nextSettings.jointPainSensitivity,
-    }
-
     await saveNextData(
       withComputedRecommendation(
         {
           ...data,
-          athleteProfile: syncedProfile,
-          settings: nextSettings,
+          athleteProfile: {
+            ...data.athleteProfile,
+            ...profileUpdates,
+          },
+          settings: {
+            ...data.settings,
+            ...settingsUpdates,
+          },
         },
         todayDateString(),
       ),
       'Settings updated.',
+    )
+  }
+
+  async function updateProgramTemplate(nextTemplate: ProgramTemplate) {
+    await saveNextData(
+      withComputedRecommendation(
+        {
+          ...data,
+          programTemplate: nextTemplate,
+        },
+        todayDateString(),
+      ),
+      'Program template updated.',
     )
   }
 
@@ -453,23 +466,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const contextValue: AppContextValue = {
     activeExercises,
     allTimeBestMax,
+    bodyweightTrendPoints,
+    cycleMaxTrendPoints,
     cycleSummary,
     data,
     daysSinceLastMax,
+    daysSinceLastWorkout,
     deleteExercise,
     errorMessage,
     exportBackup: () => serializeExportBundle(data),
+    getProgramPrefill,
     importBackup,
     isReady,
-    maxTrendPoints,
+    latestBodyweightEntry,
+    maxHistory,
     notice,
     recentWorkouts,
     resetAllData,
+    saveBodyweight,
     saveSession,
     setNotice,
     supportVolumeTrend,
+    weeklyVolumeSummary,
     updateExercise,
     updatePreferences,
+    updateProgramTemplate,
   }
 
   return <AppContext value={contextValue}>{children}</AppContext>

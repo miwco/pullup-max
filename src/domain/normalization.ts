@@ -1,0 +1,560 @@
+import { createDefaultRecommendationState, createSeedData } from './defaults'
+import { clampCycleLengthDays } from './cycle'
+import { createDefaultProgramTemplate } from './programTemplate'
+import type {
+  AppData,
+  AppSettings,
+  AthleteProfile,
+  BodyweightEntry,
+  Exercise,
+  ExerciseEntry,
+  FailurePoint,
+  MaxTestResult,
+  ProgramBlock,
+  ProgramStep,
+  ProgramTemplate,
+  QualityFlag,
+  TrendClassification,
+  WorkoutSession,
+} from './types'
+import { createId } from '../lib/id'
+import { isIsoDateString, todayDateString } from '../lib/date'
+
+const VALID_FAILURE_POINTS = new Set<FailurePoint>([
+  'top',
+  'middle',
+  'start/bottom',
+  'grip',
+  'not sure',
+])
+const VALID_TRENDS = new Set<TrendClassification>([
+  'rising',
+  'stable',
+  'falling',
+])
+const VALID_QUALITY_FLAGS = new Set<QualityFlag>(['clean', 'grindy', 'partial'])
+const LEGACY_QUALITY_FLAGS = new Map<string, QualityFlag>([
+  ['cleaner', 'clean'],
+  ['stronger', 'clean'],
+  ['grindy', 'grindy'],
+  ['partial', 'partial'],
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function normalizeFailurePoint(value: unknown) {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  if (VALID_FAILURE_POINTS.has(value as FailurePoint)) {
+    return value as FailurePoint
+  }
+
+  if (value === 'finish') {
+    return 'top'
+  }
+
+  if (value === 'start') {
+    return 'start/bottom'
+  }
+
+  if (value === 'grip/hang') {
+    return 'grip'
+  }
+
+  return undefined
+}
+
+function normalizeQualityFlag(value: unknown) {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  if (VALID_QUALITY_FLAGS.has(value as QualityFlag)) {
+    return value as QualityFlag
+  }
+
+  return LEGACY_QUALITY_FLAGS.get(value)
+}
+
+function normalizeAthleteProfile(
+  value: unknown,
+  today: string,
+): AthleteProfile | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  return {
+    id: typeof value.id === 'string' ? value.id : 'athlete-default',
+    mainMovement:
+      typeof value.mainMovement === 'string' && value.mainMovement.trim()
+        ? value.mainMovement.trim()
+        : 'Pull-up',
+    cycleStartDate:
+      typeof value.cycleStartDate === 'string' &&
+      isIsoDateString(value.cycleStartDate)
+        ? value.cycleStartDate
+        : today,
+    notes: typeof value.notes === 'string' ? value.notes : '',
+  }
+}
+
+function normalizeSettings(value: unknown): AppSettings | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  return {
+    bodyweightTrackingEnabled:
+      typeof value.bodyweightTrackingEnabled === 'boolean'
+        ? value.bodyweightTrackingEnabled
+        : true,
+    bandsAvailable:
+      typeof value.bandsAvailable === 'boolean' ? value.bandsAvailable : true,
+    cycleLengthDays: clampCycleLengthDays(
+      typeof value.cycleLengthDays === 'number' ? value.cycleLengthDays : 90,
+    ),
+    fatigueSensitivity:
+      typeof value.fatigueSensitivity === 'number'
+        ? value.fatigueSensitivity
+        : 3,
+    jointPainSensitivity:
+      typeof value.jointPainSensitivity === 'number'
+        ? value.jointPainSensitivity
+        : 3,
+    exportFormatVersion:
+      typeof value.exportFormatVersion === 'number'
+        ? value.exportFormatVersion
+        : 3,
+  }
+}
+
+function normalizeExerciseType(value: unknown) {
+  if (value === 'max' || value === 'support' || value === 'custom') {
+    return value
+  }
+
+  if (value === 'recovery') {
+    return 'support'
+  }
+
+  return 'custom'
+}
+
+function normalizeExercises(value: unknown) {
+  const seeded = createSeedData(todayDateString()).exercises
+
+  if (!Array.isArray(value)) {
+    return seeded
+  }
+
+  const defaultNames = new Set(seeded.map((exercise) => exercise.name))
+  const normalized = value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return []
+    }
+
+    if (
+      typeof item.id !== 'string' ||
+      typeof item.name !== 'string' ||
+      typeof item.defaultUnit !== 'string'
+    ) {
+      return []
+    }
+
+    return [
+      {
+        id: item.id,
+        name: item.name,
+        type: normalizeExerciseType(item.type),
+        active: typeof item.active === 'boolean' ? item.active : true,
+        builtIn:
+          typeof item.builtIn === 'boolean'
+            ? item.builtIn
+            : defaultNames.has(item.name),
+        defaultUnit:
+          item.defaultUnit === 'reps' ||
+          item.defaultUnit === 'seconds' ||
+          item.defaultUnit === 'minutes' ||
+          item.defaultUnit === 'sets'
+            ? item.defaultUnit
+            : 'reps',
+        tags: Array.isArray(item.tags)
+          ? item.tags.filter((tag): tag is string => typeof tag === 'string')
+          : [],
+      } satisfies Exercise,
+    ]
+  })
+
+  return normalized.length > 0 ? normalized : seeded
+}
+
+function normalizeSessionType(value: unknown) {
+  if (value === 'max' || value === 'support') {
+    return value
+  }
+
+  if (value === 'recovery' || value === 'deload') {
+    return 'support'
+  }
+
+  return null
+}
+
+function normalizeSessions(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as WorkoutSession[]
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return []
+    }
+
+    const sessionType = normalizeSessionType(item.sessionType)
+
+    if (
+      !sessionType ||
+      typeof item.id !== 'string' ||
+      typeof item.date !== 'string' ||
+      !isIsoDateString(item.date)
+    ) {
+      return []
+    }
+
+    return [
+      {
+        id: item.id,
+        date: item.date,
+        sessionType,
+        bodyweightKg:
+          typeof item.bodyweightKg === 'number' ? item.bodyweightKg : undefined,
+        fatigueBefore:
+          typeof item.fatigueBefore === 'number'
+            ? item.fatigueBefore
+            : undefined,
+        fatigueAfter:
+          typeof item.fatigueAfter === 'number' ? item.fatigueAfter : undefined,
+        elbowPain:
+          typeof item.elbowPain === 'number' ? item.elbowPain : undefined,
+        shoulderPain:
+          typeof item.shoulderPain === 'number' ? item.shoulderPain : undefined,
+        notes: typeof item.notes === 'string' ? item.notes : '',
+      } satisfies WorkoutSession,
+    ]
+  })
+}
+
+function normalizeEntries(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as ExerciseEntry[]
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return []
+    }
+
+    if (
+      typeof item.id !== 'string' ||
+      typeof item.workoutSessionId !== 'string' ||
+      typeof item.exerciseId !== 'string'
+    ) {
+      return []
+    }
+
+    return [
+      {
+        id: item.id,
+        workoutSessionId: item.workoutSessionId,
+        exerciseId: item.exerciseId,
+        sets: typeof item.sets === 'number' ? item.sets : undefined,
+        reps: typeof item.reps === 'number' ? item.reps : undefined,
+        durationSeconds:
+          typeof item.durationSeconds === 'number'
+            ? item.durationSeconds
+            : undefined,
+        bandAssisted:
+          typeof item.bandAssisted === 'boolean'
+            ? item.bandAssisted
+            : undefined,
+        effort: typeof item.effort === 'number' ? item.effort : undefined,
+        notes: typeof item.notes === 'string' ? item.notes : undefined,
+        isMaxTest: typeof item.isMaxTest === 'boolean' ? item.isMaxTest : false,
+      } satisfies ExerciseEntry,
+    ]
+  })
+}
+
+function normalizeMaxTests(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as MaxTestResult[]
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return []
+    }
+
+    if (
+      typeof item.id !== 'string' ||
+      typeof item.workoutSessionId !== 'string' ||
+      typeof item.reps !== 'number' ||
+      typeof item.movement !== 'string'
+    ) {
+      return []
+    }
+
+    return [
+      {
+        id: item.id,
+        workoutSessionId: item.workoutSessionId,
+        reps: item.reps,
+        movement: item.movement,
+        videoUrl: normalizeUrl(item.videoUrl),
+        bodyweightKgSnapshot:
+          typeof item.bodyweightKgSnapshot === 'number'
+            ? item.bodyweightKgSnapshot
+            : undefined,
+        failurePoint: normalizeFailurePoint(item.failurePoint),
+        qualityFlag: normalizeQualityFlag(item.qualityFlag),
+        trendClassification:
+          typeof item.trendClassification === 'string' &&
+          VALID_TRENDS.has(item.trendClassification as TrendClassification)
+            ? (item.trendClassification as TrendClassification)
+            : 'stable',
+      } satisfies MaxTestResult,
+    ]
+  })
+}
+
+function normalizeUrl(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined
+  }
+
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.toString()
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeBodyweightEntries(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as BodyweightEntry[]
+  }
+
+  return value.flatMap((item) => {
+    if (
+      !isRecord(item) ||
+      typeof item.id !== 'string' ||
+      typeof item.date !== 'string' ||
+      !isIsoDateString(item.date) ||
+      typeof item.weightKg !== 'number'
+    ) {
+      return []
+    }
+
+    return [
+      {
+        id: item.id,
+        date: item.date,
+        weightKg: item.weightKg,
+      } satisfies BodyweightEntry,
+    ]
+  })
+}
+
+function normalizeProgramStep(
+  value: unknown,
+  exercises: Exercise[],
+  fallbackStep: ProgramStep,
+) {
+  if (!isRecord(value)) {
+    return fallbackStep
+  }
+
+  const exerciseId =
+    typeof value.exerciseId === 'string' &&
+    exercises.some((exercise) => exercise.id === value.exerciseId)
+      ? value.exerciseId
+      : fallbackStep.exerciseId
+
+  return {
+    id: typeof value.id === 'string' ? value.id : createId('step'),
+    title: typeof value.title === 'string' ? value.title : fallbackStep.title,
+    exerciseId,
+    sets: typeof value.sets === 'number' ? value.sets : fallbackStep.sets,
+    reps: typeof value.reps === 'number' ? value.reps : fallbackStep.reps,
+    minReps:
+      typeof value.minReps === 'number' ? value.minReps : fallbackStep.minReps,
+    maxReps:
+      typeof value.maxReps === 'number' ? value.maxReps : fallbackStep.maxReps,
+    holdSeconds:
+      typeof value.holdSeconds === 'number'
+        ? value.holdSeconds
+        : fallbackStep.holdSeconds,
+    durationSeconds:
+      typeof value.durationSeconds === 'number'
+        ? value.durationSeconds
+        : fallbackStep.durationSeconds,
+    emomMinutes:
+      typeof value.emomMinutes === 'number'
+        ? value.emomMinutes
+        : fallbackStep.emomMinutes,
+    emomReps:
+      typeof value.emomReps === 'number'
+        ? value.emomReps
+        : fallbackStep.emomReps,
+    bandAllowed:
+      typeof value.bandAllowed === 'boolean'
+        ? value.bandAllowed
+        : fallbackStep.bandAllowed,
+    bodyweightOption:
+      value.bodyweightOption === 'bodyweight' ||
+      value.bodyweightOption === 'band' ||
+      value.bodyweightOption === 'either'
+        ? value.bodyweightOption
+        : fallbackStep.bodyweightOption,
+    captureAsMaxTest:
+      typeof value.captureAsMaxTest === 'boolean'
+        ? value.captureAsMaxTest
+        : fallbackStep.captureAsMaxTest,
+    notes: typeof value.notes === 'string' ? value.notes : fallbackStep.notes,
+  }
+}
+
+function normalizeProgramBlock(
+  value: unknown,
+  exercises: Exercise[],
+  fallbackBlock: ProgramBlock,
+) {
+  if (!isRecord(value)) {
+    return fallbackBlock
+  }
+
+  const { steps } = value
+
+  if (!Array.isArray(steps)) {
+    return fallbackBlock
+  }
+
+  return {
+    title:
+      typeof value.title === 'string' && value.title.trim()
+        ? value.title
+        : fallbackBlock.title,
+    steps: fallbackBlock.steps.map((fallbackStep, index) =>
+      normalizeProgramStep(steps[index], exercises, fallbackStep),
+    ),
+  }
+}
+
+function normalizeProgramTemplate(value: unknown, exercises: Exercise[]) {
+  const fallback = createDefaultProgramTemplate(exercises)
+
+  if (!isRecord(value)) {
+    return fallback
+  }
+
+  return {
+    maxDay: {
+      warmup: normalizeProgramBlock(
+        isRecord(value.maxDay) ? value.maxDay.warmup : undefined,
+        exercises,
+        fallback.maxDay.warmup,
+      ),
+      mainSet: normalizeProgramBlock(
+        isRecord(value.maxDay) ? value.maxDay.mainSet : undefined,
+        exercises,
+        fallback.maxDay.mainSet,
+      ),
+      volumeBlock: normalizeProgramBlock(
+        isRecord(value.maxDay) ? value.maxDay.volumeBlock : undefined,
+        exercises,
+        fallback.maxDay.volumeBlock,
+      ),
+      finisher: normalizeProgramBlock(
+        isRecord(value.maxDay) ? value.maxDay.finisher : undefined,
+        exercises,
+        fallback.maxDay.finisher,
+      ),
+    },
+    supportDayBase: normalizeProgramBlock(
+      value.supportDayBase,
+      exercises,
+      fallback.supportDayBase,
+    ),
+    supportFallback: normalizeProgramBlock(
+      value.supportFallback,
+      exercises,
+      fallback.supportFallback,
+    ),
+    weakPointBlocks: {
+      top: normalizeProgramBlock(
+        isRecord(value.weakPointBlocks) ? value.weakPointBlocks.top : undefined,
+        exercises,
+        fallback.weakPointBlocks.top,
+      ),
+      middle: normalizeProgramBlock(
+        isRecord(value.weakPointBlocks)
+          ? value.weakPointBlocks.middle
+          : undefined,
+        exercises,
+        fallback.weakPointBlocks.middle,
+      ),
+      'start/bottom': normalizeProgramBlock(
+        isRecord(value.weakPointBlocks)
+          ? value.weakPointBlocks['start/bottom']
+          : undefined,
+        exercises,
+        fallback.weakPointBlocks['start/bottom'],
+      ),
+      grip: normalizeProgramBlock(
+        isRecord(value.weakPointBlocks)
+          ? value.weakPointBlocks.grip
+          : undefined,
+        exercises,
+        fallback.weakPointBlocks.grip,
+      ),
+    },
+  } satisfies ProgramTemplate
+}
+
+export function normalizeAppData(value: unknown, today = todayDateString()) {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const athleteProfile = normalizeAthleteProfile(value.athleteProfile, today)
+  const settings = normalizeSettings(value.settings)
+
+  if (!athleteProfile || !settings) {
+    return null
+  }
+
+  const exercises = normalizeExercises(value.exercises)
+
+  return {
+    athleteProfile,
+    settings: {
+      ...settings,
+      exportFormatVersion: 4,
+    },
+    exercises,
+    bodyweightEntries: normalizeBodyweightEntries(value.bodyweightEntries),
+    sessions: normalizeSessions(value.sessions),
+    exerciseEntries: normalizeEntries(value.exerciseEntries),
+    maxTests: normalizeMaxTests(value.maxTests),
+    programTemplate: normalizeProgramTemplate(value.programTemplate, exercises),
+    recommendationState: createDefaultRecommendationState(),
+  } satisfies AppData
+}

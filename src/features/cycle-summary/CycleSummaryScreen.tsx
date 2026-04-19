@@ -4,12 +4,16 @@ import { useAppState } from '../../app/AppProvider'
 import { formatLongDate } from '../../lib/date'
 
 export function CycleSummaryScreen() {
-  const { cycleSummary } = useAppState()
+  const { cycleSummary, data, weeklyVolumeSummary } = useAppState()
+  const { recommendationState } = data
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Three-month view" title="Cycle summary">
-        <div className="info-grid">
+      <Section
+        eyebrow={`${data.settings.cycleLengthDays}-day cycle`}
+        title="Cycle summary"
+      >
+        <div className="info-grid info-grid--triple">
           <div className="info-tile">
             <span className="metric-label">Cycle window</span>
             <strong>
@@ -18,12 +22,28 @@ export function CycleSummaryScreen() {
             </strong>
           </div>
           <div className="info-tile">
+            <span className="metric-label">Current baseline</span>
+            <strong>{cycleSummary.baselineMax ?? 'No baseline yet'}</strong>
+          </div>
+          <div className="info-tile">
+            <span className="metric-label">Cycle best</span>
+            <strong>{cycleSummary.cycleBestMax ?? 'No max yet'}</strong>
+          </div>
+          <div className="info-tile">
+            <span className="metric-label">Progress</span>
+            <strong>{cycleSummary.progressPercent}%</strong>
+          </div>
+          <div className="info-tile">
             <span className="metric-label">Current phase</span>
             <strong>{cycleSummary.currentPhase}</strong>
           </div>
           <div className="info-tile">
-            <span className="metric-label">Cycle best max</span>
-            <strong>{cycleSummary.cycleBestMax ?? 'No max yet'}</strong>
+            <span className="metric-label">Days elapsed</span>
+            <strong>{cycleSummary.daysElapsed}</strong>
+          </div>
+          <div className="info-tile">
+            <span className="metric-label">Days remaining</span>
+            <strong>{cycleSummary.daysRemaining}</strong>
           </div>
         </div>
       </Section>
@@ -39,39 +59,46 @@ export function CycleSummaryScreen() {
             tone="accent"
           />
           <StatusPill
-            label={`${cycleSummary.recoverySessions} recovery`}
+            label={`${cycleSummary.totalSessions} total`}
             tone="neutral"
           />
           <StatusPill
-            label={`${cycleSummary.deloadPeriods.length} deload periods`}
-            tone="warning"
+            label={`trend ${recommendationState.trend}`}
+            tone="neutral"
           />
         </div>
       </Section>
 
-      <Section eyebrow="Summary" title="What the cycle says">
+      <Section eyebrow="Summary" title="Concise readout">
         <p className="muted-text">{cycleSummary.summary}</p>
       </Section>
 
-      <Section eyebrow="Deload periods" title="Recorded deloads">
-        {cycleSummary.deloadPeriods.length === 0 ? (
-          <p className="muted-text">
-            No deload periods have been recorded in this cycle.
-          </p>
-        ) : (
-          <div className="workout-list">
-            {cycleSummary.deloadPeriods.map((period) => (
-              <article
-                key={`${period.start}-${period.end}`}
-                className="workout-list__item"
-              >
-                <p className="workout-list__date">
-                  {formatLongDate(period.start)} to {formatLongDate(period.end)}
-                </p>
-              </article>
-            ))}
+      <Section eyebrow="Recommendation" title="Current read on the cycle">
+        <div className="info-grid info-grid--triple">
+          <div className="info-tile">
+            <span className="metric-label">Next workout</span>
+            <strong>{recommendationState.nextSessionType}</strong>
           </div>
-        )}
+          <div className="info-tile">
+            <span className="metric-label">Max readiness</span>
+            <strong>
+              {recommendationState.maxReadinessSatisfied
+                ? 'Ready'
+                : 'Not ready'}
+            </strong>
+          </div>
+          <div className="info-tile">
+            <span className="metric-label">Support focus</span>
+            <strong>{recommendationState.defaultSupportFocus}</strong>
+          </div>
+          <div className="info-tile">
+            <span className="metric-label">Weekly volume</span>
+            <strong>
+              {weeklyVolumeSummary.completedPoints}/
+              {weeklyVolumeSummary.targetPoints} pts
+            </strong>
+          </div>
+        </div>
       </Section>
     </div>
   )

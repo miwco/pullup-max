@@ -3,126 +3,113 @@ import type {
   AppSettings,
   AthleteProfile,
   Exercise,
+  ProgramTemplate,
   RecommendationState,
 } from './types'
+import { DEFAULT_CYCLE_LENGTH_DAYS } from './cycle'
 import { createId } from '../lib/id'
 import { todayDateString } from '../lib/date'
+import { createDefaultProgramTemplate } from './programTemplate'
 
-export const EXPORT_FORMAT_VERSION = 1
+export const EXPORT_FORMAT_VERSION = 4
 
-export const DEFAULT_SUPPORT_METHODS = [
-  'Density pull-up block',
-  'Ladder pull-up block',
-  'Cluster pull-up block',
-  'Band-assisted pull-up',
-]
-
-export const DEFAULT_EXERCISES: Exercise[] = [
+const DEFAULT_EXERCISE_SPECS: Array<
+  Omit<Exercise, 'id' | 'active' | 'builtIn'>
+> = [
   {
-    id: createId('exercise'),
     name: 'Pull-up',
     type: 'max',
-    active: true,
     defaultUnit: 'reps',
     tags: ['main movement', 'max test'],
   },
   {
-    id: createId('exercise'),
     name: 'Band-assisted pull-up',
     type: 'support',
-    active: true,
     defaultUnit: 'reps',
-    tags: ['band-assisted', 'volume', 'deload'],
+    tags: ['band-assisted', 'volume'],
   },
   {
-    id: createId('exercise'),
-    name: 'Density pull-up block',
+    name: 'Scapular pull-up',
     type: 'support',
-    active: true,
-    defaultUnit: 'minutes',
-    tags: ['density', 'endurance'],
+    defaultUnit: 'reps',
+    tags: ['warm-up', 'start/bottom'],
   },
   {
-    id: createId('exercise'),
-    name: 'Ladder pull-up block',
-    type: 'support',
-    active: true,
-    defaultUnit: 'sets',
-    tags: ['ladder', 'endurance'],
-  },
-  {
-    id: createId('exercise'),
-    name: 'Cluster pull-up block',
-    type: 'support',
-    active: true,
-    defaultUnit: 'sets',
-    tags: ['cluster', 'power'],
-  },
-  {
-    id: createId('exercise'),
     name: 'Dead hang',
-    type: 'recovery',
-    active: true,
+    type: 'support',
     defaultUnit: 'seconds',
     tags: ['hang', 'grip'],
   },
   {
-    id: createId('exercise'),
     name: 'Active hang',
-    type: 'recovery',
-    active: true,
+    type: 'support',
     defaultUnit: 'seconds',
     tags: ['hang', 'scap'],
   },
   {
-    id: createId('exercise'),
-    name: 'Scapular pull-up',
-    type: 'recovery',
-    active: true,
-    defaultUnit: 'reps',
-    tags: ['scap', 'start'],
-  },
-  {
-    id: createId('exercise'),
     name: 'Top hold',
     type: 'support',
-    active: true,
     defaultUnit: 'seconds',
-    tags: ['finish', 'isometric'],
+    tags: ['top', 'isometric'],
   },
   {
-    id: createId('exercise'),
-    name: 'Negative pull-up',
+    name: 'Top-half pull-up',
     type: 'support',
-    active: true,
     defaultUnit: 'reps',
-    tags: ['eccentric', 'middle'],
+    tags: ['top'],
   },
   {
-    id: createId('exercise'),
-    name: 'Bottom-pause pull-up',
+    name: 'Mid-range hold',
     type: 'support',
-    active: true,
-    defaultUnit: 'reps',
-    tags: ['start', 'pause'],
+    defaultUnit: 'seconds',
+    tags: ['middle', 'isometric'],
   },
   {
-    id: createId('exercise'),
     name: 'Mid-pause pull-up',
     type: 'support',
-    active: true,
     defaultUnit: 'reps',
     tags: ['middle', 'pause'],
   },
   {
-    id: createId('exercise'),
-    name: 'Top-half pull-up',
+    name: 'Negative pull-up',
     type: 'support',
-    active: true,
     defaultUnit: 'reps',
-    tags: ['finish', 'top-half'],
+    tags: ['middle', 'eccentric'],
+  },
+  {
+    name: 'Paused pull-up from dead hang',
+    type: 'support',
+    defaultUnit: 'reps',
+    tags: ['start/bottom', 'pause'],
+  },
+  {
+    name: 'Bottom-range partial pull-up',
+    type: 'support',
+    defaultUnit: 'reps',
+    tags: ['start/bottom', 'partial'],
+  },
+  {
+    name: 'Grip endurance work',
+    type: 'support',
+    defaultUnit: 'seconds',
+    tags: ['grip'],
+  },
+  {
+    name: 'EMOM pull-up block',
+    type: 'support',
+    defaultUnit: 'minutes',
+    tags: ['emom', 'volume'],
   },
 ]
+
+export function createDefaultExercises(): Exercise[] {
+  return DEFAULT_EXERCISE_SPECS.map((exercise) => ({
+    ...exercise,
+    id: createId('exercise'),
+    active: true,
+    builtIn: true,
+  }))
+}
 
 export function createDefaultAthleteProfile(
   today = todayDateString(),
@@ -131,20 +118,15 @@ export function createDefaultAthleteProfile(
     id: 'athlete-default',
     mainMovement: 'Pull-up',
     cycleStartDate: today,
-    bodyweightTrackingEnabled: false,
-    bandsAvailable: true,
-    fatigueSensitivity: 3,
-    jointPainSensitivity: 3,
-    preferredSupportMethods: [...DEFAULT_SUPPORT_METHODS],
     notes: '',
   }
 }
 
 export function createDefaultSettings(): AppSettings {
   return {
-    defaultMovement: 'Pull-up',
     bandsAvailable: true,
-    bodyweightTrackingEnabled: false,
+    bodyweightTrackingEnabled: true,
+    cycleLengthDays: DEFAULT_CYCLE_LENGTH_DAYS,
     fatigueSensitivity: 3,
     jointPainSensitivity: 3,
     exportFormatVersion: EXPORT_FORMAT_VERSION,
@@ -154,27 +136,35 @@ export function createDefaultSettings(): AppSettings {
 export function createDefaultRecommendationState(): RecommendationState {
   return {
     id: 'recommendation-current',
-    phase: 'build',
-    trend: 'stable',
     nextSessionType: 'max',
-    suggestedExercises: ['Pull-up', 'Scapular pull-up', 'Active hang'],
-    supportEmphasis: 'establish the first clean max test',
-    deloadLevel: 'none',
+    maxReadinessSatisfied: true,
+    daysSinceLastMax: null,
+    daysSinceLastWorkout: null,
+    baselineMax: null,
+    currentPhase: 'build',
+    trend: 'stable',
+    defaultSupportFocus: 'generic',
+    suggestedExercises: ['Pull-up', 'EMOM pull-up block', 'Top hold'],
     explanation:
-      'You do not have a max test yet. Start with one clean all-out set to anchor the plan.',
+      'You do not have a max session logged yet. Start with one clean all-out max set.',
     computedAt: new Date().toISOString(),
-    maxSessionDue: true,
   }
 }
 
 export function createSeedData(today = todayDateString()): AppData {
+  const exercises = createDefaultExercises()
+  const programTemplate: ProgramTemplate =
+    createDefaultProgramTemplate(exercises)
+
   return {
     athleteProfile: createDefaultAthleteProfile(today),
     settings: createDefaultSettings(),
-    exercises: structuredClone(DEFAULT_EXERCISES),
+    exercises,
+    bodyweightEntries: [],
     sessions: [],
     exerciseEntries: [],
     maxTests: [],
+    programTemplate,
     recommendationState: createDefaultRecommendationState(),
   }
 }

@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react'
 import { AppProvider, useAppState } from './AppProvider'
 import { BottomNav } from '../components/BottomNav'
 import { NoticeBanner } from '../components/NoticeBanner'
-import { navigateTo, useRouteState } from './routes'
-import { TodayScreen } from '../features/today/TodayScreen'
-import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
-import { HistoryScreen } from '../features/history/HistoryScreen'
-import { ExerciseLibraryScreen } from '../features/exercise-library/ExerciseLibraryScreen'
-import { SettingsScreen } from '../features/settings/SettingsScreen'
-import { CycleSummaryScreen } from '../features/cycle-summary/CycleSummaryScreen'
-import type { SessionType } from '../domain/types'
 import { StatusPill } from '../components/StatusPill'
+import { navigateTo, useRouteState } from './routes'
+import { CycleSummaryScreen } from '../features/cycle-summary/CycleSummaryScreen'
+import { ExerciseLibraryScreen } from '../features/exercise-library/ExerciseLibraryScreen'
+import { HistoryScreen } from '../features/history/HistoryScreen'
+import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
+import { ProgressScreen } from '../features/progress/ProgressScreen'
+import { SettingsScreen } from '../features/settings/SettingsScreen'
+import { TodayScreen } from '../features/today/TodayScreen'
+import type { SessionType } from '../domain/types'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -21,12 +22,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 function normalizeSessionType(value: string | null): SessionType | null {
-  if (
-    value === 'max' ||
-    value === 'support' ||
-    value === 'recovery' ||
-    value === 'deload'
-  ) {
+  if (value === 'max' || value === 'support') {
     return value
   }
 
@@ -70,7 +66,7 @@ function AppShell() {
   }
 
   let content = (
-    <div className="loading-state">Loading local training data…</div>
+    <div className="loading-state">Loading local training data...</div>
   )
 
   if (errorMessage) {
@@ -109,6 +105,10 @@ function AppShell() {
       content = <HistoryScreen />
     }
 
+    if (route.path === 'progress') {
+      content = <ProgressScreen />
+    }
+
     if (route.path === 'library') {
       content = <ExerciseLibraryScreen />
     }
@@ -131,24 +131,46 @@ function AppShell() {
       <header className="app-header">
         <div className="app-header__brand">
           <div>
-            <p className="app-header__eyebrow">
-              Adaptive pull-up specialization
-            </p>
+            <p className="app-header__eyebrow">Focused pull-up max training</p>
             <h1 className="app-header__title">Pull-up Max</h1>
           </div>
-          <button
-            type="button"
-            className="button button--ghost"
-            onClick={() => navigateTo('settings')}
-          >
-            Settings
-          </button>
+
+          <div className="app-header__actions">
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => navigateTo('library')}
+            >
+              Library
+            </button>
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => navigateTo('settings')}
+            >
+              Program
+            </button>
+          </div>
         </div>
 
         <div className="app-header__meta">
-          <StatusPill label={data.recommendationState.phase} tone="accent" />
+          <StatusPill
+            label={`Next ${data.recommendationState.nextSessionType}`}
+            tone="accent"
+          />
           <StatusPill label={data.athleteProfile.mainMovement} tone="neutral" />
-          <StatusPill label={data.recommendationState.trend} tone="success" />
+          <StatusPill
+            label={`Trend ${data.recommendationState.trend}`}
+            tone={
+              data.recommendationState.trend === 'falling'
+                ? 'warning'
+                : 'success'
+            }
+          />
+          <StatusPill
+            label={data.recommendationState.currentPhase}
+            tone="neutral"
+          />
         </div>
       </header>
 

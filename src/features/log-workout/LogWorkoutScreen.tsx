@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Section } from '../../components/Section'
 import { useAppState } from '../../app/AppProvider'
 import type {
@@ -172,13 +173,13 @@ export function LogWorkoutScreen({
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Fast logging" title="Log workout">
+      <Section eyebrow="Fast logging" title="Log workout" compact>
         <form className="form-stack" onSubmit={handleSubmit}>
           <div className="subsection">
             <div className="subsection__header">
               <div>
                 <h3>Session type</h3>
-                <p>
+                <p className="compact-note">
                   Recommended today: <strong>{recommendedType}</strong>
                 </p>
               </div>
@@ -215,49 +216,7 @@ export function LogWorkoutScreen({
               />
             </label>
 
-            <label className="field">
-              <span>Fatigue before</span>
-              <input
-                inputMode="numeric"
-                placeholder="1-5"
-                value={fatigueBefore}
-                onChange={(event) => setFatigueBefore(event.target.value)}
-              />
-            </label>
-
-            <label className="field">
-              <span>Fatigue after</span>
-              <input
-                inputMode="numeric"
-                placeholder="1-5"
-                value={fatigueAfter}
-                onChange={(event) => setFatigueAfter(event.target.value)}
-              />
-            </label>
-
-            <label className="field">
-              <span>Elbow pain</span>
-              <input
-                inputMode="numeric"
-                placeholder="0-5"
-                value={elbowPain}
-                onChange={(event) => setElbowPain(event.target.value)}
-              />
-            </label>
-
-            <label className="field">
-              <span>Shoulder pain</span>
-              <input
-                inputMode="numeric"
-                placeholder="0-5"
-                value={shoulderPain}
-                onChange={(event) => setShoulderPain(event.target.value)}
-              />
-            </label>
-          </div>
-
-          {sessionType === 'max' ? (
-            <div className="max-panel">
+            {sessionType === 'max' ? (
               <label className="field field--max">
                 <span>True max reps</span>
                 <input
@@ -267,76 +226,139 @@ export function LogWorkoutScreen({
                   onChange={(event) => setMaxReps(event.target.value)}
                 />
               </label>
+            ) : null}
+          </div>
 
+          <CollapsibleSection
+            title="Optional session details"
+            summary={
+              sessionType === 'max'
+                ? 'Fatigue, pain, failure point, quality, video, and notes'
+                : 'Fatigue, pain, and notes'
+            }
+          >
+            <div className="form-stack">
               <div className="field-grid field-grid--compact">
                 <label className="field">
-                  <span>Failure point</span>
-                  <select
-                    value={failurePoint}
-                    onChange={(event) =>
-                      setFailurePoint(event.target.value as FailurePoint | '')
-                    }
-                  >
-                    <option value="">Optional</option>
-                    {FAILURE_POINTS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                  <span>Fatigue before</span>
+                  <input
+                    inputMode="numeric"
+                    placeholder="1-5"
+                    value={fatigueBefore}
+                    onChange={(event) => setFatigueBefore(event.target.value)}
+                  />
                 </label>
 
                 <label className="field">
-                  <span>Set quality</span>
-                  <select
-                    value={qualityFlag}
-                    onChange={(event) =>
-                      setQualityFlag(event.target.value as QualityFlag | '')
-                    }
-                  >
-                    <option value="">Optional</option>
-                    {QUALITY_FLAGS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                  <span>Fatigue after</span>
+                  <input
+                    inputMode="numeric"
+                    placeholder="1-5"
+                    value={fatigueAfter}
+                    onChange={(event) => setFatigueAfter(event.target.value)}
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Elbow pain</span>
+                  <input
+                    inputMode="numeric"
+                    placeholder="0-5"
+                    value={elbowPain}
+                    onChange={(event) => setElbowPain(event.target.value)}
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Shoulder pain</span>
+                  <input
+                    inputMode="numeric"
+                    placeholder="0-5"
+                    value={shoulderPain}
+                    onChange={(event) => setShoulderPain(event.target.value)}
+                  />
                 </label>
               </div>
 
+              {sessionType === 'max' ? (
+                <div className="field-grid field-grid--compact">
+                  <label className="field">
+                    <span>Failure point</span>
+                    <select
+                      value={failurePoint}
+                      onChange={(event) =>
+                        setFailurePoint(event.target.value as FailurePoint | '')
+                      }
+                    >
+                      <option value="">Optional</option>
+                      {FAILURE_POINTS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="field">
+                    <span>Set quality</span>
+                    <select
+                      value={qualityFlag}
+                      onChange={(event) =>
+                        setQualityFlag(event.target.value as QualityFlag | '')
+                      }
+                    >
+                      <option value="">Optional</option>
+                      {QUALITY_FLAGS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="field field--span-2">
+                    <span>Video link</span>
+                    <input
+                      inputMode="url"
+                      placeholder="https://..."
+                      value={videoLink}
+                      onChange={(event) => setVideoLink(event.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : null}
+
               <label className="field">
-                <span>Video link</span>
-                <input
-                  inputMode="url"
-                  placeholder="https://..."
-                  value={videoLink}
-                  onChange={(event) => setVideoLink(event.target.value)}
+                <span>Notes</span>
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
                 />
               </label>
             </div>
-          ) : null}
+          </CollapsibleSection>
 
           <div className="subsection">
             <div className="subsection__header">
               <div>
-                <h3>Prefilled workout rows</h3>
-                <p>
-                  These rows come from the editable default program. You can
-                  change or remove any of them before saving.
+                <h3>Workout rows</h3>
+                <p className="compact-note">
+                  Prefilled from your editable default program. Adjust only what
+                  you need.
                 </p>
               </div>
 
               <div className="button-row button-row--wrap">
                 <button
                   type="button"
-                  className="button button--ghost"
+                  className="button button--ghost button--compact"
                   onClick={() => loadPrefill(sessionType)}
                 >
                   Reload defaults
                 </button>
                 <button
                   type="button"
-                  className="button button--ghost"
+                  className="button button--ghost button--compact"
                   onClick={() =>
                     setEntries((current) => [...current, createEmptyEntry()])
                   }
@@ -462,7 +484,7 @@ export function LogWorkoutScreen({
 
                 <button
                   type="button"
-                  className="button button--ghost entry-row__remove"
+                  className="button button--ghost button--compact entry-row__remove"
                   onClick={() =>
                     setEntries((current) =>
                       current.filter((item) => item.localId !== entry.localId),
@@ -474,14 +496,6 @@ export function LogWorkoutScreen({
               </div>
             ))}
           </div>
-
-          <label className="field">
-            <span>Notes</span>
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-            />
-          </label>
 
           {formError ? <p className="form-error">{formError}</p> : null}
 

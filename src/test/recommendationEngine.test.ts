@@ -254,9 +254,17 @@ describe('recommendation engine', () => {
     const exercises = createDefaultExercises()
     const template = createDefaultProgramTemplate(exercises)
 
+    expect(template.maxDay.warmup.steps).toHaveLength(0)
+    expect(template.maxDay.mainSet.steps).toHaveLength(0)
     expect(template.maxDay.volumeBlock.steps[0]?.emomMinutes).toBe(10)
     expect(template.maxDay.volumeBlock.steps[0]?.emomReps).toBe(4)
+    expect(template.maxDay.volumeBlock.steps[0]?.notes).toContain(
+      'complete all 10 minutes with clean form',
+    )
     expect(template.maxDay.finisher.steps[0]?.holdSeconds).toBe(20)
+    expect(template.maxDay.finisher.steps[0]?.notes).toContain(
+      'increase the hold time over the weeks',
+    )
     expect(template.supportDayBase.steps[0]?.sets).toBe(6)
     expect(template.supportDayBase.steps[0]?.minReps).toBe(3)
     expect(template.supportDayBase.steps[0]?.maxReps).toBe(6)
@@ -274,12 +282,16 @@ describe('recommendation engine', () => {
     ).toBe(true)
   })
 
-  it('includes the main Max set in the prefilled Max-day steps', () => {
+  it('prefills Max day with only the editable volume and finisher blocks', () => {
     const exercises = createDefaultExercises()
     const template = createDefaultProgramTemplate(exercises)
     const steps = getProgramStepsForSession(template, 'max', 'generic')
 
-    expect(steps.some((step) => step.captureAsMaxTest)).toBe(true)
+    expect(steps).toHaveLength(2)
+    expect(steps.map((step) => step.title)).toEqual([
+      'EMOM pull-up block',
+      'Top hold',
+    ])
   })
 
   it('creates a usable empty-state seed recommendation', () => {

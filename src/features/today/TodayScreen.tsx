@@ -69,155 +69,146 @@ export function TodayScreen({
 
   return (
     <div className="screen-stack">
-      <section className="hero-panel hero-panel--compact">
-        <div className="hero-panel__meta">
-          <div className="chip-row">
-            <span className="hero-panel__eyebrow">Today</span>
-            <StatusPill
-              label={
-                recommendation.maxReadinessSatisfied
-                  ? 'Max ready'
-                  : 'Support day'
-              }
-              tone={
-                recommendation.maxReadinessSatisfied ? 'success' : 'warning'
-              }
-            />
-            <StatusPill label={recommendation.currentPhase} tone="neutral" />
+      <Section
+        eyebrow="Today"
+        title={
+          recommendation.nextSessionType === 'max' ? 'Max day' : 'Support day'
+        }
+        variant="summary"
+        compact
+        action={
+          <StatusPill
+            label={
+              recommendation.maxReadinessSatisfied ? 'Ready to test' : 'Build day'
+            }
+            tone={
+              recommendation.maxReadinessSatisfied ? 'success' : 'warning'
+            }
+          />
+        }
+      >
+        <div className="summary-block">
+          <div className="summary-block__body">
+            <p className="summary-note">Next recommended workout</p>
+            <p className="compact-note">{recommendation.explanation}</p>
+          </div>
+
+          <div className="summary-actions">
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => onQuickLog(recommendation.nextSessionType)}
+            >
+              Log recommended workout
+            </button>
+
+            <div className="summary-actions__secondary">
+              <button
+                type="button"
+                className="button button--ghost button--compact"
+                onClick={() => onQuickLog('max')}
+              >
+                Log max
+              </button>
+              <button
+                type="button"
+                className="button button--ghost button--compact"
+                onClick={onOpenSettings}
+              >
+                Edit program
+              </button>
+              {canInstall ? (
+                <button
+                  type="button"
+                  className="button button--ghost button--compact"
+                  onClick={onInstall}
+                >
+                  Install PWA
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
+      </Section>
 
-        <div className="hero-panel__content hero-panel__content--single">
-          <div>
-            <p className="hero-panel__kicker">Next recommended workout</p>
-            <h2 className="hero-panel__title hero-panel__title--compact">
-              {recommendation.nextSessionType === 'max'
-                ? 'Max day'
-                : 'Support day'}
-            </h2>
-            <p className="hero-panel__body">{recommendation.explanation}</p>
-          </div>
-        </div>
-
-        <div className="hero-panel__metrics hero-panel__metrics--dense">
-          <div>
-            <span className="metric-label">Max readiness</span>
+      <Section eyebrow="Today details" title="Readiness and workload" compact>
+        <div className="mini-stat-grid" data-testid="today-mini-grid">
+          <div className="mini-stat">
+            <span className="metric-label">Readiness</span>
             <strong>
               {recommendation.maxReadinessSatisfied ? 'Satisfied' : 'Not yet'}
             </strong>
           </div>
-          <div>
-            <span className="metric-label">Days since last max</span>
-            <strong>{formatDayCount(daysSinceLastMax, 'None yet')}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Days since last workout</span>
-            <strong>{formatDayCount(daysSinceLastWorkout, 'None yet')}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Current baseline</span>
+          <div className="mini-stat">
+            <span className="metric-label">Baseline</span>
             <strong>
               {recommendation.baselineMax === null
-                ? 'No baseline yet'
+                ? 'No baseline'
                 : `${recommendation.baselineMax} reps`}
             </strong>
           </div>
-          <div>
-            <span className="metric-label">Current phase</span>
-            <strong>{recommendation.currentPhase}</strong>
-          </div>
-          <div>
+          <div className="mini-stat">
             <span className="metric-label">Trend</span>
             <strong>{recommendation.trend}</strong>
           </div>
-          <div>
+          <div className="mini-stat">
             <span className="metric-label">Support focus</span>
             <strong>{recommendation.defaultSupportFocus}</strong>
           </div>
-          {data.settings.bodyweightTrackingEnabled ? (
-            <div>
-              <span className="metric-label">Current weight</span>
-              <strong>{latestWeightLabel}</strong>
+          <div className="mini-stat">
+            <span className="metric-label">Days since max</span>
+            <strong>{formatDayCount(daysSinceLastMax, 'None yet')}</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Days since workout</span>
+            <strong>{formatDayCount(daysSinceLastWorkout, 'None yet')}</strong>
+          </div>
+        </div>
+
+        <div className="detail-list">
+          <div className="detail-row">
+            <span className="detail-row__label">Suggested exercises</span>
+            <div className="chip-row">
+              {recommendation.suggestedExercises.map((exerciseName) => (
+                <span key={exerciseName} className="chip">
+                  {exerciseName}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {recommendation.nextSessionType === 'support' ? (
+            <div className="detail-row">
+              <span className="detail-row__label">Support default</span>
+              <span className="detail-row__value">
+                {recommendation.defaultSupportFocus}
+              </span>
             </div>
           ) : null}
         </div>
-
-        <div className="hero-panel__actions">
-          <button
-            type="button"
-            className="button button--primary"
-            onClick={() => onQuickLog(recommendation.nextSessionType)}
-          >
-            Log recommended workout
-          </button>
-          <button
-            type="button"
-            className="button button--ghost"
-            onClick={() => onQuickLog('max')}
-          >
-            Log Max day
-          </button>
-          <button
-            type="button"
-            className="button button--ghost"
-            onClick={onOpenSettings}
-          >
-            Edit program
-          </button>
-          {canInstall ? (
-            <button
-              type="button"
-              className="button button--ghost"
-              onClick={onInstall}
-            >
-              Install PWA
-            </button>
-          ) : null}
-        </div>
-      </section>
-
-      <Section eyebrow="Next work" title="Suggested exercises">
-        <div className="chip-row">
-          {recommendation.suggestedExercises.map((exerciseName) => (
-            <span key={exerciseName} className="chip">
-              {exerciseName}
-            </span>
-          ))}
-        </div>
       </Section>
 
-      {recommendation.nextSessionType === 'support' ? (
-        <Section eyebrow="Support default" title="Default support focus">
-          <p className="muted-text">
-            The Support day defaults to{' '}
-            <strong>{recommendation.defaultSupportFocus}</strong> based on the
-            most recent Max-day log. You can still edit or override the
-            prefilled exercises before saving the workout.
-          </p>
-        </Section>
-      ) : null}
-
-      <Section eyebrow="Weekly target" title="Volume this week">
-        <div className="info-grid info-grid--triple">
-          <div className="info-tile">
+      <Section eyebrow="Weekly target" title="Volume this week" compact>
+        <div className="mini-stat-grid">
+          <div className="mini-stat">
             <span className="metric-label">Completed</span>
             <strong>{weeklyVolumeSummary.completedPoints} pts</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Target</span>
             <strong>{weeklyVolumeSummary.targetPoints} pts</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Still to do</span>
             <strong>{weeklyVolumeSummary.remainingPoints} pts</strong>
           </div>
+          <div className="mini-stat">
+            <span className="metric-label">Week</span>
+            <strong>{weeklyVolumeSummary.weekNumber}</strong>
+          </div>
         </div>
 
-        <div className="chip-row">
-          <StatusPill
-            label={`Week ${weeklyVolumeSummary.weekNumber}`}
-            tone="neutral"
-          />
+        <div className="row-stack" style={{ marginTop: 8 }}>
           <StatusPill
             label={weeklyVolumeSummary.volumeStatus}
             tone={
@@ -231,14 +222,14 @@ export function TodayScreen({
           ) : null}
         </div>
 
-        <p className="muted-text" style={{ marginTop: 10 }}>
+        <p className="compact-note" data-testid="today-weekly-target">
           {weeklyVolumeSummary.message}
         </p>
       </Section>
 
       {data.settings.bodyweightTrackingEnabled ? (
-        <Section eyebrow="Bodyweight" title="Today's weight">
-          <div className="field-grid field-grid--compact">
+        <Section eyebrow="Bodyweight" title="Today's weight" compact>
+          <div className="inline-form" data-testid="today-weight-row">
             <label className="field">
               <span>Weight today</span>
               <input
@@ -249,32 +240,28 @@ export function TodayScreen({
               />
             </label>
 
-            <div className="info-tile">
+            <div className="mini-stat">
               <span className="metric-label">Latest saved</span>
-              <strong>
-                {latestWeightLabel}
-              </strong>
-              <p className="muted-text">
+              <strong>{latestWeightLabel}</strong>
+              <p className="compact-note">
                 {latestBodyweightEntry
                   ? formatLongDate(latestBodyweightEntry.date)
                   : 'Save today to start tracking.'}
               </p>
             </div>
-          </div>
 
-          <div className="button-row" style={{ marginTop: 12 }}>
             <button
               type="button"
               className="button button--primary"
               onClick={() => void handleSaveWeight()}
             >
-              Save today's weight
+              Save weight
             </button>
           </div>
 
           {weightError ? <p className="form-error">{weightError}</p> : null}
 
-          <p className="muted-text" style={{ marginTop: 10 }}>
+          <p className="compact-note">
             New Max results will automatically snapshot the latest saved weight.
           </p>
         </Section>

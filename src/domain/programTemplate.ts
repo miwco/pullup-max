@@ -255,7 +255,6 @@ export function getProgramStepsForSession(
   if (sessionType === 'max') {
     return [
       ...cloneSteps(template.maxDay.warmup.steps),
-      ...cloneSteps(template.maxDay.mainSet.steps),
       ...cloneSteps(template.maxDay.volumeBlock.steps),
       ...cloneSteps(template.maxDay.finisher.steps),
     ]

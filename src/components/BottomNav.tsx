@@ -1,8 +1,9 @@
-import type { AppRoute } from '../app/routes'
+import { getRouteHref, type AppRoute } from '../app/routes'
+import type { SessionType } from '../domain/types'
 
 interface BottomNavProps {
   currentRoute: AppRoute
-  onNavigate: (route: AppRoute) => void
+  recommendedSessionType: SessionType
 }
 
 const NAV_ITEMS: Array<{
@@ -16,21 +17,31 @@ const NAV_ITEMS: Array<{
   { label: 'Cycle', route: 'cycle' },
 ]
 
-export function BottomNav({ currentRoute, onNavigate }: BottomNavProps) {
+export function BottomNav({
+  currentRoute,
+  recommendedSessionType,
+}: BottomNavProps) {
   return (
     <nav className="bottom-nav" aria-label="Primary">
       {NAV_ITEMS.map((item) => {
         const active = item.route === currentRoute
+        const href =
+          item.route === 'log'
+            ? getRouteHref('log', {
+                prefill: '1',
+                type: recommendedSessionType,
+              })
+            : getRouteHref(item.route)
 
         return (
-          <button
+          <a
             key={item.route}
-            type="button"
+            href={href}
             className={`bottom-nav__item${active ? ' is-active' : ''}`}
-            onClick={() => onNavigate(item.route)}
+            aria-current={active ? 'page' : undefined}
           >
             <span className="bottom-nav__label">{item.label}</span>
-          </button>
+          </a>
         )
       })}
     </nav>

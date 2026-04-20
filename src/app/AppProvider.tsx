@@ -86,6 +86,11 @@ interface AppContextValue {
   resetAllData: () => Promise<void>
   saveBodyweight: (date: string, weightKg: number) => Promise<boolean>
   saveSession: (input: SaveSessionInput) => Promise<boolean>
+  saveSettingsAndProgram: (
+    profileUpdates: Partial<AthleteProfile>,
+    settingsUpdates: Partial<AppSettings> | undefined,
+    nextTemplate: ProgramTemplate,
+  ) => Promise<boolean>
   setNotice: (notice: AppNotice | null) => void
   supportVolumeTrend: Array<{
     date: string
@@ -95,11 +100,6 @@ interface AppContextValue {
   updateExercise: (
     input: Omit<Exercise, 'id'> & { id?: string },
   ) => Promise<void>
-  updatePreferences: (
-    profileUpdates: Partial<AthleteProfile>,
-    settingsUpdates?: Partial<AppSettings>,
-  ) => Promise<void>
-  updateProgramTemplate: (nextTemplate: ProgramTemplate) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -380,11 +380,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  async function updatePreferences(
+  async function saveSettingsAndProgram(
     profileUpdates: Partial<AthleteProfile>,
-    settingsUpdates?: Partial<AppSettings>,
+    settingsUpdates: Partial<AppSettings> | undefined,
+    nextTemplate: ProgramTemplate,
   ) {
-    await saveNextData(
+    return saveNextData(
       withComputedRecommendation(
         {
           ...data,
@@ -396,23 +397,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ...data.settings,
             ...settingsUpdates,
           },
-        },
-        todayDateString(),
-      ),
-      'Settings updated.',
-    )
-  }
-
-  async function updateProgramTemplate(nextTemplate: ProgramTemplate) {
-    await saveNextData(
-      withComputedRecommendation(
-        {
-          ...data,
           programTemplate: nextTemplate,
         },
         todayDateString(),
       ),
-      'Program template updated.',
+      'Settings and program updated.',
     )
   }
 
@@ -485,12 +474,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     resetAllData,
     saveBodyweight,
     saveSession,
+    saveSettingsAndProgram,
     setNotice,
     supportVolumeTrend,
     weeklyVolumeSummary,
     updateExercise,
-    updatePreferences,
-    updateProgramTemplate,
   }
 
   return <AppContext value={contextValue}>{children}</AppContext>

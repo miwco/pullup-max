@@ -24,8 +24,8 @@ export function HistoryScreen() {
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Best numbers" title="History" variant="summary" compact>
-        <div className="mini-stat-grid mini-stat-grid--wide">
+      <Section eyebrow="Best numbers" title="History snapshot">
+        <div className="mini-stat-grid mini-stat-grid--triple">
           <div className="mini-stat">
             <span className="metric-label">Best max all-time</span>
             <strong>{allTimeBestMax ?? 'No max yet'}</strong>
@@ -56,12 +56,20 @@ export function HistoryScreen() {
         </div>
       </Section>
 
-      <Section eyebrow="Recent volume" title="Support volume trend" compact>
+      <Section
+        eyebrow="Recent volume"
+        title="Support volume trend"
+        className="section--compact"
+      >
         <BarChart bars={supportVolumeTrend} />
       </Section>
 
       {data.settings.bodyweightTrackingEnabled ? (
-        <Section eyebrow="Weight history" title="Bodyweight progression" compact>
+        <Section
+          eyebrow="Weight history"
+          title="Bodyweight progression"
+          className="section--compact"
+        >
           <CycleLineChart
             cycleWindow={cycleSummary.cycleWindow}
             maxPoints={[]}
@@ -82,8 +90,9 @@ export function HistoryScreen() {
                 const previousEntry = recentBodyweightEntries[index + 1]
                 const change =
                   typeof previousEntry?.weightKg === 'number'
-                    ? Math.round((entry.weightKg - previousEntry.weightKg) * 10) /
-                      10
+                    ? Math.round(
+                        (entry.weightKg - previousEntry.weightKg) * 10,
+                      ) / 10
                     : null
 
                 return (
@@ -121,7 +130,11 @@ export function HistoryScreen() {
         </Section>
       ) : null}
 
-      <Section eyebrow="Max history" title="Max-rep history" compact>
+      <Section
+        eyebrow="Max history"
+        title="Max-rep history"
+        className="section--compact"
+      >
         {maxHistory.length === 0 ? (
           <p className="muted-text">
             Your max history will appear here after the first Max day is logged.
@@ -155,7 +168,7 @@ export function HistoryScreen() {
                       href={item.videoUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="button button--ghost"
+                      className="button button--ghost button--compact"
                     >
                       Video
                     </a>
@@ -167,7 +180,11 @@ export function HistoryScreen() {
         )}
       </Section>
 
-      <Section eyebrow="Recent workouts" title="Workout log" compact>
+      <Section
+        eyebrow="Recent workouts"
+        title="Workout log"
+        className="section--compact"
+      >
         {recentWorkouts.length === 0 ? (
           <p className="muted-text">
             Your workout history will appear here after the first session is

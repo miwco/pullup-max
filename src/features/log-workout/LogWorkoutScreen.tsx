@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
 import { useAppState } from '../../app/AppProvider'
 import type {
@@ -10,6 +10,7 @@ import type {
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
 import { createId } from '../../lib/id'
+import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
 interface LogWorkoutScreenProps {
   prefill: boolean
@@ -63,6 +64,25 @@ function toDrafts(prefillRows: ProgramEntryDraft[]) {
   }))
 }
 
+function serializeEntry(entry: ProgramEntryDraft) {
+  return {
+    templateStepId: entry.templateStepId,
+    label: entry.label,
+    exerciseId: entry.exerciseId,
+    exerciseName: entry.exerciseName,
+    sets: entry.sets,
+    reps: entry.reps,
+    durationSeconds: entry.durationSeconds,
+    bandAssisted: entry.bandAssisted,
+    effort: entry.effort,
+    notes: entry.notes,
+  }
+}
+
+function createEntriesSignature(entries: ProgramEntryDraft[]) {
+  return JSON.stringify(entries.map(serializeEntry))
+}
+
 export function LogWorkoutScreen({
   prefill,
   requestedType,
@@ -86,7 +106,33 @@ export function LogWorkoutScreen({
   const [entries, setEntries] = useState<EntryDraft[]>(() =>
     prefill ? toDrafts(getProgramPrefill(initialType)) : [],
   )
+  const [showMaxDetail, setShowMaxDetail] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [initialDate] = useState(date)
+  const [initialEntriesSignature] = useState(() =>
+    createEntriesSignature(entries),
+  )
+  const [entriesBaselineSignature, setEntriesBaselineSignature] = useState(
+    initialEntriesSignature,
+  )
+  const currentEntriesSignature = createEntriesSignature(entries)
+  const isDirty =
+    sessionType !== initialType ||
+    date !== initialDate ||
+    maxReps.trim().length > 0 ||
+    videoLink.trim().length > 0 ||
+    fatigueBefore.trim().length > 0 ||
+    fatigueAfter.trim().length > 0 ||
+    elbowPain.trim().length > 0 ||
+    shoulderPain.trim().length > 0 ||
+    failurePoint !== '' ||
+    qualityFlag !== '' ||
+    notes.trim().length > 0 ||
+    currentEntriesSignature !== initialEntriesSignature
+
+  useUnsavedChangesPrompt(isDirty)
 
   function updateEntry(localId: string, updates: Partial<EntryDraft>) {
     setEntries((current) =>
@@ -97,7 +143,18 @@ export function LogWorkoutScreen({
   }
 
   function loadPrefill(nextType: SessionType) {
-    setEntries(toDrafts(getProgramPrefill(nextType)))
+    const nextEntries = toDrafts(getProgramPrefill(nextType))
+    setEntries(nextEntries)
+    setEntriesBaselineSignature(createEntriesSignature(nextEntries))
+  }
+
+  function canReplaceWorkoutRows() {
+    return (
+      currentEntriesSignature === entriesBaselineSignature ||
+      window.confirm(
+        'Discard the current row edits and load the default program?',
+      )
+    )
   }
 
   function isValidVideoLink(value: string) {
@@ -115,6 +172,11 @@ export function LogWorkoutScreen({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (isSaving) {
+      return
+    }
+
     setFormError(null)
 
     const parsedMaxReps = parseOptionalNumber(maxReps)
@@ -144,6 +206,8 @@ export function LogWorkoutScreen({
         isMaxTest: false,
       }))
 
+    setIsSaving(true)
+
     const success = await saveSession({
       session: {
         date,
@@ -166,6 +230,8 @@ export function LogWorkoutScreen({
           : undefined,
     })
 
+    setIsSaving(false)
+
     if (success) {
       onSaved()
     }
@@ -173,37 +239,32 @@ export function LogWorkoutScreen({
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Fast logging" title="Log workout" compact>
-        <form className="form-stack" onSubmit={handleSubmit}>
-          <div className="subsection">
-            <div className="subsection__header">
-              <div>
-                <h3>Session type</h3>
-                <p className="compact-note">
-                  Recommended today: <strong>{recommendedType}</strong>
-                </p>
-              </div>
-            </div>
+      <form className="screen-stack" onSubmit={handleSubmit}>
+        <Section eyebrow="Fast logging" title="Log workout">
+          <div className="summary-bar">
+            <p className="muted-text">
+              Recommended today: <strong>{recommendedType}</strong>
+            </p>
+          </div>
 
-            <div
-              className="segment-row"
-              role="tablist"
-              aria-label="Session type"
-            >
-              {(['max', 'support'] as SessionType[]).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={`segment-row__item${sessionType === type ? ' is-active' : ''}`}
-                  onClick={() => {
-                    setSessionType(type)
-                    loadPrefill(type)
-                  }}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+          <div className="segment-row" role="tablist" aria-label="Session type">
+            {(['max', 'support'] as SessionType[]).map((type) => (
+              <button
+                key={type}
+                type="button"
+                className={`segment-row__item${sessionType === type ? ' is-active' : ''}`}
+                onClick={() => {
+                  if (type !== sessionType && !canReplaceWorkoutRows()) {
+                    return
+                  }
+
+                  setSessionType(type)
+                  loadPrefill(type)
+                }}
+              >
+                {type}
+              </button>
+            ))}
           </div>
 
           <div className="field-grid field-grid--compact">
@@ -211,161 +272,165 @@ export function LogWorkoutScreen({
               <span>Date</span>
               <input
                 type="date"
+                name="session-date"
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
               />
             </label>
 
-            {sessionType === 'max' ? (
-              <label className="field field--max">
-                <span>True max reps</span>
-                <input
-                  inputMode="numeric"
-                  placeholder="0"
-                  value={maxReps}
-                  onChange={(event) => setMaxReps(event.target.value)}
-                />
-              </label>
-            ) : null}
-          </div>
+            <label className="field">
+              <span>Fatigue before</span>
+              <input
+                name="fatigue-before"
+                autoComplete="off"
+                inputMode="numeric"
+                placeholder="1-5"
+                value={fatigueBefore}
+                onChange={(event) => setFatigueBefore(event.target.value)}
+              />
+            </label>
 
-          <CollapsibleSection
-            title="Optional session details"
-            summary={
-              sessionType === 'max'
-                ? 'Fatigue, pain, failure point, quality, video, and notes'
-                : 'Fatigue, pain, and notes'
-            }
-          >
-            <div className="form-stack">
+            <label className="field">
+              <span>Fatigue after</span>
+              <input
+                name="fatigue-after"
+                autoComplete="off"
+                inputMode="numeric"
+                placeholder="1-5"
+                value={fatigueAfter}
+                onChange={(event) => setFatigueAfter(event.target.value)}
+              />
+            </label>
+
+            <label className="field">
+              <span>Elbow pain</span>
+              <input
+                name="elbow-pain"
+                autoComplete="off"
+                inputMode="numeric"
+                placeholder="0-5"
+                value={elbowPain}
+                onChange={(event) => setElbowPain(event.target.value)}
+              />
+            </label>
+
+            <label className="field">
+              <span>Shoulder pain</span>
+              <input
+                name="shoulder-pain"
+                autoComplete="off"
+                inputMode="numeric"
+                placeholder="0-5"
+                value={shoulderPain}
+                onChange={(event) => setShoulderPain(event.target.value)}
+              />
+            </label>
+          </div>
+        </Section>
+
+        {sessionType === 'max' ? (
+          <Section eyebrow="True max" title="Max test">
+            <label className="field field--max">
+              <span>True max reps</span>
+              <input
+                name="max-reps"
+                autoComplete="off"
+                inputMode="numeric"
+                placeholder="0"
+                value={maxReps}
+                onChange={(event) => setMaxReps(event.target.value)}
+              />
+            </label>
+
+            <AccordionSection
+              eyebrow="Optional"
+              title="Max test detail"
+              isOpen={showMaxDetail}
+              onToggle={() => setShowMaxDetail((current) => !current)}
+              summary="Failure point, set quality, and video link"
+            >
               <div className="field-grid field-grid--compact">
                 <label className="field">
-                  <span>Fatigue before</span>
-                  <input
-                    inputMode="numeric"
-                    placeholder="1-5"
-                    value={fatigueBefore}
-                    onChange={(event) => setFatigueBefore(event.target.value)}
-                  />
+                  <span>Failure point</span>
+                  <select
+                    value={failurePoint}
+                    onChange={(event) =>
+                      setFailurePoint(event.target.value as FailurePoint | '')
+                    }
+                  >
+                    <option value="">Optional</option>
+                    {FAILURE_POINTS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="field">
-                  <span>Fatigue after</span>
-                  <input
-                    inputMode="numeric"
-                    placeholder="1-5"
-                    value={fatigueAfter}
-                    onChange={(event) => setFatigueAfter(event.target.value)}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Elbow pain</span>
-                  <input
-                    inputMode="numeric"
-                    placeholder="0-5"
-                    value={elbowPain}
-                    onChange={(event) => setElbowPain(event.target.value)}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Shoulder pain</span>
-                  <input
-                    inputMode="numeric"
-                    placeholder="0-5"
-                    value={shoulderPain}
-                    onChange={(event) => setShoulderPain(event.target.value)}
-                  />
+                  <span>Set quality</span>
+                  <select
+                    value={qualityFlag}
+                    onChange={(event) =>
+                      setQualityFlag(event.target.value as QualityFlag | '')
+                    }
+                  >
+                    <option value="">Optional</option>
+                    {QUALITY_FLAGS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
-
-              {sessionType === 'max' ? (
-                <div className="field-grid field-grid--compact">
-                  <label className="field">
-                    <span>Failure point</span>
-                    <select
-                      value={failurePoint}
-                      onChange={(event) =>
-                        setFailurePoint(event.target.value as FailurePoint | '')
-                      }
-                    >
-                      <option value="">Optional</option>
-                      {FAILURE_POINTS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="field">
-                    <span>Set quality</span>
-                    <select
-                      value={qualityFlag}
-                      onChange={(event) =>
-                        setQualityFlag(event.target.value as QualityFlag | '')
-                      }
-                    >
-                      <option value="">Optional</option>
-                      {QUALITY_FLAGS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="field field--span-2">
-                    <span>Video link</span>
-                    <input
-                      inputMode="url"
-                      placeholder="https://..."
-                      value={videoLink}
-                      onChange={(event) => setVideoLink(event.target.value)}
-                    />
-                  </label>
-                </div>
-              ) : null}
 
               <label className="field">
-                <span>Notes</span>
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
+                <span>Video link</span>
+                <input
+                  type="url"
+                  name="max-video-url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  inputMode="url"
+                  placeholder="https://example.com/attempt…"
+                  value={videoLink}
+                  onChange={(event) => setVideoLink(event.target.value)}
                 />
               </label>
-            </div>
-          </CollapsibleSection>
+            </AccordionSection>
+          </Section>
+        ) : null}
 
-          <div className="subsection">
-            <div className="subsection__header">
-              <div>
-                <h3>Workout rows</h3>
-                <p className="compact-note">
-                  Prefilled from your editable default program. Adjust only what
-                  you need.
-                </p>
-              </div>
-
-              <div className="button-row button-row--wrap">
-                <button
-                  type="button"
-                  className="button button--ghost button--compact"
-                  onClick={() => loadPrefill(sessionType)}
-                >
-                  Reload defaults
-                </button>
-                <button
-                  type="button"
-                  className="button button--ghost button--compact"
-                  onClick={() =>
-                    setEntries((current) => [...current, createEmptyEntry()])
+        <Section eyebrow="Workout rows" title="Prefilled exercises">
+          <div className="summary-bar">
+            <p className="muted-text">
+              These rows come from the default program. Edit or remove them
+              before saving.
+            </p>
+            <div className="action-row">
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={() => {
+                  if (!canReplaceWorkoutRows()) {
+                    return
                   }
-                >
-                  Add row
-                </button>
-              </div>
+
+                  loadPrefill(sessionType)
+                }}
+              >
+                Reload defaults
+              </button>
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={() =>
+                  setEntries((current) => [...current, createEmptyEntry()])
+                }
+              >
+                Add row
+              </button>
             </div>
           </div>
 
@@ -484,7 +549,7 @@ export function LogWorkoutScreen({
 
                 <button
                   type="button"
-                  className="button button--ghost button--compact entry-row__remove"
+                  className="button button--ghost entry-row__remove"
                   onClick={() =>
                     setEntries((current) =>
                       current.filter((item) => item.localId !== entry.localId),
@@ -496,14 +561,31 @@ export function LogWorkoutScreen({
               </div>
             ))}
           </div>
+        </Section>
+
+        <Section eyebrow="Finish" title="Save session">
+          <AccordionSection
+            eyebrow="Optional"
+            title="Session notes"
+            isOpen={showNotes}
+            onToggle={() => setShowNotes((current) => !current)}
+            summary="Add any extra notes for this workout"
+          >
+            <label className="field">
+              <span>Notes</span>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+              />
+            </label>
+          </AccordionSection>
 
           {formError ? <p className="form-error">{formError}</p> : null}
-
           <button type="submit" className="button button--primary">
-            Save workout
+            {isSaving ? 'Saving…' : 'Save workout'}
           </button>
-        </form>
-      </Section>
+        </Section>
+      </form>
     </div>
   )
 }

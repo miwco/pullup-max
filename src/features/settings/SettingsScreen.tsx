@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { useMemo, useRef, useState } from 'react'
+import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
 import { useAppState } from '../../app/AppProvider'
 import type {
@@ -9,6 +9,8 @@ import type {
   ProgramTemplate,
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
+import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
+import { summarizeProgramBlock } from './programBlockSummary'
 
 type WeakBlockKey = 'top' | 'middle' | 'start/bottom' | 'grip'
 
@@ -62,53 +64,6 @@ function updateProgramBlock(
   }
 }
 
-function formatStepSummary(
-  step: ProgramStep,
-  exerciseNames: Map<string, string>,
-) {
-  const exerciseName =
-    exerciseNames.get(step.exerciseId) || step.title || 'Exercise'
-  const prescription: string[] = []
-
-  if (step.emomMinutes && step.emomReps) {
-    prescription.push(`${step.emomMinutes} min x ${step.emomReps} reps`)
-  } else if (step.sets && step.reps) {
-    prescription.push(`${step.sets} x ${step.reps}`)
-  } else if (step.sets && step.holdSeconds) {
-    prescription.push(`${step.sets} x ${step.holdSeconds} sec`)
-  } else if (step.durationSeconds) {
-    prescription.push(`${step.durationSeconds} sec`)
-  } else if (step.minReps && step.maxReps) {
-    prescription.push(`${step.minReps}-${step.maxReps} reps`)
-  } else if (step.reps) {
-    prescription.push(`${step.reps} reps`)
-  }
-
-  if (step.bodyweightOption === 'band') {
-    prescription.push('band')
-  }
-
-  return prescription.length > 0
-    ? `${exerciseName} - ${prescription.join(' · ')}`
-    : exerciseName
-}
-
-function summarizeProgramBlock(
-  block: ProgramBlock,
-  exerciseNames: Map<string, string>,
-) {
-  const firstStep = block.steps[0]
-
-  if (!firstStep) {
-    return 'No exercises'
-  }
-
-  const lead = formatStepSummary(firstStep, exerciseNames)
-  return block.steps.length === 1
-    ? lead
-    : `${lead} · ${block.steps.length} exercises`
-}
-
 function ProgramBlockEditor({
   activeExerciseOptions,
   block,
@@ -122,6 +77,11 @@ function ProgramBlockEditor({
     <div className="entry-list">
       {block.steps.map((step, index) => (
         <div key={step.id} className="entry-row entry-row--compact">
+          <div className="field field--span-2">
+            <span>Step</span>
+            <strong>{step.title || `Step ${index + 1}`}</strong>
+          </div>
+
           <label className="field field--span-2">
             <span>Step label</span>
             <input
@@ -348,6 +308,14 @@ function ProgramBlockEditor({
   )
 }
 
+interface ProgramBlockConfig {
+  block: ProgramBlock
+  eyebrow: string
+  id: string
+  title: string
+  onChange: (nextBlock: ProgramBlock) => void
+}
+
 export function SettingsScreen() {
   const {
     activeExercises,
@@ -355,8 +323,7 @@ export function SettingsScreen() {
     exportBackup,
     importBackup,
     resetAllData,
-    updatePreferences,
-    updateProgramTemplate,
+    saveSettingsAndProgram,
   } = useAppState()
   const [mainMovement, setMainMovement] = useState(
     data.athleteProfile.mainMovement,
@@ -383,12 +350,34 @@ export function SettingsScreen() {
   const [programTemplate, setProgramTemplate] = useState<ProgramTemplate>(
     structuredClone(data.programTemplate),
   )
+  const [openProgramBlockId, setOpenProgramBlockId] = useState<string | null>(
+    null,
+  )
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const isDirty =
+    mainMovement !== data.athleteProfile.mainMovement ||
+    cycleStartDate !== data.athleteProfile.cycleStartDate ||
+    fatigueSensitivity !== String(data.settings.fatigueSensitivity) ||
+    cycleLengthDays !== String(data.settings.cycleLengthDays) ||
+    jointPainSensitivity !== String(data.settings.jointPainSensitivity) ||
+    bodyweightTrackingEnabled !== data.settings.bodyweightTrackingEnabled ||
+    bandsAvailable !== data.settings.bandsAvailable ||
+    notes !== data.athleteProfile.notes ||
+    JSON.stringify(programTemplate) !== JSON.stringify(data.programTemplate)
+
+  useUnsavedChangesPrompt(isDirty)
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    await updatePreferences(
+    if (isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+
+    await saveSettingsAndProgram(
       {
         mainMovement: mainMovement.trim() || data.athleteProfile.mainMovement,
         cycleStartDate: cycleStartDate || todayDateString(),
@@ -401,9 +390,9 @@ export function SettingsScreen() {
         fatigueSensitivity: Number(fatigueSensitivity),
         jointPainSensitivity: Number(jointPainSensitivity),
       },
+      programTemplate,
     )
-
-    await updateProgramTemplate(programTemplate)
+    setIsSaving(false)
   }
 
   function handleExport() {
@@ -434,8 +423,10 @@ export function SettingsScreen() {
     id: exercise.id,
     name: exercise.name,
   }))
-  const exerciseNames = new Map(
-    activeExercises.map((exercise) => [exercise.id, exercise.name]),
+  const exerciseNameById = useMemo(
+    () =>
+      new Map(data.exercises.map((exercise) => [exercise.id, exercise.name])),
+    [data.exercises],
   )
 
   function setWeakBlock(blockKey: WeakBlockKey, nextBlock: ProgramBlock) {
@@ -448,9 +439,11 @@ export function SettingsScreen() {
     }))
   }
 
-  const maxDayBlocks = [
+  const programBlocks: ProgramBlockConfig[] = [
     {
-      key: 'warmup',
+      id: 'max-warmup',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.warmup.title,
       block: programTemplate.maxDay.warmup,
       onChange: (nextBlock: ProgramBlock) =>
         setProgramTemplate((current) => ({
@@ -462,7 +455,23 @@ export function SettingsScreen() {
         })),
     },
     {
-      key: 'volumeBlock',
+      id: 'max-main-set',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.mainSet.title,
+      block: programTemplate.maxDay.mainSet,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          maxDay: {
+            ...current.maxDay,
+            mainSet: nextBlock,
+          },
+        })),
+    },
+    {
+      id: 'max-volume-block',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.volumeBlock.title,
       block: programTemplate.maxDay.volumeBlock,
       onChange: (nextBlock: ProgramBlock) =>
         setProgramTemplate((current) => ({
@@ -474,7 +483,9 @@ export function SettingsScreen() {
         })),
     },
     {
-      key: 'finisher',
+      id: 'max-finisher',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.finisher.title,
       block: programTemplate.maxDay.finisher,
       onChange: (nextBlock: ProgramBlock) =>
         setProgramTemplate((current) => ({
@@ -485,17 +496,51 @@ export function SettingsScreen() {
           },
         })),
     },
-  ].filter((item) => item.block.steps.length > 0)
+    {
+      id: 'support-base',
+      eyebrow: 'Support day',
+      title: programTemplate.supportDayBase.title,
+      block: programTemplate.supportDayBase,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          supportDayBase: nextBlock,
+        })),
+    },
+    {
+      id: 'support-fallback',
+      eyebrow: 'Support day',
+      title: programTemplate.supportFallback.title,
+      block: programTemplate.supportFallback,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          supportFallback: nextBlock,
+        })),
+    },
+    ...(['top', 'middle', 'start/bottom', 'grip'] as WeakBlockKey[]).map(
+      (blockKey) => ({
+        id: `weak-${blockKey}`,
+        eyebrow: 'Weak point',
+        title: programTemplate.weakPointBlocks[blockKey].title,
+        block: programTemplate.weakPointBlocks[blockKey],
+        onChange: (nextBlock: ProgramBlock) =>
+          setWeakBlock(blockKey, nextBlock),
+      }),
+    ),
+  ].filter((programBlock) => programBlock.block.steps.length > 0)
 
   return (
     <div className="screen-stack">
       <form className="screen-stack" onSubmit={handleSave}>
-        <Section eyebrow="Settings" title="Rules and defaults" compact>
+        <Section eyebrow="Settings" title="Rules and defaults">
           <div className="field-grid field-grid--compact">
             <label className="field field--span-2">
               <span>Main movement</span>
               <input
                 list="movement-options"
+                name="main-movement"
+                autoComplete="off"
                 value={mainMovement}
                 onChange={(event) => setMainMovement(event.target.value)}
               />
@@ -510,6 +555,7 @@ export function SettingsScreen() {
               <span>Cycle start date</span>
               <input
                 type="date"
+                name="cycle-start-date"
                 value={cycleStartDate}
                 onChange={(event) => setCycleStartDate(event.target.value)}
               />
@@ -535,6 +581,7 @@ export function SettingsScreen() {
                 type="number"
                 min="30"
                 max="365"
+                name="cycle-length-days"
                 value={cycleLengthDays}
                 onChange={(event) => setCycleLengthDays(event.target.value)}
               />
@@ -579,6 +626,7 @@ export function SettingsScreen() {
             <label className="field field--span-2">
               <span>Notes</span>
               <textarea
+                name="athlete-notes"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
               />
@@ -586,101 +634,62 @@ export function SettingsScreen() {
           </div>
         </Section>
 
-        <Section eyebrow="Program" title="Editable template" compact>
-          <div className="form-stack" data-testid="program-accordion-list">
-            {maxDayBlocks.map((item) => (
-              <CollapsibleSection
-                key={item.key}
-                title={item.block.title}
-                summary={summarizeProgramBlock(item.block, exerciseNames)}
+        <Section eyebrow="Program editor" title="Editable defaults">
+          <p className="muted-text">
+            Keep the stack closed until you need it. Each block shows a quick
+            summary from the current prescription.
+          </p>
+
+          <div className="accordion-stack">
+            {programBlocks.map((programBlock) => (
+              <AccordionSection
+                key={programBlock.id}
+                eyebrow={programBlock.eyebrow}
+                title={programBlock.title}
+                isOpen={openProgramBlockId === programBlock.id}
+                onToggle={() =>
+                  setOpenProgramBlockId((current) =>
+                    current === programBlock.id ? null : programBlock.id,
+                  )
+                }
+                summary={summarizeProgramBlock(
+                  programBlock.block,
+                  exerciseNameById,
+                )}
               >
                 <ProgramBlockEditor
                   activeExerciseOptions={exerciseOptions}
-                  block={item.block}
-                  onChange={item.onChange}
+                  block={programBlock.block}
+                  onChange={programBlock.onChange}
                 />
-              </CollapsibleSection>
+              </AccordionSection>
             ))}
+          </div>
 
-            <CollapsibleSection
-              title={programTemplate.supportDayBase.title}
-              summary={summarizeProgramBlock(
-                programTemplate.supportDayBase,
-                exerciseNames,
-              )}
+          <div className="action-row action-row--end">
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={isSaving}
             >
-              <ProgramBlockEditor
-                activeExerciseOptions={exerciseOptions}
-                block={programTemplate.supportDayBase}
-                onChange={(nextBlock) =>
-                  setProgramTemplate((current) => ({
-                    ...current,
-                    supportDayBase: nextBlock,
-                  }))
-                }
-              />
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              title={programTemplate.supportFallback.title}
-              summary={summarizeProgramBlock(
-                programTemplate.supportFallback,
-                exerciseNames,
-              )}
-            >
-              <ProgramBlockEditor
-                activeExerciseOptions={exerciseOptions}
-                block={programTemplate.supportFallback}
-                onChange={(nextBlock) =>
-                  setProgramTemplate((current) => ({
-                    ...current,
-                    supportFallback: nextBlock,
-                  }))
-                }
-              />
-            </CollapsibleSection>
-
-            {(['top', 'middle', 'start/bottom', 'grip'] as WeakBlockKey[]).map(
-              (blockKey) => (
-                <CollapsibleSection
-                  key={blockKey}
-                  title={programTemplate.weakPointBlocks[blockKey].title}
-                  eyebrow={`Weak-point ${blockKey}`}
-                  summary={summarizeProgramBlock(
-                    programTemplate.weakPointBlocks[blockKey],
-                    exerciseNames,
-                  )}
-                >
-                  <ProgramBlockEditor
-                    activeExerciseOptions={exerciseOptions}
-                    block={programTemplate.weakPointBlocks[blockKey]}
-                    onChange={(nextBlock) => setWeakBlock(blockKey, nextBlock)}
-                  />
-                </CollapsibleSection>
-              ),
-            )}
+              {isSaving ? 'Saving…' : 'Save settings & program'}
+            </button>
           </div>
         </Section>
-
-        <div className="button-row">
-          <button type="submit" className="button button--primary">
-            Save settings and program
-          </button>
-        </div>
       </form>
 
-      <Section eyebrow="Backup" title="Export and import" compact>
-        <div className="button-row button-row--wrap">
+      <Section eyebrow="Backup" title="Export and import">
+        <div className="action-row">
           <button
             type="button"
-            className="button button--ghost button--compact"
+            className="button button--ghost"
             onClick={handleExport}
           >
             Export JSON backup
           </button>
           <button
             type="button"
-            className="button button--ghost button--compact"
+            className="button button--ghost"
             onClick={() => fileInputRef.current?.click()}
           >
             Import JSON backup
@@ -696,7 +705,7 @@ export function SettingsScreen() {
         />
       </Section>
 
-      <Section eyebrow="Reset" title="Reset local data" compact>
+      <Section eyebrow="Reset" title="Reset local data">
         <p className="muted-text">
           This clears all workouts, exercises, settings, program defaults, and
           stored recommendations on this device.
@@ -704,7 +713,7 @@ export function SettingsScreen() {
 
         <button
           type="button"
-          className="button button--ghost button--compact button--danger"
+          className="button button--ghost"
           onClick={() => {
             if (window.confirm('Reset all local app data?')) {
               void resetAllData()

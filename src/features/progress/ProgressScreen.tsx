@@ -19,7 +19,11 @@ export function ProgressScreen() {
 
   return (
     <div className="screen-stack">
-      <Section eyebrow="Current cycle" title="Progress" variant="summary" compact>
+      <Section
+        eyebrow="Current cycle"
+        title="Progress"
+        className="section--compact"
+      >
         <div className="cycle-window-note">
           <p>
             This chart shows the current {data.settings.cycleLengthDays}-day
@@ -29,7 +33,7 @@ export function ProgressScreen() {
           </p>
         </div>
 
-        <div className="chip-row" style={{ marginBottom: 10 }}>
+        <div className="action-row action-row--compact">
           <button
             type="button"
             className={`chip chip--button${showMax ? ' is-active' : ''}`}
@@ -58,8 +62,8 @@ export function ProgressScreen() {
         />
       </Section>
 
-      <Section eyebrow="Cycle status" title="Window details" compact>
-        <div className="mini-stat-grid mini-stat-grid--wide">
+      <Section eyebrow="Cycle status" title="Window details">
+        <div className="mini-stat-grid mini-stat-grid--triple">
           <div className="mini-stat">
             <span className="metric-label">Days elapsed</span>
             <strong>{cycleSummary.daysElapsed}</strong>

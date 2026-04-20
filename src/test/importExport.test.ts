@@ -122,6 +122,124 @@ describe('import/export validation', () => {
     }
   })
 
+  it('preserves intentionally empty Max-day warm-up and main-set blocks', () => {
+    const seeded = createSeedData('2026-04-18')
+    seeded.programTemplate.maxDay.warmup.steps = []
+    seeded.programTemplate.maxDay.mainSet.steps = []
+
+    const parsed = parseImportBundle(serializeExportBundle(seeded))
+
+    expect(parsed.ok).toBe(true)
+
+    if (parsed.ok) {
+      expect(parsed.value.data.programTemplate.maxDay.warmup.steps).toEqual([])
+      expect(parsed.value.data.programTemplate.maxDay.mainSet.steps).toEqual([])
+    }
+  })
+
+  it('migrates the legacy built-in Max-day template to the new EMOM plus finisher default', () => {
+    const seeded = createSeedData('2026-04-18')
+    const [
+      pullUpId,
+      bandAssistedId,
+      scapId,
+      deadHangId,
+      ,
+      topHoldId,
+      ,
+      ,
+      ,
+      ,
+      ,
+    ] = seeded.exercises.map((exercise) => exercise.id)
+
+    seeded.programTemplate.maxDay.warmup.steps = [
+      {
+        id: 'legacy-step-1',
+        title: 'Dead hang',
+        exerciseId: deadHangId ?? '',
+        holdSeconds: 20,
+        notes: '',
+      },
+      {
+        id: 'legacy-step-2',
+        title: 'Scapular pull-ups',
+        exerciseId: scapId ?? '',
+        sets: 2,
+        reps: 5,
+        notes: '',
+      },
+      {
+        id: 'legacy-step-3',
+        title: 'Easy band-assisted pull-ups',
+        exerciseId: bandAssistedId ?? '',
+        sets: 2,
+        reps: 5,
+        bandAllowed: true,
+        bodyweightOption: 'band',
+        notes: '',
+      },
+      {
+        id: 'legacy-step-4',
+        title: 'Easy bodyweight set',
+        exerciseId: pullUpId ?? '',
+        sets: 1,
+        reps: 3,
+        bodyweightOption: 'bodyweight',
+        notes: 'About 30% of usual max.',
+      },
+    ]
+    seeded.programTemplate.maxDay.mainSet.steps = [
+      {
+        id: 'legacy-step-5',
+        title: 'All-out max set',
+        exerciseId: pullUpId ?? '',
+        sets: 1,
+        captureAsMaxTest: true,
+        bodyweightOption: 'bodyweight',
+        notes: 'Rest 4 minutes before this set and 6 minutes after.',
+      },
+    ]
+    seeded.programTemplate.maxDay.volumeBlock.steps = [
+      {
+        id: 'legacy-step-6',
+        title: 'EMOM pull-up block',
+        exerciseId: pullUpId ?? '',
+        emomMinutes: 10,
+        emomReps: 4,
+        sets: 10,
+        reps: 4,
+        bodyweightOption: 'bodyweight',
+        notes: 'Adjust reps if needed so all 10 minutes stay clean.',
+      },
+    ]
+    seeded.programTemplate.maxDay.finisher.steps = [
+      {
+        id: 'legacy-step-7',
+        title: 'Top hold',
+        exerciseId: topHoldId ?? '',
+        sets: 2,
+        holdSeconds: 20,
+        notes: 'Chin above the bar.',
+      },
+    ]
+
+    const parsed = parseImportBundle(serializeExportBundle(seeded))
+
+    expect(parsed.ok).toBe(true)
+
+    if (parsed.ok) {
+      expect(parsed.value.data.programTemplate.maxDay.warmup.steps).toEqual([])
+      expect(parsed.value.data.programTemplate.maxDay.mainSet.steps).toEqual([])
+      expect(
+        parsed.value.data.programTemplate.maxDay.volumeBlock.steps[0]?.notes,
+      ).toContain('complete all 10 minutes with clean form')
+      expect(
+        parsed.value.data.programTemplate.maxDay.finisher.steps[0]?.notes,
+      ).toContain('increase the hold time over the weeks')
+    }
+  })
+
   it('rejects invalid JSON and unsupported versions', () => {
     expect(parseImportBundle('{bad json')).toEqual({
       ok: false,

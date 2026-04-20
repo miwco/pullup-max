@@ -11,11 +11,9 @@ export function CycleSummaryScreen() {
     <div className="screen-stack">
       <Section
         eyebrow={`${data.settings.cycleLengthDays}-day cycle`}
-        title="Cycle summary"
-        variant="summary"
-        compact
+        title="Cycle snapshot"
       >
-        <div className="mini-stat-grid mini-stat-grid--wide">
+        <div className="mini-stat-grid mini-stat-grid--triple">
           <div className="mini-stat">
             <span className="metric-label">Cycle window</span>
             <strong>
@@ -50,8 +48,8 @@ export function CycleSummaryScreen() {
         </div>
       </Section>
 
-      <Section eyebrow="Session counts" title="Cycle totals" compact>
-        <div className="chip-row">
+      <Section eyebrow="Session counts" title="Cycle totals">
+        <div className="summary-bar">
           <StatusPill
             label={`${cycleSummary.maxSessions} max`}
             tone="success"
@@ -71,10 +69,12 @@ export function CycleSummaryScreen() {
         </div>
       </Section>
 
-      <Section eyebrow="Summary" title="Current read on the cycle" compact>
+      <Section eyebrow="Summary" title="Concise readout">
         <p className="muted-text">{cycleSummary.summary}</p>
+      </Section>
 
-        <div className="mini-stat-grid" style={{ marginTop: 8 }}>
+      <Section eyebrow="Recommendation" title="Current read on the cycle">
+        <div className="mini-stat-grid mini-stat-grid--triple">
           <div className="mini-stat">
             <span className="metric-label">Next workout</span>
             <strong>{recommendationState.nextSessionType}</strong>

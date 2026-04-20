@@ -282,16 +282,16 @@ describe('recommendation engine', () => {
     ).toBe(true)
   })
 
-  it('prefills Max day with only the editable volume and finisher blocks', () => {
+  it('prefills the default Max-day steps with only the volume block and finisher', () => {
     const exercises = createDefaultExercises()
     const template = createDefaultProgramTemplate(exercises)
     const steps = getProgramStepsForSession(template, 'max', 'generic')
 
-    expect(steps).toHaveLength(2)
     expect(steps.map((step) => step.title)).toEqual([
       'EMOM pull-up block',
       'Top hold',
     ])
+    expect(steps.some((step) => step.captureAsMaxTest)).toBe(false)
   })
 
   it('creates a usable empty-state seed recommendation', () => {

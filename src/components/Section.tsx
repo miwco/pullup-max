@@ -3,33 +3,31 @@ import type { ReactNode } from 'react'
 interface SectionProps {
   action?: ReactNode
   eyebrow?: string
+  className?: string
+  contentClassName?: string
   title: string
   children: ReactNode
-  className?: string
-  compact?: boolean
   variant?: 'flat' | 'summary'
 }
 
 export function Section({
   action,
   eyebrow,
+  className,
+  contentClassName,
   title,
   children,
-  className,
-  compact = false,
   variant = 'flat',
 }: SectionProps) {
-  const classNames = [
-    'section',
-    `section--${variant}`,
-    compact ? 'section--compact' : '',
-    className ?? '',
-  ]
+  const sectionClassName = ['section', `section--${variant}`, className]
+    .filter(Boolean)
+    .join(' ')
+  const contentClassNames = ['section__content', contentClassName]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <section className={classNames}>
+    <section className={sectionClassName}>
       <header className="section__header">
         <div>
           {eyebrow ? <p className="section__eyebrow">{eyebrow}</p> : null}
@@ -37,7 +35,7 @@ export function Section({
         </div>
         {action ? <div>{action}</div> : null}
       </header>
-      {children}
+      <div className={contentClassNames}>{children}</div>
     </section>
   )
 }

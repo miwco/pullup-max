@@ -376,59 +376,78 @@ function normalizeBodyweightEntries(value: unknown) {
 function normalizeProgramStep(
   value: unknown,
   exercises: Exercise[],
-  fallbackStep: ProgramStep,
+  fallbackStep?: ProgramStep,
 ) {
+  const resolvedFallbackStep: ProgramStep = fallbackStep ?? {
+    id: createId('step'),
+    title: '',
+    exerciseId: exercises[0]?.id ?? '',
+    notes: '',
+  }
+
   if (!isRecord(value)) {
-    return fallbackStep
+    return resolvedFallbackStep
   }
 
   const exerciseId =
     typeof value.exerciseId === 'string' &&
     exercises.some((exercise) => exercise.id === value.exerciseId)
       ? value.exerciseId
-      : fallbackStep.exerciseId
+      : resolvedFallbackStep.exerciseId
 
   return {
     id: typeof value.id === 'string' ? value.id : createId('step'),
-    title: typeof value.title === 'string' ? value.title : fallbackStep.title,
+    title:
+      typeof value.title === 'string'
+        ? value.title
+        : resolvedFallbackStep.title,
     exerciseId,
-    sets: typeof value.sets === 'number' ? value.sets : fallbackStep.sets,
-    reps: typeof value.reps === 'number' ? value.reps : fallbackStep.reps,
+    sets:
+      typeof value.sets === 'number' ? value.sets : resolvedFallbackStep.sets,
+    reps:
+      typeof value.reps === 'number' ? value.reps : resolvedFallbackStep.reps,
     minReps:
-      typeof value.minReps === 'number' ? value.minReps : fallbackStep.minReps,
+      typeof value.minReps === 'number'
+        ? value.minReps
+        : resolvedFallbackStep.minReps,
     maxReps:
-      typeof value.maxReps === 'number' ? value.maxReps : fallbackStep.maxReps,
+      typeof value.maxReps === 'number'
+        ? value.maxReps
+        : resolvedFallbackStep.maxReps,
     holdSeconds:
       typeof value.holdSeconds === 'number'
         ? value.holdSeconds
-        : fallbackStep.holdSeconds,
+        : resolvedFallbackStep.holdSeconds,
     durationSeconds:
       typeof value.durationSeconds === 'number'
         ? value.durationSeconds
-        : fallbackStep.durationSeconds,
+        : resolvedFallbackStep.durationSeconds,
     emomMinutes:
       typeof value.emomMinutes === 'number'
         ? value.emomMinutes
-        : fallbackStep.emomMinutes,
+        : resolvedFallbackStep.emomMinutes,
     emomReps:
       typeof value.emomReps === 'number'
         ? value.emomReps
-        : fallbackStep.emomReps,
+        : resolvedFallbackStep.emomReps,
     bandAllowed:
       typeof value.bandAllowed === 'boolean'
         ? value.bandAllowed
-        : fallbackStep.bandAllowed,
+        : resolvedFallbackStep.bandAllowed,
     bodyweightOption:
       value.bodyweightOption === 'bodyweight' ||
       value.bodyweightOption === 'band' ||
       value.bodyweightOption === 'either'
         ? value.bodyweightOption
-        : fallbackStep.bodyweightOption,
+        : resolvedFallbackStep.bodyweightOption,
     captureAsMaxTest:
       typeof value.captureAsMaxTest === 'boolean'
         ? value.captureAsMaxTest
-        : fallbackStep.captureAsMaxTest,
-    notes: typeof value.notes === 'string' ? value.notes : fallbackStep.notes,
+        : resolvedFallbackStep.captureAsMaxTest,
+    notes:
+      typeof value.notes === 'string'
+        ? value.notes
+        : resolvedFallbackStep.notes,
   }
 }
 
@@ -452,10 +471,37 @@ function normalizeProgramBlock(
       typeof value.title === 'string' && value.title.trim()
         ? value.title
         : fallbackBlock.title,
-    steps: fallbackBlock.steps.map((fallbackStep, index) =>
-      normalizeProgramStep(steps[index], exercises, fallbackStep),
-    ),
+    steps:
+      steps.length === 0
+        ? []
+        : steps.map((step, index) =>
+            normalizeProgramStep(
+              step,
+              exercises,
+              fallbackBlock.steps[index] ?? fallbackBlock.steps.at(-1),
+            ),
+          ),
   }
+}
+
+function isLegacyDefaultMaxDay(template: ProgramTemplate) {
+  const warmupTitles = template.maxDay.warmup.steps.map((step) => step.title)
+  const mainSetTitles = template.maxDay.mainSet.steps.map((step) => step.title)
+  const volumeNotes = template.maxDay.volumeBlock.steps[0]?.notes ?? ''
+  const finisherNotes = template.maxDay.finisher.steps[0]?.notes ?? ''
+
+  return (
+    warmupTitles.join('|') ===
+      [
+        'Dead hang',
+        'Scapular pull-ups',
+        'Easy band-assisted pull-ups',
+        'Easy bodyweight set',
+      ].join('|') &&
+    mainSetTitles.join('|') === 'All-out max set' &&
+    volumeNotes === 'Adjust reps if needed so all 10 minutes stay clean.' &&
+    finisherNotes === 'Chin above the bar.'
+  )
 }
 
 function normalizeProgramTemplate(value: unknown, exercises: Exercise[]) {
@@ -465,7 +511,7 @@ function normalizeProgramTemplate(value: unknown, exercises: Exercise[]) {
     return fallback
   }
 
-  return {
+  const normalized = {
     maxDay: {
       warmup: normalizeProgramBlock(
         isRecord(value.maxDay) ? value.maxDay.warmup : undefined,
@@ -527,6 +573,15 @@ function normalizeProgramTemplate(value: unknown, exercises: Exercise[]) {
       ),
     },
   } satisfies ProgramTemplate
+
+  if (isLegacyDefaultMaxDay(normalized)) {
+    return {
+      ...normalized,
+      maxDay: fallback.maxDay,
+    } satisfies ProgramTemplate
+  }
+
+  return normalized
 }
 
 export function normalizeAppData(value: unknown, today = todayDateString()) {

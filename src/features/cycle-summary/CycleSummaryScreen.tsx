@@ -11,37 +11,37 @@ export function CycleSummaryScreen() {
     <div className="screen-stack">
       <Section
         eyebrow={`${data.settings.cycleLengthDays}-day cycle`}
-        title="Cycle summary"
+        title="Cycle snapshot"
       >
-        <div className="info-grid info-grid--triple">
-          <div className="info-tile">
+        <div className="mini-stat-grid mini-stat-grid--triple">
+          <div className="mini-stat">
             <span className="metric-label">Cycle window</span>
             <strong>
               {formatLongDate(cycleSummary.cycleWindow.start)} to{' '}
               {formatLongDate(cycleSummary.cycleWindow.end)}
             </strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Current baseline</span>
             <strong>{cycleSummary.baselineMax ?? 'No baseline yet'}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Cycle best</span>
             <strong>{cycleSummary.cycleBestMax ?? 'No max yet'}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Progress</span>
             <strong>{cycleSummary.progressPercent}%</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Current phase</span>
             <strong>{cycleSummary.currentPhase}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Days elapsed</span>
             <strong>{cycleSummary.daysElapsed}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Days remaining</span>
             <strong>{cycleSummary.daysRemaining}</strong>
           </div>
@@ -49,7 +49,7 @@ export function CycleSummaryScreen() {
       </Section>
 
       <Section eyebrow="Session counts" title="Cycle totals">
-        <div className="chip-row">
+        <div className="summary-bar">
           <StatusPill
             label={`${cycleSummary.maxSessions} max`}
             tone="success"
@@ -74,12 +74,12 @@ export function CycleSummaryScreen() {
       </Section>
 
       <Section eyebrow="Recommendation" title="Current read on the cycle">
-        <div className="info-grid info-grid--triple">
-          <div className="info-tile">
+        <div className="mini-stat-grid mini-stat-grid--triple">
+          <div className="mini-stat">
             <span className="metric-label">Next workout</span>
             <strong>{recommendationState.nextSessionType}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Max readiness</span>
             <strong>
               {recommendationState.maxReadinessSatisfied
@@ -87,11 +87,11 @@ export function CycleSummaryScreen() {
                 : 'Not ready'}
             </strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Support focus</span>
             <strong>{recommendationState.defaultSupportFocus}</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Weekly volume</span>
             <strong>
               {weeklyVolumeSummary.completedPoints}/

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { AppProvider, useAppState } from './AppProvider'
+import { getHeaderStatusPillItems } from './headerStatusPills'
 import { BottomNav } from '../components/BottomNav'
+import { HeaderStatusPillGroup } from '../components/HeaderStatusPillGroup'
 import { NoticeBanner } from '../components/NoticeBanner'
-import { StatusPill } from '../components/StatusPill'
-import { navigateTo, useRouteState } from './routes'
 import { CycleSummaryScreen } from '../features/cycle-summary/CycleSummaryScreen'
 import { ExerciseLibraryScreen } from '../features/exercise-library/ExerciseLibraryScreen'
 import { HistoryScreen } from '../features/history/HistoryScreen'
@@ -12,6 +11,8 @@ import { ProgressScreen } from '../features/progress/ProgressScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
 import type { SessionType } from '../domain/types'
+import { AppProvider, useAppState } from './AppProvider'
+import { getRouteHref, navigateTo, useRouteState } from './routes'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -27,6 +28,55 @@ function normalizeSessionType(value: string | null): SessionType | null {
   }
 
   return null
+}
+
+function renderRouteContent(
+  route: ReturnType<typeof useRouteState>,
+  data: ReturnType<typeof useAppState>['data'],
+  installPrompt: BeforeInstallPromptEvent | null,
+  onInstall: () => Promise<void>,
+) {
+  switch (route.path) {
+    case 'today':
+      return (
+        <TodayScreen
+          canInstall={!!installPrompt}
+          onInstall={() => void onInstall()}
+          onOpenSettings={() => navigateTo('settings')}
+          onQuickLog={(sessionType) =>
+            navigateTo('log', {
+              prefill: '1',
+              type: sessionType,
+            })
+          }
+        />
+      )
+    case 'log':
+      return (
+        <LogWorkoutScreen
+          key={`${route.path}-${route.params.toString()}`}
+          prefill={route.params.get('prefill') === '1'}
+          requestedType={normalizeSessionType(route.params.get('type'))}
+          onSaved={() => navigateTo('today')}
+        />
+      )
+    case 'history':
+      return <HistoryScreen />
+    case 'progress':
+      return <ProgressScreen />
+    case 'library':
+      return <ExerciseLibraryScreen />
+    case 'cycle':
+      return <CycleSummaryScreen />
+    case 'settings':
+      return (
+        <SettingsScreen
+          key={`settings-${data.recommendationState.computedAt}`}
+        />
+      )
+    default:
+      return null
+  }
 }
 
 function AppShell() {
@@ -65,66 +115,19 @@ function AppShell() {
     setInstallPrompt(null)
   }
 
-  let content = (
+  const content = errorMessage ? (
+    <div className="loading-state loading-state--error">{errorMessage}</div>
+  ) : isReady ? (
+    renderRouteContent(route, data, installPrompt, handleInstall)
+  ) : (
     <div className="loading-state">Loading local training data...</div>
   )
-
-  if (errorMessage) {
-    content = (
-      <div className="loading-state loading-state--error">{errorMessage}</div>
-    )
-  } else if (isReady) {
-    if (route.path === 'today') {
-      content = (
-        <TodayScreen
-          canInstall={!!installPrompt}
-          onInstall={handleInstall}
-          onOpenSettings={() => navigateTo('settings')}
-          onQuickLog={(sessionType) =>
-            navigateTo('log', {
-              prefill: '1',
-              type: sessionType,
-            })
-          }
-        />
-      )
-    }
-
-    if (route.path === 'log') {
-      content = (
-        <LogWorkoutScreen
-          key={`${route.path}-${route.params.toString()}`}
-          prefill={route.params.get('prefill') === '1'}
-          requestedType={normalizeSessionType(route.params.get('type'))}
-          onSaved={() => navigateTo('today')}
-        />
-      )
-    }
-
-    if (route.path === 'history') {
-      content = <HistoryScreen />
-    }
-
-    if (route.path === 'progress') {
-      content = <ProgressScreen />
-    }
-
-    if (route.path === 'library') {
-      content = <ExerciseLibraryScreen />
-    }
-
-    if (route.path === 'cycle') {
-      content = <CycleSummaryScreen />
-    }
-
-    if (route.path === 'settings') {
-      content = (
-        <SettingsScreen
-          key={`settings-${data.recommendationState.computedAt}`}
-        />
-      )
-    }
-  }
+  const headerStatusPills = getHeaderStatusPillItems({
+    currentPhase: data.recommendationState.currentPhase,
+    mainMovement: data.athleteProfile.mainMovement,
+    nextSessionType: data.recommendationState.nextSessionType,
+    trend: data.recommendationState.trend,
+  })
 
   return (
     <div className="app-shell">
@@ -136,42 +139,25 @@ function AppShell() {
           </div>
 
           <div className="app-header__actions">
-            <button
-              type="button"
-              className="button button--ghost"
-              onClick={() => navigateTo('library')}
+            <a
+              href={getRouteHref('library')}
+              className="button button--ghost button--compact"
             >
               Library
-            </button>
-            <button
-              type="button"
-              className="button button--ghost"
-              onClick={() => navigateTo('settings')}
+            </a>
+            <a
+              href={getRouteHref('settings')}
+              className="button button--ghost button--compact"
             >
               Program
-            </button>
+            </a>
           </div>
         </div>
 
-        <div className="app-header__meta">
-          <StatusPill
-            label={`Next ${data.recommendationState.nextSessionType}`}
-            tone="accent"
-          />
-          <StatusPill label={data.athleteProfile.mainMovement} tone="neutral" />
-          <StatusPill
-            label={`Trend ${data.recommendationState.trend}`}
-            tone={
-              data.recommendationState.trend === 'falling'
-                ? 'warning'
-                : 'success'
-            }
-          />
-          <StatusPill
-            label={data.recommendationState.currentPhase}
-            tone="neutral"
-          />
-        </div>
+        <HeaderStatusPillGroup
+          className="app-header__meta"
+          items={headerStatusPills}
+        />
       </header>
 
       {notice ? (
@@ -184,11 +170,13 @@ function AppShell() {
         </div>
       ) : null}
 
-      <main className="app-main">{content}</main>
+      <main id="main-content" className="app-main" tabIndex={-1}>
+        {content}
+      </main>
 
       <BottomNav
         currentRoute={route.path}
-        onNavigate={(nextRoute) => navigateTo(nextRoute)}
+        recommendedSessionType={data.recommendationState.nextSessionType}
       />
     </div>
   )

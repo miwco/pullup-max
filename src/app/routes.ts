@@ -66,6 +66,13 @@ export function navigateTo(
   path: AppRoute,
   params?: Record<string, string | undefined>,
 ) {
+  window.location.hash = getRouteHref(path, params)
+}
+
+export function getRouteHref(
+  path: AppRoute,
+  params?: Record<string, string | undefined>,
+) {
   const searchParams = new URLSearchParams()
 
   Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -75,5 +82,5 @@ export function navigateTo(
   })
 
   const query = searchParams.toString()
-  window.location.hash = query ? `#/${path}?${query}` : `#/${path}`
+  return query ? `#/${path}?${query}` : `#/${path}`
 }

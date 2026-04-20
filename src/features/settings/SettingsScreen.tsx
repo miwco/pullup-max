@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
 import { useAppState } from '../../app/AppProvider'
 import type {
@@ -8,6 +9,8 @@ import type {
   ProgramTemplate,
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
+import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
+import { summarizeProgramBlock } from './programBlockSummary'
 
 type WeakBlockKey = 'top' | 'middle' | 'start/bottom' | 'grip'
 
@@ -71,261 +74,246 @@ function ProgramBlockEditor({
   onChange: (nextBlock: ProgramBlock) => void
 }) {
   return (
-    <div className="subsection">
-      <div className="subsection__header">
-        <div>
-          <h3>{block.title}</h3>
-        </div>
-      </div>
-
-      <div className="entry-list">
-        {block.steps.map((step, index) => (
-          <div key={step.id} className="entry-row entry-row--compact">
-            <label className="field field--span-2">
-              <span>Step label</span>
-              <input
-                value={step.title}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'title',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field field--span-2">
-              <span>Exercise</span>
-              <select
-                value={step.exerciseId}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'exerciseId',
-                      event.target.value,
-                    ),
-                  )
-                }
-              >
-                {activeExerciseOptions.map((exercise) => (
-                  <option key={exercise.id} value={exercise.id}>
-                    {exercise.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Sets</span>
-              <input
-                inputMode="numeric"
-                value={step.sets ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'sets',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>Reps</span>
-              <input
-                inputMode="numeric"
-                value={step.reps ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'reps',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>Min reps</span>
-              <input
-                inputMode="numeric"
-                value={step.minReps ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'minReps',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>Max reps</span>
-              <input
-                inputMode="numeric"
-                value={step.maxReps ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'maxReps',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>Hold sec</span>
-              <input
-                inputMode="numeric"
-                value={step.holdSeconds ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'holdSeconds',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>Duration sec</span>
-              <input
-                inputMode="numeric"
-                value={step.durationSeconds ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'durationSeconds',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>EMOM min</span>
-              <input
-                inputMode="numeric"
-                value={step.emomMinutes ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'emomMinutes',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>EMOM reps</span>
-              <input
-                inputMode="numeric"
-                value={step.emomReps ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'emomReps',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field">
-              <span>Bodyweight / band</span>
-              <select
-                value={step.bodyweightOption ?? ''}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'bodyweightOption',
-                      event.target.value as BodyweightOption,
-                    ),
-                  )
-                }
-              >
-                <option value="">n/a</option>
-                <option value="bodyweight">bodyweight</option>
-                <option value="band">band</option>
-                <option value="either">either</option>
-              </select>
-            </label>
-
-            <label className="field field--checkbox">
-              <span>Band allowed</span>
-              <input
-                type="checkbox"
-                checked={step.bandAllowed ?? false}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'bandAllowed',
-                      event.target.checked,
-                    ),
-                  )
-                }
-              />
-            </label>
-
-            <label className="field field--span-2">
-              <span>Notes</span>
-              <input
-                value={step.notes}
-                onChange={(event) =>
-                  onChange(
-                    updateProgramBlock(
-                      block,
-                      index,
-                      'notes',
-                      event.target.value,
-                    ),
-                  )
-                }
-              />
-            </label>
+    <div className="entry-list">
+      {block.steps.map((step, index) => (
+        <div key={step.id} className="entry-row entry-row--compact">
+          <div className="field field--span-2">
+            <span>Step</span>
+            <strong>{step.title || `Step ${index + 1}`}</strong>
           </div>
-        ))}
-      </div>
+
+          <label className="field field--span-2">
+            <span>Step label</span>
+            <input
+              value={step.title}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(block, index, 'title', event.target.value),
+                )
+              }
+            />
+          </label>
+
+          <label className="field field--span-2">
+            <span>Exercise</span>
+            <select
+              value={step.exerciseId}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'exerciseId',
+                    event.target.value,
+                  ),
+                )
+              }
+            >
+              {activeExerciseOptions.map((exercise) => (
+                <option key={exercise.id} value={exercise.id}>
+                  {exercise.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Sets</span>
+            <input
+              inputMode="numeric"
+              value={step.sets ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(block, index, 'sets', event.target.value),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Reps</span>
+            <input
+              inputMode="numeric"
+              value={step.reps ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(block, index, 'reps', event.target.value),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Min reps</span>
+            <input
+              inputMode="numeric"
+              value={step.minReps ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'minReps',
+                    event.target.value,
+                  ),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Max reps</span>
+            <input
+              inputMode="numeric"
+              value={step.maxReps ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'maxReps',
+                    event.target.value,
+                  ),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Hold sec</span>
+            <input
+              inputMode="numeric"
+              value={step.holdSeconds ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'holdSeconds',
+                    event.target.value,
+                  ),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Duration sec</span>
+            <input
+              inputMode="numeric"
+              value={step.durationSeconds ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'durationSeconds',
+                    event.target.value,
+                  ),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>EMOM min</span>
+            <input
+              inputMode="numeric"
+              value={step.emomMinutes ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'emomMinutes',
+                    event.target.value,
+                  ),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>EMOM reps</span>
+            <input
+              inputMode="numeric"
+              value={step.emomReps ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'emomReps',
+                    event.target.value,
+                  ),
+                )
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Bodyweight / band</span>
+            <select
+              value={step.bodyweightOption ?? ''}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'bodyweightOption',
+                    event.target.value as BodyweightOption,
+                  ),
+                )
+              }
+            >
+              <option value="">n/a</option>
+              <option value="bodyweight">bodyweight</option>
+              <option value="band">band</option>
+              <option value="either">either</option>
+            </select>
+          </label>
+
+          <label className="field field--checkbox">
+            <span>Band allowed</span>
+            <input
+              type="checkbox"
+              checked={step.bandAllowed ?? false}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(
+                    block,
+                    index,
+                    'bandAllowed',
+                    event.target.checked,
+                  ),
+                )
+              }
+            />
+          </label>
+
+          <label className="field field--span-2">
+            <span>Notes</span>
+            <input
+              value={step.notes}
+              onChange={(event) =>
+                onChange(
+                  updateProgramBlock(block, index, 'notes', event.target.value),
+                )
+              }
+            />
+          </label>
+        </div>
+      ))}
     </div>
   )
+}
+
+interface ProgramBlockConfig {
+  block: ProgramBlock
+  eyebrow: string
+  id: string
+  title: string
+  onChange: (nextBlock: ProgramBlock) => void
 }
 
 export function SettingsScreen() {
@@ -335,8 +323,7 @@ export function SettingsScreen() {
     exportBackup,
     importBackup,
     resetAllData,
-    updatePreferences,
-    updateProgramTemplate,
+    saveSettingsAndProgram,
   } = useAppState()
   const [mainMovement, setMainMovement] = useState(
     data.athleteProfile.mainMovement,
@@ -363,12 +350,34 @@ export function SettingsScreen() {
   const [programTemplate, setProgramTemplate] = useState<ProgramTemplate>(
     structuredClone(data.programTemplate),
   )
+  const [openProgramBlockId, setOpenProgramBlockId] = useState<string | null>(
+    null,
+  )
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const isDirty =
+    mainMovement !== data.athleteProfile.mainMovement ||
+    cycleStartDate !== data.athleteProfile.cycleStartDate ||
+    fatigueSensitivity !== String(data.settings.fatigueSensitivity) ||
+    cycleLengthDays !== String(data.settings.cycleLengthDays) ||
+    jointPainSensitivity !== String(data.settings.jointPainSensitivity) ||
+    bodyweightTrackingEnabled !== data.settings.bodyweightTrackingEnabled ||
+    bandsAvailable !== data.settings.bandsAvailable ||
+    notes !== data.athleteProfile.notes ||
+    JSON.stringify(programTemplate) !== JSON.stringify(data.programTemplate)
+
+  useUnsavedChangesPrompt(isDirty)
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    await updatePreferences(
+    if (isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+
+    await saveSettingsAndProgram(
       {
         mainMovement: mainMovement.trim() || data.athleteProfile.mainMovement,
         cycleStartDate: cycleStartDate || todayDateString(),
@@ -381,9 +390,9 @@ export function SettingsScreen() {
         fatigueSensitivity: Number(fatigueSensitivity),
         jointPainSensitivity: Number(jointPainSensitivity),
       },
+      programTemplate,
     )
-
-    await updateProgramTemplate(programTemplate)
+    setIsSaving(false)
   }
 
   function handleExport() {
@@ -414,6 +423,11 @@ export function SettingsScreen() {
     id: exercise.id,
     name: exercise.name,
   }))
+  const exerciseNameById = useMemo(
+    () =>
+      new Map(data.exercises.map((exercise) => [exercise.id, exercise.name])),
+    [data.exercises],
+  )
 
   function setWeakBlock(blockKey: WeakBlockKey, nextBlock: ProgramBlock) {
     setProgramTemplate((current) => ({
@@ -425,15 +439,108 @@ export function SettingsScreen() {
     }))
   }
 
+  const programBlocks: ProgramBlockConfig[] = [
+    {
+      id: 'max-warmup',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.warmup.title,
+      block: programTemplate.maxDay.warmup,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          maxDay: {
+            ...current.maxDay,
+            warmup: nextBlock,
+          },
+        })),
+    },
+    {
+      id: 'max-main-set',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.mainSet.title,
+      block: programTemplate.maxDay.mainSet,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          maxDay: {
+            ...current.maxDay,
+            mainSet: nextBlock,
+          },
+        })),
+    },
+    {
+      id: 'max-volume-block',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.volumeBlock.title,
+      block: programTemplate.maxDay.volumeBlock,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          maxDay: {
+            ...current.maxDay,
+            volumeBlock: nextBlock,
+          },
+        })),
+    },
+    {
+      id: 'max-finisher',
+      eyebrow: 'Max day',
+      title: programTemplate.maxDay.finisher.title,
+      block: programTemplate.maxDay.finisher,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          maxDay: {
+            ...current.maxDay,
+            finisher: nextBlock,
+          },
+        })),
+    },
+    {
+      id: 'support-base',
+      eyebrow: 'Support day',
+      title: programTemplate.supportDayBase.title,
+      block: programTemplate.supportDayBase,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          supportDayBase: nextBlock,
+        })),
+    },
+    {
+      id: 'support-fallback',
+      eyebrow: 'Support day',
+      title: programTemplate.supportFallback.title,
+      block: programTemplate.supportFallback,
+      onChange: (nextBlock: ProgramBlock) =>
+        setProgramTemplate((current) => ({
+          ...current,
+          supportFallback: nextBlock,
+        })),
+    },
+    ...(['top', 'middle', 'start/bottom', 'grip'] as WeakBlockKey[]).map(
+      (blockKey) => ({
+        id: `weak-${blockKey}`,
+        eyebrow: 'Weak point',
+        title: programTemplate.weakPointBlocks[blockKey].title,
+        block: programTemplate.weakPointBlocks[blockKey],
+        onChange: (nextBlock: ProgramBlock) =>
+          setWeakBlock(blockKey, nextBlock),
+      }),
+    ),
+  ].filter((programBlock) => programBlock.block.steps.length > 0)
+
   return (
     <div className="screen-stack">
-      <Section eyebrow="Settings" title="Rules and defaults">
-        <form className="form-stack" onSubmit={handleSave}>
+      <form className="screen-stack" onSubmit={handleSave}>
+        <Section eyebrow="Settings" title="Rules and defaults">
           <div className="field-grid field-grid--compact">
             <label className="field field--span-2">
               <span>Main movement</span>
               <input
                 list="movement-options"
+                name="main-movement"
+                autoComplete="off"
                 value={mainMovement}
                 onChange={(event) => setMainMovement(event.target.value)}
               />
@@ -448,6 +555,7 @@ export function SettingsScreen() {
               <span>Cycle start date</span>
               <input
                 type="date"
+                name="cycle-start-date"
                 value={cycleStartDate}
                 onChange={(event) => setCycleStartDate(event.target.value)}
               />
@@ -473,6 +581,7 @@ export function SettingsScreen() {
                 type="number"
                 min="30"
                 max="365"
+                name="cycle-length-days"
                 value={cycleLengthDays}
                 onChange={(event) => setCycleLengthDays(event.target.value)}
               />
@@ -517,109 +626,60 @@ export function SettingsScreen() {
             <label className="field field--span-2">
               <span>Notes</span>
               <textarea
+                name="athlete-notes"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
               />
             </label>
           </div>
+        </Section>
 
-          <ProgramBlockEditor
-            activeExerciseOptions={exerciseOptions}
-            block={programTemplate.maxDay.warmup}
-            onChange={(nextBlock) =>
-              setProgramTemplate((current) => ({
-                ...current,
-                maxDay: {
-                  ...current.maxDay,
-                  warmup: nextBlock,
-                },
-              }))
-            }
-          />
+        <Section eyebrow="Program editor" title="Editable defaults">
+          <p className="muted-text">
+            Keep the stack closed until you need it. Each block shows a quick
+            summary from the current prescription.
+          </p>
 
-          <ProgramBlockEditor
-            activeExerciseOptions={exerciseOptions}
-            block={programTemplate.maxDay.mainSet}
-            onChange={(nextBlock) =>
-              setProgramTemplate((current) => ({
-                ...current,
-                maxDay: {
-                  ...current.maxDay,
-                  mainSet: nextBlock,
-                },
-              }))
-            }
-          />
+          <div className="accordion-stack">
+            {programBlocks.map((programBlock) => (
+              <AccordionSection
+                key={programBlock.id}
+                eyebrow={programBlock.eyebrow}
+                title={programBlock.title}
+                isOpen={openProgramBlockId === programBlock.id}
+                onToggle={() =>
+                  setOpenProgramBlockId((current) =>
+                    current === programBlock.id ? null : programBlock.id,
+                  )
+                }
+                summary={summarizeProgramBlock(
+                  programBlock.block,
+                  exerciseNameById,
+                )}
+              >
+                <ProgramBlockEditor
+                  activeExerciseOptions={exerciseOptions}
+                  block={programBlock.block}
+                  onChange={programBlock.onChange}
+                />
+              </AccordionSection>
+            ))}
+          </div>
 
-          <ProgramBlockEditor
-            activeExerciseOptions={exerciseOptions}
-            block={programTemplate.maxDay.volumeBlock}
-            onChange={(nextBlock) =>
-              setProgramTemplate((current) => ({
-                ...current,
-                maxDay: {
-                  ...current.maxDay,
-                  volumeBlock: nextBlock,
-                },
-              }))
-            }
-          />
-
-          <ProgramBlockEditor
-            activeExerciseOptions={exerciseOptions}
-            block={programTemplate.maxDay.finisher}
-            onChange={(nextBlock) =>
-              setProgramTemplate((current) => ({
-                ...current,
-                maxDay: {
-                  ...current.maxDay,
-                  finisher: nextBlock,
-                },
-              }))
-            }
-          />
-
-          <ProgramBlockEditor
-            activeExerciseOptions={exerciseOptions}
-            block={programTemplate.supportDayBase}
-            onChange={(nextBlock) =>
-              setProgramTemplate((current) => ({
-                ...current,
-                supportDayBase: nextBlock,
-              }))
-            }
-          />
-
-          <ProgramBlockEditor
-            activeExerciseOptions={exerciseOptions}
-            block={programTemplate.supportFallback}
-            onChange={(nextBlock) =>
-              setProgramTemplate((current) => ({
-                ...current,
-                supportFallback: nextBlock,
-              }))
-            }
-          />
-
-          {(['top', 'middle', 'start/bottom', 'grip'] as WeakBlockKey[]).map(
-            (blockKey) => (
-              <ProgramBlockEditor
-                key={blockKey}
-                activeExerciseOptions={exerciseOptions}
-                block={programTemplate.weakPointBlocks[blockKey]}
-                onChange={(nextBlock) => setWeakBlock(blockKey, nextBlock)}
-              />
-            ),
-          )}
-
-          <button type="submit" className="button button--primary">
-            Save settings and program
-          </button>
-        </form>
-      </Section>
+          <div className="action-row action-row--end">
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving…' : 'Save settings & program'}
+            </button>
+          </div>
+        </Section>
+      </form>
 
       <Section eyebrow="Backup" title="Export and import">
-        <div className="button-row button-row--wrap">
+        <div className="action-row">
           <button
             type="button"
             className="button button--ghost"

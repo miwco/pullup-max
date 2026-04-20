@@ -19,6 +19,10 @@ function formatDayCount(value: number | null, emptyLabel: string) {
   return `${value} day${value === 1 ? '' : 's'}`
 }
 
+const VOLUME_HELP_ID = 'weekly-volume-help'
+const VOLUME_HELP_TEXT =
+  'Volume uses points, not just reps. Pull-up rows count reps x sets with exercise weights, hangs and holds count from seconds, and a true max test adds 1 point per rep. The weekly target starts at 48 points, rises by 2 each training week, and can temporarily brake if your max trend is falling.'
+
 export function TodayScreen({
   canInstall,
   onInstall,
@@ -38,8 +42,10 @@ export function TodayScreen({
   const todaysWeight =
     data.bodyweightEntries.find((entry) => entry.date === today)?.weightKg ??
     null
+  const [showVolumeHelp, setShowVolumeHelp] = useState(false)
   const [weightInput, setWeightInput] = useState<string | null>(null)
   const [weightError, setWeightError] = useState<string | null>(null)
+  const [isSavingWeight, setIsSavingWeight] = useState(false)
   const resolvedWeightInput =
     weightInput ?? (todaysWeight === null ? '' : String(todaysWeight))
   const latestWeightLabel = latestBodyweightEntry
@@ -47,6 +53,10 @@ export function TodayScreen({
     : 'No weight yet'
 
   async function handleSaveWeight() {
+    if (isSavingWeight) {
+      return
+    }
+
     setWeightError(null)
 
     const parsedWeight = Number(resolvedWeightInput)
@@ -60,7 +70,9 @@ export function TodayScreen({
       return
     }
 
+    setIsSavingWeight(true)
     const saved = await saveBodyweight(today, parsedWeight)
+    setIsSavingWeight(false)
 
     if (saved) {
       setWeightInput(null)
@@ -69,10 +81,26 @@ export function TodayScreen({
 
   return (
     <div className="screen-stack">
-      <section className="hero-panel hero-panel--compact">
-        <div className="hero-panel__meta">
+      <Section
+        variant="summary"
+        className="today-summary"
+        contentClassName="today-summary__content"
+        eyebrow="Today"
+        title={
+          recommendation.nextSessionType === 'max' ? 'Max day' : 'Support day'
+        }
+        action={
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => onQuickLog(recommendation.nextSessionType)}
+          >
+            Log recommended workout
+          </button>
+        }
+      >
+        <div className="summary-bar">
           <div className="chip-row">
-            <span className="hero-panel__eyebrow">Today</span>
             <StatusPill
               label={
                 recommendation.maxReadinessSatisfied
@@ -87,69 +115,9 @@ export function TodayScreen({
           </div>
         </div>
 
-        <div className="hero-panel__content hero-panel__content--single">
-          <div>
-            <p className="hero-panel__kicker">Next recommended workout</p>
-            <h2 className="hero-panel__title hero-panel__title--compact">
-              {recommendation.nextSessionType === 'max'
-                ? 'Max day'
-                : 'Support day'}
-            </h2>
-            <p className="hero-panel__body">{recommendation.explanation}</p>
-          </div>
-        </div>
+        <p className="summary-copy">{recommendation.explanation}</p>
 
-        <div className="hero-panel__metrics hero-panel__metrics--dense">
-          <div>
-            <span className="metric-label">Max readiness</span>
-            <strong>
-              {recommendation.maxReadinessSatisfied ? 'Satisfied' : 'Not yet'}
-            </strong>
-          </div>
-          <div>
-            <span className="metric-label">Days since last max</span>
-            <strong>{formatDayCount(daysSinceLastMax, 'None yet')}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Days since last workout</span>
-            <strong>{formatDayCount(daysSinceLastWorkout, 'None yet')}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Current baseline</span>
-            <strong>
-              {recommendation.baselineMax === null
-                ? 'No baseline yet'
-                : `${recommendation.baselineMax} reps`}
-            </strong>
-          </div>
-          <div>
-            <span className="metric-label">Current phase</span>
-            <strong>{recommendation.currentPhase}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Trend</span>
-            <strong>{recommendation.trend}</strong>
-          </div>
-          <div>
-            <span className="metric-label">Support focus</span>
-            <strong>{recommendation.defaultSupportFocus}</strong>
-          </div>
-          {data.settings.bodyweightTrackingEnabled ? (
-            <div>
-              <span className="metric-label">Current weight</span>
-              <strong>{latestWeightLabel}</strong>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="hero-panel__actions">
-          <button
-            type="button"
-            className="button button--primary"
-            onClick={() => onQuickLog(recommendation.nextSessionType)}
-          >
-            Log recommended workout
-          </button>
+        <div className="action-row action-row--compact">
           <button
             type="button"
             className="button button--ghost"
@@ -174,7 +142,52 @@ export function TodayScreen({
             </button>
           ) : null}
         </div>
-      </section>
+      </Section>
+
+      <Section eyebrow="Training state" title="Readiness snapshot">
+        <div className="mini-stat-grid">
+          <div className="mini-stat">
+            <span className="metric-label">Max readiness</span>
+            <strong>
+              {recommendation.maxReadinessSatisfied ? 'Satisfied' : 'Not yet'}
+            </strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Days since last max</span>
+            <strong>{formatDayCount(daysSinceLastMax, 'None yet')}</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Days since last workout</span>
+            <strong>{formatDayCount(daysSinceLastWorkout, 'None yet')}</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Current baseline</span>
+            <strong>
+              {recommendation.baselineMax === null
+                ? 'No baseline yet'
+                : `${recommendation.baselineMax} reps`}
+            </strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Current phase</span>
+            <strong>{recommendation.currentPhase}</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Trend</span>
+            <strong>{recommendation.trend}</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Support focus</span>
+            <strong>{recommendation.defaultSupportFocus}</strong>
+          </div>
+          {data.settings.bodyweightTrackingEnabled ? (
+            <div className="mini-stat">
+              <span className="metric-label">Current weight</span>
+              <strong>{latestWeightLabel}</strong>
+            </div>
+          ) : null}
+        </div>
+      </Section>
 
       <Section eyebrow="Next work" title="Suggested exercises">
         <div className="chip-row">
@@ -197,23 +210,39 @@ export function TodayScreen({
         </Section>
       ) : null}
 
-      <Section eyebrow="Weekly target" title="Volume this week">
-        <div className="info-grid info-grid--triple">
-          <div className="info-tile">
+      <Section
+        eyebrow="Weekly target"
+        title="Volume this week"
+        className="section--compact"
+        action={
+          <button
+            type="button"
+            className={`icon-button icon-button--help${showVolumeHelp ? ' is-active' : ''}`}
+            aria-label="Explain how weekly volume is counted"
+            aria-controls={VOLUME_HELP_ID}
+            aria-expanded={showVolumeHelp}
+            onClick={() => setShowVolumeHelp((current) => !current)}
+          >
+            ?
+          </button>
+        }
+      >
+        <div className="mini-stat-grid mini-stat-grid--triple">
+          <div className="mini-stat">
             <span className="metric-label">Completed</span>
             <strong>{weeklyVolumeSummary.completedPoints} pts</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Target</span>
             <strong>{weeklyVolumeSummary.targetPoints} pts</strong>
           </div>
-          <div className="info-tile">
+          <div className="mini-stat">
             <span className="metric-label">Still to do</span>
             <strong>{weeklyVolumeSummary.remainingPoints} pts</strong>
           </div>
         </div>
 
-        <div className="chip-row">
+        <div className="summary-bar">
           <StatusPill
             label={`Week ${weeklyVolumeSummary.weekNumber}`}
             tone="neutral"
@@ -231,50 +260,53 @@ export function TodayScreen({
           ) : null}
         </div>
 
-        <p className="muted-text" style={{ marginTop: 10 }}>
-          {weeklyVolumeSummary.message}
-        </p>
+        <p className="muted-text">{weeklyVolumeSummary.message}</p>
+
+        {showVolumeHelp ? (
+          <div id={VOLUME_HELP_ID} className="inline-note">
+            <p className="muted-text">{VOLUME_HELP_TEXT}</p>
+          </div>
+        ) : null}
       </Section>
 
       {data.settings.bodyweightTrackingEnabled ? (
         <Section eyebrow="Bodyweight" title="Today's weight">
-          <div className="field-grid field-grid--compact">
+          <div className="inline-form">
             <label className="field">
               <span>Weight today</span>
               <input
+                name="bodyweight-kg"
+                autoComplete="off"
                 inputMode="decimal"
-                placeholder="kg"
+                placeholder="82.4…"
                 value={resolvedWeightInput}
                 onChange={(event) => setWeightInput(event.target.value)}
               />
             </label>
 
-            <div className="info-tile">
+            <div className="mini-stat">
               <span className="metric-label">Latest saved</span>
-              <strong>
-                {latestWeightLabel}
-              </strong>
+              <strong>{latestWeightLabel}</strong>
               <p className="muted-text">
                 {latestBodyweightEntry
                   ? formatLongDate(latestBodyweightEntry.date)
                   : 'Save today to start tracking.'}
               </p>
             </div>
-          </div>
 
-          <div className="button-row" style={{ marginTop: 12 }}>
             <button
               type="button"
               className="button button--primary"
+              disabled={isSavingWeight}
               onClick={() => void handleSaveWeight()}
             >
-              Save today's weight
+              {isSavingWeight ? 'Saving…' : "Save today's weight"}
             </button>
           </div>
 
           {weightError ? <p className="form-error">{weightError}</p> : null}
 
-          <p className="muted-text" style={{ marginTop: 10 }}>
+          <p className="muted-text bodyweight-note">
             New Max results will automatically snapshot the latest saved weight.
           </p>
         </Section>

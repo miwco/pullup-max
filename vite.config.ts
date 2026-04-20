@@ -44,13 +44,13 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
     }),
   ],
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['src/test/**/*.test.ts'],
+    include: ['src/test/**/*.test.{ts,tsx}'],
   },
 })

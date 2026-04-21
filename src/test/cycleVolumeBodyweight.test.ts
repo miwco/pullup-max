@@ -109,6 +109,20 @@ describe('cycle, bodyweight, and volume logic', () => {
         exerciseLookup,
       ),
     ).toBe(8)
+    expect(
+      getEntryVolumePoints(
+        {
+          id: 'entry-4',
+          workoutSessionId: 'session-1',
+          exerciseId: pullUpId,
+          sets: 5,
+          reps: 4,
+          outcome: 'fail',
+          isMaxTest: false,
+        },
+        exerciseLookup,
+      ),
+    ).toBe(0)
   })
 
   it('raises weekly volume targets gradually and applies a brake when trend falls', () => {

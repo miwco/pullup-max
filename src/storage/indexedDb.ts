@@ -5,7 +5,7 @@ import type { AppData } from '../domain/types'
 import { todayDateString } from '../lib/date'
 
 const DATABASE_NAME = 'pullup-max-db'
-const DATABASE_VERSION = 3
+const DATABASE_VERSION = 4
 
 const STORE_NAMES = {
   athleteProfile: 'athleteProfile',
@@ -15,6 +15,7 @@ const STORE_NAMES = {
   sessions: 'sessions',
   exerciseEntries: 'exerciseEntries',
   maxTests: 'maxTests',
+  presetProgressions: 'presetProgressions',
   programTemplate: 'programTemplate',
   recommendationState: 'recommendationState',
 } as const
@@ -81,6 +82,14 @@ async function openDatabase() {
         })
       }
 
+      if (
+        !database.objectStoreNames.contains(STORE_NAMES.presetProgressions)
+      ) {
+        database.createObjectStore(STORE_NAMES.presetProgressions, {
+          keyPath: 'presetKey',
+        })
+      }
+
       if (!database.objectStoreNames.contains(STORE_NAMES.programTemplate)) {
         database.createObjectStore(STORE_NAMES.programTemplate)
       }
@@ -115,6 +124,7 @@ export async function loadStoredAppData(today = todayDateString()) {
       sessions,
       exerciseEntries,
       maxTests,
+      presetProgressions,
       programTemplate,
     ] = await Promise.all([
       requestToPromise(
@@ -135,6 +145,9 @@ export async function loadStoredAppData(today = todayDateString()) {
       ),
       requestToPromise(transaction.objectStore(STORE_NAMES.maxTests).getAll()),
       requestToPromise(
+        transaction.objectStore(STORE_NAMES.presetProgressions).getAll(),
+      ),
+      requestToPromise(
         transaction.objectStore(STORE_NAMES.programTemplate).get('current'),
       ),
     ])
@@ -148,6 +161,7 @@ export async function loadStoredAppData(today = todayDateString()) {
         sessions,
         exerciseEntries,
         maxTests,
+        presetProgressions,
         programTemplate,
       },
       today,
@@ -177,6 +191,9 @@ export async function persistAppData(appData: AppData) {
     STORE_NAMES.exerciseEntries,
   )
   const maxTestsStore = transaction.objectStore(STORE_NAMES.maxTests)
+  const presetProgressionsStore = transaction.objectStore(
+    STORE_NAMES.presetProgressions,
+  )
   const programTemplateStore = transaction.objectStore(
     STORE_NAMES.programTemplate,
   )
@@ -191,6 +208,7 @@ export async function persistAppData(appData: AppData) {
   sessionsStore.clear()
   exerciseEntriesStore.clear()
   maxTestsStore.clear()
+  presetProgressionsStore.clear()
   programTemplateStore.clear()
   recommendationStore.clear()
 
@@ -203,6 +221,7 @@ export async function persistAppData(appData: AppData) {
   appData.sessions.forEach((session) => sessionsStore.put(session))
   appData.exerciseEntries.forEach((entry) => exerciseEntriesStore.put(entry))
   appData.maxTests.forEach((maxTest) => maxTestsStore.put(maxTest))
+  appData.presetProgressions.forEach((state) => presetProgressionsStore.put(state))
   programTemplateStore.put(appData.programTemplate, 'current')
   recommendationStore.put(appData.recommendationState)
 

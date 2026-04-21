@@ -15,6 +15,8 @@ import {
   parseImportBundle,
   serializeExportBundle,
 } from '../domain/importExport'
+import { applyPresetOutcomes } from '../domain/presetProgression'
+import { getAllProgramSteps } from '../domain/programTemplate'
 import {
   buildBodyweightPoints,
   buildMaxHistory,
@@ -27,6 +29,7 @@ import {
   getCycleSummaryData,
   getDaysSinceLastMax,
   getDaysSinceLastWorkout,
+  getLatestLoggedMaxReps,
   getLatestSavedBodyweightEntry,
   getMaxExposures,
   getMaxTrendClassificationForNewResult,
@@ -181,6 +184,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     data.sessions,
     data.athleteProfile.mainMovement,
   )
+  const latestLoggedMaxReps = getLatestLoggedMaxReps(
+    data.maxTests,
+    data.sessions,
+    data.athleteProfile.mainMovement,
+  )
   const activeExercises = data.exercises.filter((exercise) => exercise.active)
   const latestBodyweightEntry = getLatestSavedBodyweightEntry(
     data.bodyweightEntries,
@@ -241,6 +249,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return buildProgramEntryDrafts(
       getProgramStepsForRecommendation(data, sessionType),
       data.exercises,
+      data.presetProgressions,
+      latestLoggedMaxReps,
     )
   }
 
@@ -283,6 +293,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       workoutSessionId: sessionId,
       notes: entry.notes ?? undefined,
     }))
+    const stepLookup = new Map(
+      getAllProgramSteps(data.programTemplate).map((step) => [step.id, step]),
+    )
     const maxTest = input.maxTest
       ? {
           id: createId('max'),
@@ -307,6 +320,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sessions: [...data.sessions, session],
         exerciseEntries: [...data.exerciseEntries, ...entries],
         maxTests: maxTest ? [...data.maxTests, maxTest] : data.maxTests,
+        presetProgressions: applyPresetOutcomes(
+          data.presetProgressions,
+          entries,
+          stepLookup,
+          latestLoggedMaxReps,
+        ),
       },
       todayDateString(),
     )

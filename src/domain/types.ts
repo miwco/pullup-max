@@ -2,6 +2,17 @@ export type SessionType = 'max' | 'support'
 export type ExerciseType = 'max' | 'support' | 'custom'
 export type DefaultUnit = 'reps' | 'seconds' | 'minutes' | 'sets'
 export type CyclePhase = 'build' | 'develop' | 'competition-prep'
+export type MainMovement =
+  | 'Pull-up'
+  | 'Chin-up'
+  | 'Neutral-grip pull-up'
+  | 'Ring pull-up'
+export type PresetOutcome = 'pass' | 'fail'
+export type PresetTargetMode =
+  | 'emom'
+  | 'reps'
+  | 'hold-seconds'
+  | 'duration-seconds'
 export type FailurePoint =
   | 'top'
   | 'middle'
@@ -20,7 +31,7 @@ export type BodyweightOption = 'bodyweight' | 'band' | 'either'
 
 export interface AthleteProfile {
   id: string
-  mainMovement: string
+  mainMovement: MainMovement
   cycleStartDate: string
   notes: string
 }
@@ -63,6 +74,10 @@ export interface ExerciseEntry {
   bandAssisted?: boolean
   effort?: number
   notes?: string
+  presetKey?: string
+  outcome?: PresetOutcome
+  presetTargetMode?: PresetTargetMode
+  presetTargetSummary?: string
   isMaxTest: boolean
 }
 
@@ -128,12 +143,38 @@ export interface RecommendationState {
   computedAt: string
 }
 
+export interface EmomSegment {
+  sets: number
+  reps: number
+}
+
+export interface ResolvedPresetTarget {
+  mode: PresetTargetMode
+  summary: string
+  entrySets: number
+  entryReps?: number
+  entryDurationSeconds?: number
+  emomMinutes?: number
+  emomSegments?: EmomSegment[]
+}
+
+export type PresetProgressionState =
+  | {
+      presetKey: string
+      mode: 'emom'
+      emomBaseReps: number
+      emomStageOffset: number
+    }
+  | {
+      presetKey: string
+      mode: Exclude<PresetTargetMode, 'emom'>
+      currentValue: number
+    }
+
 export interface AppSettings {
   bodyweightTrackingEnabled: boolean
   bandsAvailable: boolean
   cycleLengthDays: number
-  fatigueSensitivity: number
-  jointPainSensitivity: number
   exportFormatVersion: number
 }
 
@@ -145,6 +186,7 @@ export interface AppData {
   sessions: WorkoutSession[]
   exerciseEntries: ExerciseEntry[]
   maxTests: MaxTestResult[]
+  presetProgressions: PresetProgressionState[]
   programTemplate: ProgramTemplate
   recommendationState: RecommendationState
 }
@@ -169,12 +211,11 @@ export interface RecommendationInput {
   currentPhase: CyclePhase
   daysSinceLastMax: number | null
   daysSinceLastWorkout: number | null
+  exercises: Exercise[]
   fatigueAverage: number | null
-  fatigueSensitivity: number
-  jointPainAverage: number | null
-  jointPainSensitivity: number
+  supportPainOverride: boolean
   latestFailurePoint: FailurePoint | null
-  mainMovement: string
+  mainMovement: MainMovement
   programTemplate: ProgramTemplate
   sessionsLast7: number
 }
@@ -230,15 +271,13 @@ export interface CycleSummaryData {
 
 export interface ProgramEntryDraft {
   templateStepId: string
+  presetKey: string
   label: string
   exerciseId: string
   exerciseName: string
-  sets: string
-  reps: string
-  durationSeconds: string
-  bandAssisted: boolean
-  effort: string
+  target: ResolvedPresetTarget
   notes: string
+  outcome: PresetOutcome | ''
 }
 
 export interface WeeklyVolumeSummary {

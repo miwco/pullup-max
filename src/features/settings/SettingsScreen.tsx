@@ -2,8 +2,10 @@ import { useMemo, useRef, useState } from 'react'
 import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
 import { useAppState } from '../../app/AppProvider'
+import { MAIN_MOVEMENTS } from '../../domain/mainMovement'
 import type {
   BodyweightOption,
+  MainMovement,
   ProgramBlock,
   ProgramStep,
   ProgramTemplate,
@@ -64,6 +66,30 @@ function updateProgramBlock(
   }
 }
 
+interface StepFieldVisibility {
+  durationSeconds: boolean
+  emomMinutes: boolean
+  emomReps: boolean
+  holdSeconds: boolean
+  maxReps: boolean
+  minReps: boolean
+  reps: boolean
+  sets: boolean
+}
+
+function createStepFieldVisibility(step: ProgramStep): StepFieldVisibility {
+  return {
+    sets: typeof step.sets === 'number',
+    reps: typeof step.reps === 'number',
+    minReps: typeof step.minReps === 'number',
+    maxReps: typeof step.maxReps === 'number',
+    holdSeconds: typeof step.holdSeconds === 'number',
+    durationSeconds: typeof step.durationSeconds === 'number',
+    emomMinutes: typeof step.emomMinutes === 'number',
+    emomReps: typeof step.emomReps === 'number',
+  }
+}
+
 function ProgramBlockEditor({
   activeExerciseOptions,
   block,
@@ -73,237 +99,265 @@ function ProgramBlockEditor({
   block: ProgramBlock
   onChange: (nextBlock: ProgramBlock) => void
 }) {
+  const [fieldVisibilityByStepId] = useState<Record<string, StepFieldVisibility>>(
+    () =>
+    Object.fromEntries(
+      block.steps.map((step) => [step.id, createStepFieldVisibility(step)]),
+    ),
+  )
+
   return (
     <div className="entry-list">
-      {block.steps.map((step, index) => (
-        <div key={step.id} className="entry-row entry-row--compact">
-          <div className="field field--span-2">
-            <span>Step</span>
-            <strong>{step.title || `Step ${index + 1}`}</strong>
+      {block.steps.map((step, index) => {
+        const visibleFields =
+          fieldVisibilityByStepId[step.id] ?? createStepFieldVisibility(step)
+
+        return (
+          <div key={step.id} className="entry-row entry-row--compact">
+            <div className="field field--span-2">
+              <span>Step</span>
+              <strong>{step.title || `Step ${index + 1}`}</strong>
+            </div>
+
+            <label className="field field--span-2">
+              <span>Step label</span>
+              <input
+                value={step.title}
+                onChange={(event) =>
+                  onChange(
+                    updateProgramBlock(block, index, 'title', event.target.value),
+                  )
+                }
+              />
+            </label>
+
+            <label className="field field--span-2">
+              <span>Exercise</span>
+              <select
+                value={step.exerciseId}
+                onChange={(event) =>
+                  onChange(
+                    updateProgramBlock(
+                      block,
+                      index,
+                      'exerciseId',
+                      event.target.value,
+                    ),
+                  )
+                }
+              >
+                {activeExerciseOptions.map((exercise) => (
+                  <option key={exercise.id} value={exercise.id}>
+                    {exercise.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {visibleFields.sets ? (
+              <label className="field">
+                <span>Sets</span>
+                <input
+                  inputMode="numeric"
+                  value={step.sets ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(block, index, 'sets', event.target.value),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            {visibleFields.reps ? (
+              <label className="field">
+                <span>Reps</span>
+                <input
+                  inputMode="numeric"
+                  value={step.reps ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(block, index, 'reps', event.target.value),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            {visibleFields.minReps ? (
+              <label className="field">
+                <span>Min reps</span>
+                <input
+                  inputMode="numeric"
+                  value={step.minReps ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(
+                        block,
+                        index,
+                        'minReps',
+                        event.target.value,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            {visibleFields.maxReps ? (
+              <label className="field">
+                <span>Max reps</span>
+                <input
+                  inputMode="numeric"
+                  value={step.maxReps ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(
+                        block,
+                        index,
+                        'maxReps',
+                        event.target.value,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            {visibleFields.holdSeconds ? (
+              <label className="field">
+                <span>Hold sec</span>
+                <input
+                  inputMode="numeric"
+                  value={step.holdSeconds ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(
+                        block,
+                        index,
+                        'holdSeconds',
+                        event.target.value,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            {visibleFields.durationSeconds ? (
+              <label className="field">
+                <span>Duration sec</span>
+                <input
+                  inputMode="numeric"
+                  value={step.durationSeconds ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(
+                        block,
+                        index,
+                        'durationSeconds',
+                        event.target.value,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            {visibleFields.emomMinutes ? (
+              <label className="field">
+                <span>EMOM min</span>
+                <input
+                  inputMode="numeric"
+                  value={step.emomMinutes ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(
+                        block,
+                        index,
+                        'emomMinutes',
+                        event.target.value,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            {visibleFields.emomReps ? (
+              <label className="field">
+                <span>EMOM reps</span>
+                <input
+                  inputMode="numeric"
+                  value={step.emomReps ?? ''}
+                  onChange={(event) =>
+                    onChange(
+                      updateProgramBlock(
+                        block,
+                        index,
+                        'emomReps',
+                        event.target.value,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+
+            <label className="field">
+              <span>Bodyweight / band</span>
+              <select
+                value={step.bodyweightOption ?? ''}
+                onChange={(event) =>
+                  onChange(
+                    updateProgramBlock(
+                      block,
+                      index,
+                      'bodyweightOption',
+                      event.target.value as BodyweightOption,
+                    ),
+                  )
+                }
+              >
+                <option value="">n/a</option>
+                <option value="bodyweight">bodyweight</option>
+                <option value="band">band</option>
+                <option value="either">either</option>
+              </select>
+            </label>
+
+            <label className="field field--checkbox">
+              <span>Band allowed</span>
+              <input
+                type="checkbox"
+                checked={step.bandAllowed ?? false}
+                onChange={(event) =>
+                  onChange(
+                    updateProgramBlock(
+                      block,
+                      index,
+                      'bandAllowed',
+                      event.target.checked,
+                    ),
+                  )
+                }
+              />
+            </label>
+
+            <label className="field field--span-2">
+              <span>Notes</span>
+              <input
+                value={step.notes}
+                onChange={(event) =>
+                  onChange(
+                    updateProgramBlock(block, index, 'notes', event.target.value),
+                  )
+                }
+              />
+            </label>
           </div>
-
-          <label className="field field--span-2">
-            <span>Step label</span>
-            <input
-              value={step.title}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(block, index, 'title', event.target.value),
-                )
-              }
-            />
-          </label>
-
-          <label className="field field--span-2">
-            <span>Exercise</span>
-            <select
-              value={step.exerciseId}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'exerciseId',
-                    event.target.value,
-                  ),
-                )
-              }
-            >
-              {activeExerciseOptions.map((exercise) => (
-                <option key={exercise.id} value={exercise.id}>
-                  {exercise.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field">
-            <span>Sets</span>
-            <input
-              inputMode="numeric"
-              value={step.sets ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(block, index, 'sets', event.target.value),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>Reps</span>
-            <input
-              inputMode="numeric"
-              value={step.reps ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(block, index, 'reps', event.target.value),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>Min reps</span>
-            <input
-              inputMode="numeric"
-              value={step.minReps ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'minReps',
-                    event.target.value,
-                  ),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>Max reps</span>
-            <input
-              inputMode="numeric"
-              value={step.maxReps ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'maxReps',
-                    event.target.value,
-                  ),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>Hold sec</span>
-            <input
-              inputMode="numeric"
-              value={step.holdSeconds ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'holdSeconds',
-                    event.target.value,
-                  ),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>Duration sec</span>
-            <input
-              inputMode="numeric"
-              value={step.durationSeconds ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'durationSeconds',
-                    event.target.value,
-                  ),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>EMOM min</span>
-            <input
-              inputMode="numeric"
-              value={step.emomMinutes ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'emomMinutes',
-                    event.target.value,
-                  ),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>EMOM reps</span>
-            <input
-              inputMode="numeric"
-              value={step.emomReps ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'emomReps',
-                    event.target.value,
-                  ),
-                )
-              }
-            />
-          </label>
-
-          <label className="field">
-            <span>Bodyweight / band</span>
-            <select
-              value={step.bodyweightOption ?? ''}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'bodyweightOption',
-                    event.target.value as BodyweightOption,
-                  ),
-                )
-              }
-            >
-              <option value="">n/a</option>
-              <option value="bodyweight">bodyweight</option>
-              <option value="band">band</option>
-              <option value="either">either</option>
-            </select>
-          </label>
-
-          <label className="field field--checkbox">
-            <span>Band allowed</span>
-            <input
-              type="checkbox"
-              checked={step.bandAllowed ?? false}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(
-                    block,
-                    index,
-                    'bandAllowed',
-                    event.target.checked,
-                  ),
-                )
-              }
-            />
-          </label>
-
-          <label className="field field--span-2">
-            <span>Notes</span>
-            <input
-              value={step.notes}
-              onChange={(event) =>
-                onChange(
-                  updateProgramBlock(block, index, 'notes', event.target.value),
-                )
-              }
-            />
-          </label>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -331,14 +385,8 @@ export function SettingsScreen() {
   const [cycleStartDate, setCycleStartDate] = useState(
     data.athleteProfile.cycleStartDate,
   )
-  const [fatigueSensitivity, setFatigueSensitivity] = useState(
-    String(data.settings.fatigueSensitivity),
-  )
   const [cycleLengthDays, setCycleLengthDays] = useState(
     String(data.settings.cycleLengthDays),
-  )
-  const [jointPainSensitivity, setJointPainSensitivity] = useState(
-    String(data.settings.jointPainSensitivity),
   )
   const [bodyweightTrackingEnabled, setBodyweightTrackingEnabled] = useState(
     data.settings.bodyweightTrackingEnabled,
@@ -358,9 +406,7 @@ export function SettingsScreen() {
   const isDirty =
     mainMovement !== data.athleteProfile.mainMovement ||
     cycleStartDate !== data.athleteProfile.cycleStartDate ||
-    fatigueSensitivity !== String(data.settings.fatigueSensitivity) ||
     cycleLengthDays !== String(data.settings.cycleLengthDays) ||
-    jointPainSensitivity !== String(data.settings.jointPainSensitivity) ||
     bodyweightTrackingEnabled !== data.settings.bodyweightTrackingEnabled ||
     bandsAvailable !== data.settings.bandsAvailable ||
     notes !== data.athleteProfile.notes ||
@@ -379,7 +425,7 @@ export function SettingsScreen() {
 
     await saveSettingsAndProgram(
       {
-        mainMovement: mainMovement.trim() || data.athleteProfile.mainMovement,
+        mainMovement,
         cycleStartDate: cycleStartDate || todayDateString(),
         notes: notes.trim(),
       },
@@ -387,8 +433,6 @@ export function SettingsScreen() {
         bodyweightTrackingEnabled,
         bandsAvailable,
         cycleLengthDays: Math.min(365, Math.max(30, Number(cycleLengthDays))),
-        fatigueSensitivity: Number(fatigueSensitivity),
-        jointPainSensitivity: Number(jointPainSensitivity),
       },
       programTemplate,
     )
@@ -537,18 +581,19 @@ export function SettingsScreen() {
           <div className="field-grid field-grid--compact">
             <label className="field field--span-2">
               <span>Main movement</span>
-              <input
-                list="movement-options"
+              <select
                 name="main-movement"
-                autoComplete="off"
                 value={mainMovement}
-                onChange={(event) => setMainMovement(event.target.value)}
-              />
-              <datalist id="movement-options">
-                {activeExercises.map((exercise) => (
-                  <option key={exercise.id} value={exercise.name} />
+                onChange={(event) =>
+                  setMainMovement(event.target.value as MainMovement)
+                }
+              >
+                {MAIN_MOVEMENTS.map((movement) => (
+                  <option key={movement} value={movement}>
+                    {movement}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </label>
 
             <label className="field">
@@ -562,20 +607,6 @@ export function SettingsScreen() {
             </label>
 
             <label className="field">
-              <span>Fatigue sensitivity</span>
-              <select
-                value={fatigueSensitivity}
-                onChange={(event) => setFatigueSensitivity(event.target.value)}
-              >
-                <option value="1">1 low</option>
-                <option value="2">2</option>
-                <option value="3">3 default</option>
-                <option value="4">4</option>
-                <option value="5">5 high</option>
-              </select>
-            </label>
-
-            <label className="field">
               <span>Cycle length (days)</span>
               <input
                 type="number"
@@ -585,22 +616,6 @@ export function SettingsScreen() {
                 value={cycleLengthDays}
                 onChange={(event) => setCycleLengthDays(event.target.value)}
               />
-            </label>
-
-            <label className="field">
-              <span>Joint-pain sensitivity</span>
-              <select
-                value={jointPainSensitivity}
-                onChange={(event) =>
-                  setJointPainSensitivity(event.target.value)
-                }
-              >
-                <option value="1">1 low</option>
-                <option value="2">2</option>
-                <option value="3">3 default</option>
-                <option value="4">4</option>
-                <option value="5">5 high</option>
-              </select>
             </label>
 
             <label className="field field--checkbox">

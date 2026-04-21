@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppState } from '../app/AppProvider'
+import { AppShell } from '../app/App'
 import { createSeedData } from '../domain/defaults'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
@@ -103,7 +104,6 @@ describe('compact hybrid UI refresh', () => {
       <TodayScreen
         canInstall={true}
         onInstall={vi.fn()}
-        onOpenSettings={vi.fn()}
         onQuickLog={vi.fn()}
       />,
     )
@@ -120,6 +120,35 @@ describe('compact hybrid UI refresh', () => {
         name: /explain how weekly volume is counted/i,
       }),
     ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /log max day/i }),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /edit program/i }),
+    ).toBeNull()
+    expect(
+      screen.getByRole('button', { name: /install pwa/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('uses the header brand as the top-level Today link', () => {
+    window.location.hash = '#/settings'
+
+    const { container } = render(<AppShell />)
+    const header = container.querySelector('.app-header') as HTMLElement | null
+
+    expect(header).not.toBeNull()
+
+    expect(
+      screen.getByRole('link', { name: /go to today/i }),
+      ).toHaveAttribute('href', '#/today')
+    expect(within(header!).queryByRole('link', { name: 'Today' })).toBeNull()
+    expect(
+      within(header!).getByRole('link', { name: 'Library' }),
+    ).toHaveAttribute('href', '#/library')
+    expect(
+      within(header!).getByRole('link', { name: 'Program' }),
+    ).toHaveAttribute('href', '#/settings')
   })
 
   it('renders program blocks collapsed by default with derived summaries', () => {
@@ -127,9 +156,13 @@ describe('compact hybrid UI refresh', () => {
 
     const volumeToggle = screen.getByRole('button', { name: /volume block/i })
     const finisherToggle = screen.getByRole('button', { name: /finisher/i })
+    const mainMovementSelect = screen.getByLabelText(/main movement/i)
 
     expect(screen.queryByRole('button', { name: /warm-up/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /main set/i })).toBeNull()
+    expect(mainMovementSelect).toHaveDisplayValue('Pull-up')
+    expect(screen.queryByLabelText(/fatigue sensitivity/i)).toBeNull()
+    expect(screen.queryByLabelText(/joint-pain sensitivity/i)).toBeNull()
     expect(volumeToggle).toHaveAttribute('aria-expanded', 'false')
     expect(finisherToggle).toHaveAttribute('aria-expanded', 'false')
     expect(
@@ -164,5 +197,79 @@ describe('compact hybrid UI refresh', () => {
         /chin above bar\. gradually try to increase the hold time over the weeks\./i,
       ),
     ).toBeInTheDocument()
+  })
+
+  it('shows EMOM inputs only on EMOM-based program steps', async () => {
+    const user = userEvent.setup()
+
+    render(<SettingsScreen />)
+
+    await user.click(screen.getByRole('button', { name: /volume block/i }))
+    expect(screen.getByLabelText(/emom min/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/emom reps/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/hold sec/i)).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /finisher/i }))
+    expect(screen.queryByLabelText(/emom min/i)).toBeNull()
+    expect(screen.queryByLabelText(/emom reps/i)).toBeNull()
+    expect(screen.getByLabelText(/hold sec/i)).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: /generic support fallback/i }),
+    )
+    expect(screen.queryByLabelText(/emom min/i)).toBeNull()
+    expect(screen.queryByLabelText(/emom reps/i)).toBeNull()
+    expect(screen.getByLabelText(/reps/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/hold sec/i)).toBeInTheDocument()
+  })
+
+  it('limits main movement choices to the four allowed options', async () => {
+    render(<SettingsScreen />)
+
+    const options = screen
+      .getAllByRole('option')
+      .map((option) => option.textContent)
+      .filter((label) =>
+        ['Pull-up', 'Chin-up', 'Neutral-grip pull-up', 'Ring pull-up'].includes(
+          label ?? '',
+        ),
+      )
+
+    expect(options).toEqual([
+      'Pull-up',
+      'Chin-up',
+      'Neutral-grip pull-up',
+      'Ring pull-up',
+    ])
+  })
+
+  it('saves the selected main movement without sensitivity controls', async () => {
+    const user = userEvent.setup()
+    const saveSettingsAndProgram = vi.fn(async () => true)
+    mockedUseAppState.mockReturnValue({
+      ...createMockAppState(),
+      saveSettingsAndProgram,
+    })
+
+    render(<SettingsScreen />)
+
+    await user.selectOptions(
+      screen.getByLabelText(/main movement/i),
+      'Chin-up',
+    )
+    await user.click(
+      screen.getByRole('button', { name: /save settings & program/i }),
+    )
+
+    expect(saveSettingsAndProgram).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mainMovement: 'Chin-up',
+      }),
+      expect.not.objectContaining({
+        fatigueSensitivity: expect.anything(),
+        jointPainSensitivity: expect.anything(),
+      }),
+      expect.any(Object),
+    )
   })
 })

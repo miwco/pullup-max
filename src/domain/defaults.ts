@@ -9,98 +9,19 @@ import type {
 import { DEFAULT_CYCLE_LENGTH_DAYS } from './cycle'
 import { createId } from '../lib/id'
 import { todayDateString } from '../lib/date'
+import { createMovementExerciseSpecs, MAIN_MOVEMENTS } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 
-export const EXPORT_FORMAT_VERSION = 4
+export const EXPORT_FORMAT_VERSION = 6
 
 const DEFAULT_EXERCISE_SPECS: Array<
   Omit<Exercise, 'id' | 'active' | 'builtIn'>
-> = [
-  {
-    name: 'Pull-up',
-    type: 'max',
-    defaultUnit: 'reps',
-    tags: ['main movement', 'max test'],
-  },
-  {
-    name: 'Band-assisted pull-up',
-    type: 'support',
-    defaultUnit: 'reps',
-    tags: ['band-assisted', 'volume'],
-  },
-  {
-    name: 'Scapular pull-up',
-    type: 'support',
-    defaultUnit: 'reps',
-    tags: ['warm-up', 'start/bottom'],
-  },
-  {
-    name: 'Dead hang',
-    type: 'support',
-    defaultUnit: 'seconds',
-    tags: ['hang', 'grip'],
-  },
-  {
-    name: 'Active hang',
-    type: 'support',
-    defaultUnit: 'seconds',
-    tags: ['hang', 'scap'],
-  },
-  {
-    name: 'Top hold',
-    type: 'support',
-    defaultUnit: 'seconds',
-    tags: ['top', 'isometric'],
-  },
-  {
-    name: 'Top-half pull-up',
-    type: 'support',
-    defaultUnit: 'reps',
-    tags: ['top'],
-  },
-  {
-    name: 'Mid-range hold',
-    type: 'support',
-    defaultUnit: 'seconds',
-    tags: ['middle', 'isometric'],
-  },
-  {
-    name: 'Mid-pause pull-up',
-    type: 'support',
-    defaultUnit: 'reps',
-    tags: ['middle', 'pause'],
-  },
-  {
-    name: 'Negative pull-up',
-    type: 'support',
-    defaultUnit: 'reps',
-    tags: ['middle', 'eccentric'],
-  },
-  {
-    name: 'Paused pull-up from dead hang',
-    type: 'support',
-    defaultUnit: 'reps',
-    tags: ['start/bottom', 'pause'],
-  },
-  {
-    name: 'Bottom-range partial pull-up',
-    type: 'support',
-    defaultUnit: 'reps',
-    tags: ['start/bottom', 'partial'],
-  },
-  {
-    name: 'Grip endurance work',
-    type: 'support',
-    defaultUnit: 'seconds',
-    tags: ['grip'],
-  },
-  {
-    name: 'EMOM pull-up block',
-    type: 'support',
-    defaultUnit: 'minutes',
-    tags: ['emom', 'volume'],
-  },
-]
+> = MAIN_MOVEMENTS.flatMap((mainMovement) =>
+  createMovementExerciseSpecs(mainMovement).map((exercise) => ({
+    ...exercise,
+    type: exercise.tags.includes('main movement') ? ('max' as const) : ('support' as const),
+  })),
+)
 
 export function createDefaultExercises(): Exercise[] {
   return DEFAULT_EXERCISE_SPECS.map((exercise) => ({
@@ -127,8 +48,6 @@ export function createDefaultSettings(): AppSettings {
     bandsAvailable: true,
     bodyweightTrackingEnabled: true,
     cycleLengthDays: DEFAULT_CYCLE_LENGTH_DAYS,
-    fatigueSensitivity: 3,
-    jointPainSensitivity: 3,
     exportFormatVersion: EXPORT_FORMAT_VERSION,
   }
 }
@@ -164,6 +83,7 @@ export function createSeedData(today = todayDateString()): AppData {
     sessions: [],
     exerciseEntries: [],
     maxTests: [],
+    presetProgressions: [],
     programTemplate,
     recommendationState: createDefaultRecommendationState(),
   }

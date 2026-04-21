@@ -1,7 +1,9 @@
 import { createId } from '../lib/id'
+import { resolveProgramStepsForMainMovement } from './mainMovement'
 import type {
   Exercise,
   FailurePoint,
+  MainMovement,
   ProgramStep,
   ProgramTemplate,
   SessionType,
@@ -106,15 +108,15 @@ export function createDefaultProgramTemplate(
       title: 'Generic support fallback',
       steps: [
         createProgramStep(exercises, {
-          title: 'Top hold',
-          exerciseName: 'Top hold',
+          title: 'Scapular pull-ups',
+          exerciseName: 'Scapular pull-up',
           sets: 2,
-          holdSeconds: 15,
+          reps: 6,
           notes: '',
         }),
         createProgramStep(exercises, {
-          title: 'Active hang',
-          exerciseName: 'Active hang',
+          title: 'Dead hang',
+          exerciseName: 'Dead hang',
           sets: 2,
           holdSeconds: 20,
           notes: '',
@@ -268,6 +270,31 @@ export function getProgramStepsForSession(
   return [
     ...cloneSteps(template.supportDayBase.steps),
     ...cloneSteps(focusBlock),
+  ]
+}
+
+export function resolveProgramStepsForSession(input: {
+  exercises: Exercise[]
+  mainMovement: MainMovement
+  sessionType: SessionType
+  steps: ProgramStep[]
+  supportPainOverride: boolean
+}) {
+  return resolveProgramStepsForMainMovement(input)
+}
+
+export function getAllProgramSteps(template: ProgramTemplate) {
+  return [
+    ...cloneSteps(template.maxDay.warmup.steps),
+    ...cloneSteps(template.maxDay.mainSet.steps),
+    ...cloneSteps(template.maxDay.volumeBlock.steps),
+    ...cloneSteps(template.maxDay.finisher.steps),
+    ...cloneSteps(template.supportDayBase.steps),
+    ...cloneSteps(template.supportFallback.steps),
+    ...cloneSteps(template.weakPointBlocks.top.steps),
+    ...cloneSteps(template.weakPointBlocks.middle.steps),
+    ...cloneSteps(template.weakPointBlocks['start/bottom'].steps),
+    ...cloneSteps(template.weakPointBlocks.grip.steps),
   ]
 }
 

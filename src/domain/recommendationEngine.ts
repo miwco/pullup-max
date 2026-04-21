@@ -1,8 +1,10 @@
+import { getSupportBandExerciseName } from './mainMovement'
 import {
   applyCompetitionPrepAdjustments,
   applyEasySupportAdjustments,
   getExerciseNamesForProgramSteps,
   getProgramStepsForSession,
+  resolveProgramStepsForSession,
   getSupportFocusFromFailurePoint,
 } from './programTemplate'
 import type {
@@ -17,14 +19,6 @@ import type {
 
 function sortMaxResults(results: MaxExposure[]) {
   return [...results].sort((left, right) => left.date.localeCompare(right.date))
-}
-
-function getFatigueThreshold(sensitivity: number) {
-  return Math.max(2.7, Math.min(4.2, 4.4 - sensitivity * 0.3))
-}
-
-function getJointPainThreshold(sensitivity: number) {
-  return Math.max(1.8, Math.min(3.8, 3.6 - sensitivity * 0.25))
 }
 
 function findLatestResult(results: MaxExposure[]) {
@@ -77,17 +71,13 @@ export function isMaxReady(daysSinceLastWorkout: number | null) {
 
 export function shouldEaseSupport(input: RecommendationInput) {
   const fatigueHigh =
-    input.fatigueAverage !== null &&
-    input.fatigueAverage >= getFatigueThreshold(input.fatigueSensitivity)
-  const jointPainHigh =
-    input.jointPainAverage !== null &&
-    input.jointPainAverage >= getJointPainThreshold(input.jointPainSensitivity)
+    input.fatigueAverage !== null && input.fatigueAverage >= 4
   const trend = classifyTrend(input.cycleMaxResults)
 
   return (
     trend === 'falling' ||
     fatigueHigh ||
-    jointPainHigh ||
+    input.supportPainOverride ||
     input.sessionsLast7 >= 4
   )
 }
@@ -106,6 +96,14 @@ export function getAdjustedProgramSteps(
     sessionType,
     supportFocus,
   )
+
+  steps = resolveProgramStepsForSession({
+    exercises: input.exercises,
+    mainMovement: input.mainMovement,
+    sessionType,
+    steps,
+    supportPainOverride: input.supportPainOverride,
+  })
 
   if (sessionType === 'support') {
     if (input.currentPhase === 'competition-prep') {
@@ -134,9 +132,15 @@ function getSuggestedExercises(
     (input.currentPhase === 'build' || shouldEaseSupport(input)) &&
     input.bandsAvailable
   ) {
+    const bandExerciseName = getSupportBandExerciseName(
+      input.mainMovement,
+      nextSessionType,
+      input.supportPainOverride,
+    )
+
     return [
-      'Band-assisted pull-up',
-      ...names.filter((name) => name !== 'Band-assisted pull-up'),
+      bandExerciseName,
+      ...names.filter((name) => name !== bandExerciseName),
     ].slice(0, 5)
   }
 

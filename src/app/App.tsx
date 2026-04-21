@@ -42,7 +42,6 @@ function renderRouteContent(
         <TodayScreen
           canInstall={!!installPrompt}
           onInstall={() => void onInstall()}
-          onOpenSettings={() => navigateTo('settings')}
           onQuickLog={(sessionType) =>
             navigateTo('log', {
               prefill: '1',
@@ -79,7 +78,7 @@ function renderRouteContent(
   }
 }
 
-function AppShell() {
+export function AppShell() {
   const route = useRouteState()
   const { data, errorMessage, isReady, notice, setNotice } = useAppState()
   const [installPrompt, setInstallPrompt] =
@@ -134,8 +133,19 @@ function AppShell() {
       <header className="app-header">
         <div className="app-header__brand">
           <div>
-            <p className="app-header__eyebrow">Focused pull-up max training</p>
-            <h1 className="app-header__title">Pull-up Max</h1>
+            <p className="app-header__eyebrow">
+              Focused {data.athleteProfile.mainMovement.toLowerCase()} max
+              training
+            </p>
+            <h1 className="app-header__title">
+              <a
+                href={getRouteHref('today')}
+                className="app-header__home-link"
+                aria-label="Go to Today"
+              >
+                Pull-up Max
+              </a>
+            </h1>
           </div>
 
           <div className="app-header__actions">

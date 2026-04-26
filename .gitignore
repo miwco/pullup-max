@@ -11,7 +11,11 @@ node_modules
 dist
 dev-dist
 dist-ssr
+.env
+.env.*
 *.local
+.codex/
+vite-pwa-check.err
 
 # Editor directories and files
 .vscode/*

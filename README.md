@@ -23,17 +23,17 @@ useful because it gives you:
 
 ## Screenshots
 
-### Today
-
-![Today screen](docs/screenshots/dashboard.png)
-
-### Workout
-
-![Workout screen](docs/screenshots/workout.png)
-
-### Progress
-
-![Progress screen](docs/screenshots/progress.png)
+<p align="center">
+  <a href="docs/screenshots/dashboard.png">
+    <img src="docs/screenshots/dashboard.png" alt="Today screen" width="32%" />
+  </a>
+  <a href="docs/screenshots/workout.png">
+    <img src="docs/screenshots/workout.png" alt="Workout screen" width="32%" />
+  </a>
+  <a href="docs/screenshots/progress.png">
+    <img src="docs/screenshots/progress.png" alt="Progress screen" width="32%" />
+  </a>
+</p>
 
 ## Key Features
 

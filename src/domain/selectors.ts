@@ -4,6 +4,7 @@ import {
   getAdjustedProgramSteps,
   getLatestFailurePoint,
 } from './recommendationEngine'
+import { getPresetKey, resolvePresetTarget } from './presetProgression'
 import { getSupportFocusFromFailurePoint } from './programTemplate'
 import {
   buildBodyweightTrendPoints,
@@ -134,6 +135,21 @@ export function getRecentSignalAverages(sessions: WorkoutSession[]) {
   }
 }
 
+export function hasRecentJointPainSignal(
+  sessions: WorkoutSession[],
+  threshold = 3,
+) {
+  const recentSessions = [...sessions]
+    .sort((left, right) => compareDateAsc(left.date, right.date))
+    .slice(-6)
+
+  return recentSessions.some(
+    (session) =>
+      (session.elbowPain ?? 0) >= threshold ||
+      (session.shoulderPain ?? 0) >= threshold,
+  )
+}
+
 export function getMaxExposures(
   maxTests: MaxTestResult[],
   sessions: WorkoutSession[],
@@ -157,8 +173,14 @@ export function getCurrentCycleWindow(
   cycleStartDate: string,
   cycleLengthDays: number,
   today = todayDateString(),
+  cycleEndDate?: string,
 ): CycleWindow {
-  return buildCurrentCycleWindow(cycleStartDate, cycleLengthDays, today)
+  return buildCurrentCycleWindow(
+    cycleStartDate,
+    cycleLengthDays,
+    today,
+    cycleEndDate,
+  )
 }
 
 export function getCurrentCyclePhase(
@@ -219,6 +241,14 @@ export function getSupportVolumeScore(
   return getEntryVolumePoints(entry, exerciseLookup)
 }
 
+export function getLatestLoggedMaxReps(
+  maxTests: MaxTestResult[],
+  sessions: WorkoutSession[],
+  movement: string,
+) {
+  return getMaxExposures(maxTests, sessions, movement).at(-1)?.reps ?? null
+}
+
 export function buildRecommendationInput(
   data: AppData,
   today = todayDateString(),
@@ -227,6 +257,7 @@ export function buildRecommendationInput(
     data.athleteProfile.cycleStartDate,
     data.settings.cycleLengthDays,
     today,
+    data.athleteProfile.cycleEndDate,
   )
   const cycleMaxResults = getMaxExposures(
     data.maxTests,
@@ -258,10 +289,11 @@ export function buildRecommendationInput(
       today,
     ),
     daysSinceLastWorkout: getDaysSinceLastWorkout(data.sessions, today),
+    exercises: data.exercises,
     fatigueAverage,
-    fatigueSensitivity: data.settings.fatigueSensitivity,
-    jointPainAverage,
-    jointPainSensitivity: data.settings.jointPainSensitivity,
+    supportPainOverride:
+      hasRecentJointPainSignal(data.sessions) ||
+      (jointPainAverage !== null && jointPainAverage >= 3),
     latestFailurePoint: getLatestFailurePoint(cycleMaxResults),
     mainMovement: data.athleteProfile.mainMovement,
     programTemplate: data.programTemplate,
@@ -289,6 +321,7 @@ export function getCycleSummaryData(
     data.athleteProfile.cycleStartDate,
     data.settings.cycleLengthDays,
     today,
+    data.athleteProfile.cycleEndDate,
   )
   const cycleSessions = getSessionsInCycle(data.sessions, cycleWindow)
   const cycleBestMax = getBestMax(
@@ -298,10 +331,12 @@ export function getCycleSummaryData(
     cycleWindow,
   )
   const cycleLengthDays = data.settings.cycleLengthDays
-  const daysElapsed = Math.min(
-    cycleLengthDays,
-    diffInDays(cycleWindow.start, today) + 1,
-  )
+  const currentDate =
+    compareDateAsc(today, cycleWindow.end) > 0 ? cycleWindow.end : today
+  const cycleHasStarted = compareDateAsc(today, cycleWindow.start) >= 0
+  const daysElapsed = cycleHasStarted
+    ? Math.min(cycleLengthDays, diffInDays(cycleWindow.start, currentDate) + 1)
+    : 0
   const daysRemaining = Math.max(0, cycleLengthDays - daysElapsed)
   const progressPercent = Math.round((daysElapsed / cycleLengthDays) * 100)
   const counts = cycleSessions.reduce(
@@ -377,19 +412,33 @@ export function buildMaxHistory(
     .sort((left, right) => compareDateAsc(left.date, right.date))
 
   return datedMaxTests
-    .map((maxTest, index) => ({
-      id: maxTest.id,
-      date: maxTest.date,
-      reps: maxTest.reps,
-      bodyweightKgSnapshot: maxTest.bodyweightKgSnapshot,
-      videoUrl: maxTest.videoUrl,
-      trend: classifyTrend(
-        datedMaxTests
-          .slice(0, index + 1)
-          .map((item) => ({ date: item.date, reps: item.reps })),
-      ),
-      failurePoint: maxTest.failurePoint,
-    }))
+    .map((maxTest, index) => {
+      const previousMaxTest = datedMaxTests[index - 1]
+
+      return {
+        id: maxTest.id,
+        date: maxTest.date,
+        reps: maxTest.reps,
+        repDelta: previousMaxTest ? maxTest.reps - previousMaxTest.reps : null,
+        bodyweightKgSnapshot: maxTest.bodyweightKgSnapshot,
+        bodyweightDeltaKg:
+          typeof maxTest.bodyweightKgSnapshot === 'number' &&
+          typeof previousMaxTest?.bodyweightKgSnapshot === 'number'
+            ? Math.round(
+                (maxTest.bodyweightKgSnapshot -
+                  previousMaxTest.bodyweightKgSnapshot) *
+                  10,
+              ) / 10
+            : null,
+        videoUrl: maxTest.videoUrl,
+        trend: classifyTrend(
+          datedMaxTests
+            .slice(0, index + 1)
+            .map((item) => ({ date: item.date, reps: item.reps })),
+        ),
+        failurePoint: maxTest.failurePoint,
+      }
+    })
     .reverse()
 }
 
@@ -483,31 +532,33 @@ export function getProgramStepsForRecommendation(
 export function buildProgramEntryDrafts(
   steps: ProgramStep[],
   exercises: Exercise[],
+  presetProgressions: AppData['presetProgressions'],
+  latestMaxReps: number | null,
 ): ProgramEntryDraft[] {
   const exerciseById = new Map(
     exercises.map((exercise) => [exercise.id, exercise]),
   )
+  const progressionByKey = new Map(
+    presetProgressions.map((state) => [state.presetKey, state]),
+  )
 
   return steps.map((step) => {
     const exercise = exerciseById.get(step.exerciseId)
-    const durationSeconds =
-      step.durationSeconds ??
-      step.holdSeconds ??
-      (step.emomMinutes ? step.emomMinutes * 60 : undefined)
-    const reps = step.emomReps ?? step.reps
-    const sets = step.emomMinutes ?? step.sets
+    const target = resolvePresetTarget(
+      step,
+      progressionByKey.get(getPresetKey(step)),
+      latestMaxReps,
+    )
 
     return {
       templateStepId: step.id,
+      presetKey: getPresetKey(step),
       label: step.title,
       exerciseId: step.exerciseId,
       exerciseName: exercise?.name ?? '',
-      sets: sets ? String(sets) : '',
-      reps: reps ? String(reps) : '',
-      durationSeconds: durationSeconds ? String(durationSeconds) : '',
-      bandAssisted: step.bodyweightOption === 'band',
-      effort: '',
+      target,
       notes: step.notes,
+      outcome: '',
     }
   })
 }
@@ -539,6 +590,7 @@ export function getCurrentWeekVolumeSummary(
     data.athleteProfile.cycleStartDate,
     data.settings.cycleLengthDays,
     today,
+    data.athleteProfile.cycleEndDate,
   )
 
   return getWeeklyVolumeSummary({

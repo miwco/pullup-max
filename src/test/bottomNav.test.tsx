@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest'
 import { BottomNav } from '../components/BottomNav'
 
 describe('BottomNav', () => {
-  it('links the Log tab to the recommended workout prefill', () => {
+  it('links the Workout tab to the recommended workout prefill', () => {
     render(<BottomNav currentRoute="today" recommendedSessionType="support" />)
 
-    expect(screen.getByRole('link', { name: 'Log' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Workout' })).toHaveAttribute(
       'href',
       '#/log?prefill=1&type=support',
     )

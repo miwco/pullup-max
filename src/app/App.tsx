@@ -3,15 +3,14 @@ import { getHeaderStatusPillItems } from './headerStatusPills'
 import { BottomNav } from '../components/BottomNav'
 import { HeaderStatusPillGroup } from '../components/HeaderStatusPillGroup'
 import { NoticeBanner } from '../components/NoticeBanner'
-import { CycleSummaryScreen } from '../features/cycle-summary/CycleSummaryScreen'
-import { ExerciseLibraryScreen } from '../features/exercise-library/ExerciseLibraryScreen'
 import { HistoryScreen } from '../features/history/HistoryScreen'
 import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
 import { ProgressScreen } from '../features/progress/ProgressScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
 import type { SessionType } from '../domain/types'
-import { AppProvider, useAppState } from './AppProvider'
+import { AppProvider } from './AppProvider'
+import { useAppState } from './appContext'
 import { getRouteHref, navigateTo, useRouteState } from './routes'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -32,7 +31,6 @@ function normalizeSessionType(value: string | null): SessionType | null {
 
 function renderRouteContent(
   route: ReturnType<typeof useRouteState>,
-  data: ReturnType<typeof useAppState>['data'],
   installPrompt: BeforeInstallPromptEvent | null,
   onInstall: () => Promise<void>,
 ) {
@@ -42,7 +40,6 @@ function renderRouteContent(
         <TodayScreen
           canInstall={!!installPrompt}
           onInstall={() => void onInstall()}
-          onOpenSettings={() => navigateTo('settings')}
           onQuickLog={(sessionType) =>
             navigateTo('log', {
               prefill: '1',
@@ -64,14 +61,10 @@ function renderRouteContent(
       return <HistoryScreen />
     case 'progress':
       return <ProgressScreen />
-    case 'library':
-      return <ExerciseLibraryScreen />
-    case 'cycle':
-      return <CycleSummaryScreen />
     case 'settings':
       return (
         <SettingsScreen
-          key={`settings-${data.recommendationState.computedAt}`}
+          initialLibraryOpen={route.params.get('library') === '1'}
         />
       )
     default:
@@ -79,7 +72,7 @@ function renderRouteContent(
   }
 }
 
-function AppShell() {
+export function AppShell() {
   const route = useRouteState()
   const { data, errorMessage, isReady, notice, setNotice } = useAppState()
   const [installPrompt, setInstallPrompt] =
@@ -118,7 +111,7 @@ function AppShell() {
   const content = errorMessage ? (
     <div className="loading-state loading-state--error">{errorMessage}</div>
   ) : isReady ? (
-    renderRouteContent(route, data, installPrompt, handleInstall)
+    renderRouteContent(route, installPrompt, handleInstall)
   ) : (
     <div className="loading-state">Loading local training data...</div>
   )
@@ -134,17 +127,22 @@ function AppShell() {
       <header className="app-header">
         <div className="app-header__brand">
           <div>
-            <p className="app-header__eyebrow">Focused pull-up max training</p>
-            <h1 className="app-header__title">Pull-up Max</h1>
+            <p className="app-header__eyebrow">
+              Focused {data.athleteProfile.mainMovement.toLowerCase()} max
+              training
+            </p>
+            <h1 className="app-header__title">
+              <a
+                href={getRouteHref('today')}
+                className="app-header__home-link"
+                aria-label="Go to Today"
+              >
+                Pull-up Max
+              </a>
+            </h1>
           </div>
 
           <div className="app-header__actions">
-            <a
-              href={getRouteHref('library')}
-              className="button button--ghost button--compact"
-            >
-              Library
-            </a>
             <a
               href={getRouteHref('settings')}
               className="button button--ghost button--compact"

@@ -8,10 +8,18 @@ import {
 import { withComputedRecommendation } from '../domain/selectors'
 
 describe('import/export validation', () => {
-  it('accepts a valid v4 exported backup with cycle, weight, and video data', () => {
+  it('accepts a valid v7 exported backup with cycle, weight, and video data', () => {
+    const seededBase = createSeedData('2026-04-18')
+    const emomExerciseId = seededBase.exercises.find(
+      (exercise) => exercise.name === 'EMOM ring pull-up block',
+    )!.id
     const seeded = withComputedRecommendation(
       {
-        ...createSeedData('2026-04-18'),
+        ...seededBase,
+        athleteProfile: {
+          ...seededBase.athleteProfile,
+          mainMovement: 'Ring pull-up',
+        },
         bodyweightEntries: [
           {
             id: 'weight-1',
@@ -20,15 +28,29 @@ describe('import/export validation', () => {
           },
         ],
         settings: {
-          ...createSeedData('2026-04-18').settings,
+          ...seededBase.settings,
           cycleLengthDays: 120,
         },
         sessions: [
           {
             id: 'session-1',
             date: '2026-04-18',
-            sessionType: 'max',
+            sessionType: 'support',
             notes: '',
+          },
+        ],
+        exerciseEntries: [
+          {
+            id: 'entry-1',
+            workoutSessionId: 'session-1',
+            exerciseId: emomExerciseId,
+            sets: 1,
+            reps: 25,
+            presetKey: 'step-emom',
+            outcome: 'pass',
+            presetTargetMode: 'emom',
+            presetTargetSummary: '10m EMOM: 5x3 + 5x2',
+            isMaxTest: false,
           },
         ],
         maxTests: [
@@ -36,10 +58,18 @@ describe('import/export validation', () => {
             id: 'max-1',
             workoutSessionId: 'session-1',
             reps: 12,
-            movement: 'Pull-up',
+            movement: 'Ring pull-up',
             videoUrl: 'https://example.com/max-attempt',
             bodyweightKgSnapshot: 79.2,
             trendClassification: 'stable',
+          },
+        ],
+        presetProgressions: [
+          {
+            presetKey: 'step-emom',
+            mode: 'emom',
+            emomBaseReps: 2,
+            emomStageOffset: 1,
           },
         ],
       },
@@ -51,8 +81,11 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(4)
-      expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
+      expect(parsed.value.version).toBe(7)
+      expect(parsed.value.data.athleteProfile.mainMovement).toBe('Ring pull-up')
+      expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
+        seeded.athleteProfile.cycleEndDate,
+      )
       expect(parsed.value.data.settings.cycleLengthDays).toBe(120)
       expect(parsed.value.data.bodyweightEntries[0]?.weightKg).toBe(79.2)
       expect(
@@ -63,10 +96,20 @@ describe('import/export validation', () => {
         'https://example.com/max-attempt',
       )
       expect(parsed.value.data.maxTests[0]?.bodyweightKgSnapshot).toBe(79.2)
+      expect(parsed.value.data.exerciseEntries[0]?.outcome).toBe('pass')
+      expect(parsed.value.data.exerciseEntries[0]?.presetTargetSummary).toBe(
+        '10m EMOM: 5x3 + 5x2',
+      )
+      expect(parsed.value.data.presetProgressions[0]).toMatchObject({
+        presetKey: 'step-emom',
+        mode: 'emom',
+        emomBaseReps: 2,
+        emomStageOffset: 1,
+      })
     }
   })
 
-  it('accepts and normalizes a legacy v2 backup into the v4 model', () => {
+  it('accepts and normalizes a legacy v2 backup into the v7 model', () => {
     const seeded = createSeedData('2026-04-18')
     const legacyBundle = JSON.stringify({
       version: 2,
@@ -106,12 +149,16 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(4)
+      expect(parsed.value.version).toBe(7)
       expect(parsed.value.data.sessions[0]?.sessionType).toBe('support')
       expect(parsed.value.data.exercises[0]?.type).toBe('support')
       expect(parsed.value.data.maxTests[0]?.failurePoint).toBe('top')
       expect(parsed.value.data.maxTests[0]?.qualityFlag).toBe('clean')
       expect(parsed.value.data.settings.cycleLengthDays).toBe(90)
+      expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
+      expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
+        seeded.athleteProfile.cycleEndDate,
+      )
       expect(parsed.value.data.bodyweightEntries).toEqual([])
       expect(
         parsed.value.data.programTemplate.supportFallback.steps.length,
@@ -119,6 +166,59 @@ describe('import/export validation', () => {
       expect(parsed.value.data.recommendationState.id).toBe(
         'recommendation-current',
       )
+    }
+  })
+
+  it('normalizes unsupported main movement values back to Pull-up', () => {
+    const seeded = createSeedData('2026-04-18')
+    const invalidMovementBundle = JSON.stringify({
+      version: 7,
+      exportedAt: new Date().toISOString(),
+      data: {
+        ...seeded,
+        athleteProfile: {
+          ...seeded.athleteProfile,
+          mainMovement: 'Muscle-up',
+        },
+      },
+    })
+
+    const parsed = parseImportBundle(invalidMovementBundle)
+
+    expect(parsed.ok).toBe(true)
+
+    if (parsed.ok) {
+      expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
+    }
+  })
+
+  it('derives cycle end dates from legacy backups that only stored cycle length', () => {
+    const seeded = createSeedData('2026-04-18')
+    const legacyCycleBundle = JSON.stringify({
+      version: 6,
+      exportedAt: new Date().toISOString(),
+      data: {
+        ...seeded,
+        athleteProfile: {
+          id: seeded.athleteProfile.id,
+          mainMovement: seeded.athleteProfile.mainMovement,
+          cycleStartDate: '2026-04-18',
+          notes: '',
+        },
+        settings: {
+          ...seeded.settings,
+          cycleLengthDays: 50,
+        },
+      },
+    })
+
+    const parsed = parseImportBundle(legacyCycleBundle)
+
+    expect(parsed.ok).toBe(true)
+
+    if (parsed.ok) {
+      expect(parsed.value.data.athleteProfile.cycleEndDate).toBe('2026-06-06')
+      expect(parsed.value.data.settings.cycleLengthDays).toBe(50)
     }
   })
 
@@ -139,19 +239,21 @@ describe('import/export validation', () => {
 
   it('migrates the legacy built-in Max-day template to the new EMOM plus finisher default', () => {
     const seeded = createSeedData('2026-04-18')
-    const [
-      pullUpId,
-      bandAssistedId,
-      scapId,
-      deadHangId,
-      ,
-      topHoldId,
-      ,
-      ,
-      ,
-      ,
-      ,
-    ] = seeded.exercises.map((exercise) => exercise.id)
+    const pullUpId = seeded.exercises.find(
+      (exercise) => exercise.name === 'Pull-up',
+    )?.id
+    const bandAssistedId = seeded.exercises.find(
+      (exercise) => exercise.name === 'Band-assisted pull-up',
+    )?.id
+    const scapId = seeded.exercises.find(
+      (exercise) => exercise.name === 'Scapular pull-up',
+    )?.id
+    const deadHangId = seeded.exercises.find(
+      (exercise) => exercise.name === 'Dead hang',
+    )?.id
+    const topHoldId = seeded.exercises.find(
+      (exercise) => exercise.name === 'Top hold',
+    )?.id
 
     seeded.programTemplate.maxDay.warmup.steps = [
       {
@@ -258,13 +360,13 @@ describe('import/export validation', () => {
 
     expect(parseImportBundle(unsupportedVersion)).toEqual({
       ok: false,
-      error: 'Unsupported backup version. Expected 2, 3, or 4.',
+      error: 'Unsupported backup version. Expected 2, 3, 4, 5, 6, or 7.',
     })
   })
 
   it('rejects structurally invalid backup data', () => {
     const invalidBundle = JSON.stringify({
-      version: 4,
+      version: 7,
       exportedAt: new Date().toISOString(),
       data: {
         athleteProfile: null,

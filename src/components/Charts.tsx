@@ -38,7 +38,7 @@ function getHorizontalPosition(
   width: number,
 ) {
   const totalDays = Math.max(1, diffInDays(cycleWindow.start, cycleWindow.end))
-  const offset = diffInDays(cycleWindow.start, date)
+  const offset = Math.min(totalDays, diffInDays(cycleWindow.start, date))
   return (offset / totalDays) * width
 }
 

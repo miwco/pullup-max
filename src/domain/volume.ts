@@ -18,48 +18,64 @@ function roundVolume(value: number) {
 }
 
 function getRepFactor(exercise: Exercise) {
-  switch (exercise.name) {
-    case 'Pull-up':
-    case 'EMOM pull-up block':
-    case 'Mid-pause pull-up':
-    case 'Paused pull-up from dead hang':
-      return 1
-    case 'Band-assisted pull-up':
-      return 0.75
-    case 'Top-half pull-up':
-    case 'Negative pull-up':
-    case 'Bottom-range partial pull-up':
-      return 0.8
-    case 'Scapular pull-up':
-      return 0.55
-    default:
-      return exercise.type === 'max'
-        ? 1
-        : exercise.type === 'support'
-          ? 0.75
-          : 0.6
+  if (
+    exercise.tags.includes('main movement') ||
+    exercise.name.startsWith('EMOM ') ||
+    exercise.name.includes('Mid-pause ') ||
+    (exercise.name.includes('Paused ') && exercise.name.includes('dead hang'))
+  ) {
+    return 1
   }
+
+  if (exercise.name.startsWith('Band-assisted ')) {
+    return 0.75
+  }
+
+  if (
+    exercise.name.includes('Top-half ') ||
+    exercise.name.startsWith('Negative ') ||
+    exercise.name.includes('Bottom-range partial ')
+  ) {
+    return 0.8
+  }
+
+  if (exercise.name.startsWith('Scapular ')) {
+    return 0.55
+  }
+
+  return exercise.type === 'max' ? 1 : exercise.type === 'support' ? 0.75 : 0.6
 }
 
 function getSecondsFactor(exercise: Exercise) {
-  switch (exercise.name) {
-    case 'Top hold':
-    case 'Mid-range hold':
-      return 0.2
-    case 'Active hang':
-      return 0.16
-    case 'Dead hang':
-    case 'Grip endurance work':
-      return 0.14
-    default:
-      return exercise.defaultUnit === 'seconds' ? 0.15 : 0.12
+  if (
+    exercise.name.includes('Top hold') ||
+    exercise.name.includes('Mid-range hold')
+  ) {
+    return 0.2
   }
+
+  if (exercise.name.includes('Active hang')) {
+    return 0.16
+  }
+
+  if (
+    exercise.name.includes('Dead hang') ||
+    exercise.name.includes('Grip endurance work')
+  ) {
+    return 0.14
+  }
+
+  return exercise.defaultUnit === 'seconds' ? 0.15 : 0.12
 }
 
 export function getEntryVolumePoints(
   entry: ExerciseEntry,
   exerciseLookup: Map<string, Exercise>,
 ) {
+  if (entry.outcome === 'fail') {
+    return 0
+  }
+
   const exercise = exerciseLookup.get(entry.exerciseId)
 
   if (!exercise) {

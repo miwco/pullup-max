@@ -133,7 +133,9 @@ export function HeaderStatusPillGroup({
   return (
     <div
       ref={groupRef}
-      className={['header-status-pill-group', className].filter(Boolean).join(' ')}
+      className={['header-status-pill-group', className]
+        .filter(Boolean)
+        .join(' ')}
     >
       {items.map((item) => (
         <HeaderStatusPill

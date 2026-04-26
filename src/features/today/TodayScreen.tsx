@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
-import { useAppState } from '../../app/AppProvider'
+import { useAppState } from '../../app/appContext'
 import { formatLongDate, todayDateString } from '../../lib/date'
 
 interface TodayScreenProps {
   canInstall: boolean
   onInstall: () => void
-  onOpenSettings: () => void
   onQuickLog: (sessionType?: 'max' | 'support') => void
 }
 
@@ -21,12 +20,11 @@ function formatDayCount(value: number | null, emptyLabel: string) {
 
 const VOLUME_HELP_ID = 'weekly-volume-help'
 const VOLUME_HELP_TEXT =
-  'Volume uses points, not just reps. Pull-up rows count reps x sets with exercise weights, hangs and holds count from seconds, and a true max test adds 1 point per rep. The weekly target starts at 48 points, rises by 2 each training week, and can temporarily brake if your max trend is falling.'
+  'Volume uses points, not just reps. Main movement rows count reps x sets with exercise weights, hangs and holds count from seconds, and a true max test adds 1 point per rep. The weekly target starts at 48 points, rises by 2 each training week, and can temporarily brake if your max trend is falling.'
 
 export function TodayScreen({
   canInstall,
   onInstall,
-  onOpenSettings,
   onQuickLog,
 }: TodayScreenProps) {
   const {
@@ -117,22 +115,8 @@ export function TodayScreen({
 
         <p className="summary-copy">{recommendation.explanation}</p>
 
-        <div className="action-row action-row--compact">
-          <button
-            type="button"
-            className="button button--ghost"
-            onClick={() => onQuickLog('max')}
-          >
-            Log Max day
-          </button>
-          <button
-            type="button"
-            className="button button--ghost"
-            onClick={onOpenSettings}
-          >
-            Edit program
-          </button>
-          {canInstall ? (
+        {canInstall ? (
+          <div className="button-row">
             <button
               type="button"
               className="button button--ghost"
@@ -140,8 +124,8 @@ export function TodayScreen({
             >
               Install PWA
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </Section>
 
       <Section eyebrow="Training state" title="Readiness snapshot">
@@ -204,8 +188,8 @@ export function TodayScreen({
           <p className="muted-text">
             The Support day defaults to{' '}
             <strong>{recommendation.defaultSupportFocus}</strong> based on the
-            most recent Max-day log. You can still edit or override the
-            prefilled exercises before saving the workout.
+            most recent Max-day log. The workout logger will preload the
+            prescribed preset rows so you can mark each one Pass or Fail.
           </p>
         </Section>
       ) : null}

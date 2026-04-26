@@ -55,11 +55,14 @@ export function parseImportBundle(
   if (
     parsed.version !== 2 &&
     parsed.version !== 3 &&
+    parsed.version !== 4 &&
+    parsed.version !== 5 &&
+    parsed.version !== 6 &&
     parsed.version !== EXPORT_FORMAT_VERSION
   ) {
     return {
       ok: false,
-      error: `Unsupported backup version. Expected 2, 3, or ${EXPORT_FORMAT_VERSION}.`,
+      error: `Unsupported backup version. Expected 2, 3, 4, 5, 6, or ${EXPORT_FORMAT_VERSION}.`,
     }
   }
 

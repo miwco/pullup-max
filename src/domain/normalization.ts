@@ -1,5 +1,6 @@
 import { createDefaultRecommendationState, createSeedData } from './defaults'
-import { clampCycleLengthDays } from './cycle'
+import { clampCycleLengthDays, getCycleEndDateForLength } from './cycle'
+import { normalizeMainMovement } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 import type {
   AppData,
@@ -10,6 +11,9 @@ import type {
   ExerciseEntry,
   FailurePoint,
   MaxTestResult,
+  PresetOutcome,
+  PresetProgressionState,
+  PresetTargetMode,
   ProgramBlock,
   ProgramStep,
   ProgramTemplate,
@@ -33,6 +37,13 @@ const VALID_TRENDS = new Set<TrendClassification>([
   'falling',
 ])
 const VALID_QUALITY_FLAGS = new Set<QualityFlag>(['clean', 'grindy', 'partial'])
+const VALID_PRESET_OUTCOMES = new Set<PresetOutcome>(['pass', 'fail'])
+const VALID_PRESET_TARGET_MODES = new Set<PresetTargetMode>([
+  'emom',
+  'reps',
+  'hold-seconds',
+  'duration-seconds',
+])
 const LEGACY_QUALITY_FLAGS = new Map<string, QualityFlag>([
   ['cleaner', 'clean'],
   ['stronger', 'clean'],
@@ -83,22 +94,29 @@ function normalizeQualityFlag(value: unknown) {
 function normalizeAthleteProfile(
   value: unknown,
   today: string,
+  cycleLengthDays: number,
 ): AthleteProfile | null {
   if (!isRecord(value)) {
     return null
   }
 
+  const cycleStartDate =
+    typeof value.cycleStartDate === 'string' &&
+    isIsoDateString(value.cycleStartDate)
+      ? value.cycleStartDate
+      : today
+  const cycleEndDate =
+    typeof value.cycleEndDate === 'string' &&
+    isIsoDateString(value.cycleEndDate) &&
+    value.cycleEndDate >= cycleStartDate
+      ? value.cycleEndDate
+      : getCycleEndDateForLength(cycleStartDate, cycleLengthDays)
+
   return {
     id: typeof value.id === 'string' ? value.id : 'athlete-default',
-    mainMovement:
-      typeof value.mainMovement === 'string' && value.mainMovement.trim()
-        ? value.mainMovement.trim()
-        : 'Pull-up',
-    cycleStartDate:
-      typeof value.cycleStartDate === 'string' &&
-      isIsoDateString(value.cycleStartDate)
-        ? value.cycleStartDate
-        : today,
+    mainMovement: normalizeMainMovement(value.mainMovement),
+    cycleStartDate,
+    cycleEndDate,
     notes: typeof value.notes === 'string' ? value.notes : '',
   }
 }
@@ -118,18 +136,10 @@ function normalizeSettings(value: unknown): AppSettings | null {
     cycleLengthDays: clampCycleLengthDays(
       typeof value.cycleLengthDays === 'number' ? value.cycleLengthDays : 90,
     ),
-    fatigueSensitivity:
-      typeof value.fatigueSensitivity === 'number'
-        ? value.fatigueSensitivity
-        : 3,
-    jointPainSensitivity:
-      typeof value.jointPainSensitivity === 'number'
-        ? value.jointPainSensitivity
-        : 3,
     exportFormatVersion:
       typeof value.exportFormatVersion === 'number'
         ? value.exportFormatVersion
-        : 3,
+        : 7,
   }
 }
 
@@ -284,10 +294,70 @@ function normalizeEntries(value: unknown) {
             : undefined,
         effort: typeof item.effort === 'number' ? item.effort : undefined,
         notes: typeof item.notes === 'string' ? item.notes : undefined,
+        presetKey:
+          typeof item.presetKey === 'string' ? item.presetKey : undefined,
+        outcome:
+          typeof item.outcome === 'string' &&
+          VALID_PRESET_OUTCOMES.has(item.outcome as PresetOutcome)
+            ? (item.outcome as PresetOutcome)
+            : undefined,
+        presetTargetMode:
+          typeof item.presetTargetMode === 'string' &&
+          VALID_PRESET_TARGET_MODES.has(
+            item.presetTargetMode as PresetTargetMode,
+          )
+            ? (item.presetTargetMode as PresetTargetMode)
+            : undefined,
+        presetTargetSummary:
+          typeof item.presetTargetSummary === 'string'
+            ? item.presetTargetSummary
+            : undefined,
         isMaxTest: typeof item.isMaxTest === 'boolean' ? item.isMaxTest : false,
       } satisfies ExerciseEntry,
     ]
   })
+}
+
+function normalizePresetProgressions(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as PresetProgressionState[]
+  }
+
+  return value.reduce<PresetProgressionState[]>((normalized, item) => {
+    if (!isRecord(item) || typeof item.presetKey !== 'string') {
+      return normalized
+    }
+
+    if (
+      item.mode === 'emom' &&
+      typeof item.emomBaseReps === 'number' &&
+      typeof item.emomStageOffset === 'number'
+    ) {
+      normalized.push({
+        presetKey: item.presetKey,
+        mode: 'emom',
+        emomBaseReps: item.emomBaseReps,
+        emomStageOffset: item.emomStageOffset,
+      } satisfies PresetProgressionState)
+
+      return normalized
+    }
+
+    if (
+      (item.mode === 'reps' ||
+        item.mode === 'hold-seconds' ||
+        item.mode === 'duration-seconds') &&
+      typeof item.currentValue === 'number'
+    ) {
+      normalized.push({
+        presetKey: item.presetKey,
+        mode: item.mode,
+        currentValue: item.currentValue,
+      } satisfies PresetProgressionState)
+    }
+
+    return normalized
+  }, [])
 }
 
 function normalizeMaxTests(value: unknown) {
@@ -589,10 +659,19 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
     return null
   }
 
-  const athleteProfile = normalizeAthleteProfile(value.athleteProfile, today)
   const settings = normalizeSettings(value.settings)
 
-  if (!athleteProfile || !settings) {
+  if (!settings) {
+    return null
+  }
+
+  const athleteProfile = normalizeAthleteProfile(
+    value.athleteProfile,
+    today,
+    settings.cycleLengthDays,
+  )
+
+  if (!athleteProfile) {
     return null
   }
 
@@ -602,13 +681,14 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
     athleteProfile,
     settings: {
       ...settings,
-      exportFormatVersion: 4,
+      exportFormatVersion: 7,
     },
     exercises,
     bodyweightEntries: normalizeBodyweightEntries(value.bodyweightEntries),
     sessions: normalizeSessions(value.sessions),
     exerciseEntries: normalizeEntries(value.exerciseEntries),
     maxTests: normalizeMaxTests(value.maxTests),
+    presetProgressions: normalizePresetProgressions(value.presetProgressions),
     programTemplate: normalizeProgramTemplate(value.programTemplate, exercises),
     recommendationState: createDefaultRecommendationState(),
   } satisfies AppData

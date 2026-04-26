@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
-import { useAppState } from '../../app/AppProvider'
+import { useAppState } from '../../app/appContext'
 import type {
   FailurePoint,
   ProgramEntryDraft,
@@ -32,22 +32,6 @@ const FAILURE_POINTS: FailurePoint[] = [
 
 const QUALITY_FLAGS: QualityFlag[] = ['clean', 'grindy', 'partial']
 
-function createEmptyEntry(): EntryDraft {
-  return {
-    localId: createId('draft'),
-    templateStepId: '',
-    label: '',
-    exerciseId: '',
-    exerciseName: '',
-    sets: '',
-    reps: '',
-    durationSeconds: '',
-    bandAssisted: false,
-    effort: '',
-    notes: '',
-  }
-}
-
 function parseOptionalNumber(value: string) {
   if (!value.trim()) {
     return undefined
@@ -67,15 +51,8 @@ function toDrafts(prefillRows: ProgramEntryDraft[]) {
 function serializeEntry(entry: ProgramEntryDraft) {
   return {
     templateStepId: entry.templateStepId,
-    label: entry.label,
-    exerciseId: entry.exerciseId,
-    exerciseName: entry.exerciseName,
-    sets: entry.sets,
-    reps: entry.reps,
-    durationSeconds: entry.durationSeconds,
-    bandAssisted: entry.bandAssisted,
-    effort: entry.effort,
-    notes: entry.notes,
+    presetKey: entry.presetKey,
+    outcome: entry.outcome,
   }
 }
 
@@ -84,12 +61,10 @@ function createEntriesSignature(entries: ProgramEntryDraft[]) {
 }
 
 export function LogWorkoutScreen({
-  prefill,
   requestedType,
   onSaved,
 }: LogWorkoutScreenProps) {
-  const { activeExercises, data, getProgramPrefill, saveSession } =
-    useAppState()
+  const { data, getProgramPrefill, saveSession } = useAppState()
   const recommendedType = data.recommendationState.nextSessionType
   const initialType = requestedType ?? recommendedType
   const [sessionType, setSessionType] = useState<SessionType>(initialType)
@@ -104,7 +79,7 @@ export function LogWorkoutScreen({
   const [qualityFlag, setQualityFlag] = useState<QualityFlag | ''>('')
   const [notes, setNotes] = useState('')
   const [entries, setEntries] = useState<EntryDraft[]>(() =>
-    prefill ? toDrafts(getProgramPrefill(initialType)) : [],
+    toDrafts(getProgramPrefill(initialType)),
   )
   const [showMaxDetail, setShowMaxDetail] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
@@ -152,7 +127,7 @@ export function LogWorkoutScreen({
     return (
       currentEntriesSignature === entriesBaselineSignature ||
       window.confirm(
-        'Discard the current row edits and load the default program?',
+        'Discard the current row outcomes and load the default program?',
       )
     )
   }
@@ -191,18 +166,23 @@ export function LogWorkoutScreen({
       return
     }
 
+    if (entries.some((entry) => !entry.outcome)) {
+      setFormError('Mark every preset row as Pass or Fail before saving.')
+      return
+    }
+
     const cleanedEntries = entries
       .filter((entry) => entry.exerciseId)
       .map((entry) => ({
         exerciseId: entry.exerciseId,
-        sets: parseOptionalNumber(entry.sets),
-        reps: parseOptionalNumber(entry.reps),
-        durationSeconds: parseOptionalNumber(entry.durationSeconds),
-        bandAssisted: entry.bandAssisted || undefined,
-        effort: parseOptionalNumber(entry.effort),
-        notes:
-          [entry.label, entry.notes.trim()].filter(Boolean).join(' - ') ||
-          undefined,
+        sets: entry.target.entrySets,
+        reps: entry.target.entryReps,
+        durationSeconds: entry.target.entryDurationSeconds,
+        notes: entry.label !== entry.exerciseName ? entry.label : undefined,
+        presetKey: entry.presetKey,
+        outcome: entry.outcome || undefined,
+        presetTargetMode: entry.target.mode,
+        presetTargetSummary: entry.target.summary,
         isMaxTest: false,
       }))
 
@@ -240,7 +220,7 @@ export function LogWorkoutScreen({
   return (
     <div className="screen-stack">
       <form className="screen-stack" onSubmit={handleSubmit}>
-        <Section eyebrow="Fast logging" title="Log workout">
+        <Section eyebrow="Fast logging" title="Workout">
           <div className="summary-bar">
             <p className="muted-text">
               Recommended today: <strong>{recommendedType}</strong>
@@ -393,7 +373,7 @@ export function LogWorkoutScreen({
                   autoComplete="off"
                   spellCheck={false}
                   inputMode="url"
-                  placeholder="https://example.com/attempt…"
+                  placeholder="https://example.com/attempt..."
                   value={videoLink}
                   onChange={(event) => setVideoLink(event.target.value)}
                 />
@@ -402,162 +382,52 @@ export function LogWorkoutScreen({
           </Section>
         ) : null}
 
-        <Section eyebrow="Workout rows" title="Prefilled exercises">
+        <Section eyebrow="Workout rows" title="Preset exercises">
           <div className="summary-bar">
             <p className="muted-text">
-              These rows come from the default program. Edit or remove them
-              before saving.
+              Treat each row as today&apos;s prescription. Mark it Pass or Fail.
             </p>
-            <div className="action-row">
-              <button
-                type="button"
-                className="button button--ghost"
-                onClick={() => {
-                  if (!canReplaceWorkoutRows()) {
-                    return
-                  }
-
-                  loadPrefill(sessionType)
-                }}
-              >
-                Reload defaults
-              </button>
-              <button
-                type="button"
-                className="button button--ghost"
-                onClick={() =>
-                  setEntries((current) => [...current, createEmptyEntry()])
-                }
-              >
-                Add row
-              </button>
-            </div>
           </div>
 
           <div className="entry-list">
             {entries.length === 0 ? (
               <p className="muted-text">
-                No exercise rows added. You can still save the workout.
+                No preset rows are available for this workout yet.
               </p>
             ) : null}
 
             {entries.map((entry) => (
-              <div key={entry.localId} className="entry-row entry-row--compact">
-                <label className="field field--span-2">
-                  <span>Block label</span>
-                  <input
-                    value={entry.label}
-                    onChange={(event) =>
-                      updateEntry(entry.localId, { label: event.target.value })
-                    }
-                  />
-                </label>
+              <div key={entry.localId} className="entry-row preset-row">
+                <div className="preset-row__copy">
+                  <p className="metric-label">{entry.exerciseName}</p>
+                  <strong>{entry.label}</strong>
+                  <p className="preset-row__target">{entry.target.summary}</p>
+                  {entry.notes ? (
+                    <p className="muted-text preset-row__note">{entry.notes}</p>
+                  ) : null}
+                </div>
 
-                <label className="field field--span-2">
-                  <span>Exercise</span>
-                  <select
-                    value={entry.exerciseId}
-                    onChange={(event) => {
-                      const exercise = activeExercises.find(
-                        (item) => item.id === event.target.value,
-                      )
-
-                      updateEntry(entry.localId, {
-                        exerciseId: event.target.value,
-                        exerciseName: exercise?.name ?? '',
-                      })
-                    }}
-                  >
-                    <option value="">Choose exercise</option>
-                    {activeExercises.map((exercise) => (
-                      <option key={exercise.id} value={exercise.id}>
-                        {exercise.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>Sets</span>
-                  <input
-                    inputMode="numeric"
-                    value={entry.sets}
-                    onChange={(event) =>
-                      updateEntry(entry.localId, { sets: event.target.value })
-                    }
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Reps</span>
-                  <input
-                    inputMode="numeric"
-                    value={entry.reps}
-                    onChange={(event) =>
-                      updateEntry(entry.localId, { reps: event.target.value })
-                    }
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Seconds</span>
-                  <input
-                    inputMode="numeric"
-                    value={entry.durationSeconds}
-                    onChange={(event) =>
-                      updateEntry(entry.localId, {
-                        durationSeconds: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-
-                <label className="field">
-                  <span>Effort</span>
-                  <input
-                    inputMode="numeric"
-                    placeholder="1-10"
-                    value={entry.effort}
-                    onChange={(event) =>
-                      updateEntry(entry.localId, { effort: event.target.value })
-                    }
-                  />
-                </label>
-
-                <label className="field field--checkbox">
-                  <span>Band-assisted</span>
-                  <input
-                    type="checkbox"
-                    checked={entry.bandAssisted}
-                    onChange={(event) =>
-                      updateEntry(entry.localId, {
-                        bandAssisted: event.target.checked,
-                      })
-                    }
-                  />
-                </label>
-
-                <label className="field field--span-2">
-                  <span>Notes</span>
-                  <input
-                    value={entry.notes}
-                    onChange={(event) =>
-                      updateEntry(entry.localId, { notes: event.target.value })
-                    }
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  className="button button--ghost entry-row__remove"
-                  onClick={() =>
-                    setEntries((current) =>
-                      current.filter((item) => item.localId !== entry.localId),
-                    )
-                  }
+                <div
+                  className="segment-row preset-row__actions"
+                  role="radiogroup"
+                  aria-label={`Outcome for ${entry.label}`}
                 >
-                  Remove
-                </button>
+                  {(['pass', 'fail'] as const).map((outcome) => (
+                    <button
+                      key={outcome}
+                      type="button"
+                      className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
+                      aria-pressed={entry.outcome === outcome}
+                      onClick={() =>
+                        updateEntry(entry.localId, {
+                          outcome,
+                        })
+                      }
+                    >
+                      {outcome}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -582,7 +452,7 @@ export function LogWorkoutScreen({
 
           {formError ? <p className="form-error">{formError}</p> : null}
           <button type="submit" className="button button--primary">
-            {isSaving ? 'Saving…' : 'Save workout'}
+            {isSaving ? 'Saving...' : 'Save workout'}
           </button>
         </Section>
       </form>

@@ -36,10 +36,9 @@ function createScenario(overrides: Partial<RecommendationInput> = {}): {
       currentPhase: 'develop',
       daysSinceLastMax: 7,
       daysSinceLastWorkout: 3,
+      exercises,
       fatigueAverage: 2.2,
-      fatigueSensitivity: 3,
-      jointPainAverage: 0.5,
-      jointPainSensitivity: 3,
+      supportPainOverride: false,
       latestFailurePoint: 'top',
       mainMovement: 'Pull-up',
       programTemplate: createDefaultProgramTemplate(exercises),
@@ -121,7 +120,6 @@ describe('recommendation engine', () => {
     const { exercises, input } = createScenario({
       daysSinceLastWorkout: 1,
       fatigueAverage: null,
-      jointPainAverage: null,
     })
     const recommendation = createRecommendation(input, exercises)
 
@@ -155,7 +153,8 @@ describe('recommendation engine', () => {
 
     expect(getSupportFocusFromFailurePoint('not sure')).toBe('generic')
     expect(recommendation.defaultSupportFocus).toBe('generic')
-    expect(recommendation.suggestedExercises).toContain('Active hang')
+    expect(recommendation.suggestedExercises).toContain('Scapular pull-up')
+    expect(recommendation.suggestedExercises).toContain('Dead hang')
   })
 
   it('keeps the two-session model but eases support when trend is falling', () => {
@@ -211,7 +210,7 @@ describe('recommendation engine', () => {
     })
     const { input: painDriven } = createScenario({
       daysSinceLastWorkout: 1,
-      jointPainAverage: 3.2,
+      supportPainOverride: true,
     })
 
     expect(shouldEaseSupport(fatigueDriven)).toBe(true)
@@ -224,10 +223,70 @@ describe('recommendation engine', () => {
     )
   })
 
+  it('resolves max and support rows to the selected main movement family', () => {
+    const exercises = createDefaultExercises()
+    const template = createDefaultProgramTemplate(exercises)
+
+    const chinUpSupport = getAdjustedProgramSteps(
+      createScenario({
+        exercises,
+        programTemplate: template,
+        daysSinceLastWorkout: 1,
+        mainMovement: 'Chin-up',
+      }).input,
+      'support',
+    )
+    const ringMax = getAdjustedProgramSteps(
+      createScenario({
+        exercises,
+        programTemplate: template,
+        mainMovement: 'Ring pull-up',
+      }).input,
+      'max',
+    )
+
+    expect(chinUpSupport[0]?.title).toBe('Main chin-up practice')
+    expect(ringMax[0]?.title).toBe('EMOM ring pull-up block')
+  })
+
+  it('forces chin-up support rows back to pull-up grip when pain override is active', () => {
+    const exercises = createDefaultExercises()
+    const template = createDefaultProgramTemplate(exercises)
+
+    const chinUpWithPain = getAdjustedProgramSteps(
+      createScenario({
+        exercises,
+        programTemplate: template,
+        daysSinceLastWorkout: 1,
+        mainMovement: 'Chin-up',
+        supportPainOverride: true,
+      }).input,
+      'support',
+    )
+    const neutralWithPain = getAdjustedProgramSteps(
+      createScenario({
+        exercises,
+        programTemplate: template,
+        daysSinceLastWorkout: 1,
+        mainMovement: 'Neutral-grip pull-up',
+        supportPainOverride: true,
+      }).input,
+      'support',
+    )
+
+    expect(chinUpWithPain[0]?.title).toBe('Main pull-up practice')
+    expect(neutralWithPain[0]?.title).toBe('Main neutral-grip pull-up practice')
+  })
+
   it('maps weak-point support blocks to the expected default exercises', () => {
     const exercises = createDefaultExercises()
     const programTemplate = createDefaultProgramTemplate(exercises)
 
+    expect(
+      getProgramStepsForSession(programTemplate, 'support', 'generic').map(
+        (step) => step.title,
+      ),
+    ).toEqual(['Main pull-up practice', 'Scapular pull-ups', 'Dead hang'])
     expect(
       getProgramStepsForSession(programTemplate, 'support', 'top').map(
         (step) => step.title,
@@ -268,6 +327,27 @@ describe('recommendation engine', () => {
     expect(template.supportDayBase.steps[0]?.sets).toBe(6)
     expect(template.supportDayBase.steps[0]?.minReps).toBe(3)
     expect(template.supportDayBase.steps[0]?.maxReps).toBe(6)
+    expect(
+      template.supportFallback.steps.map((step) => ({
+        title: step.title,
+        sets: step.sets,
+        reps: step.reps,
+        holdSeconds: step.holdSeconds,
+      })),
+    ).toEqual([
+      {
+        title: 'Scapular pull-ups',
+        sets: 2,
+        reps: 6,
+        holdSeconds: undefined,
+      },
+      {
+        title: 'Dead hang',
+        sets: 2,
+        reps: undefined,
+        holdSeconds: 20,
+      },
+    ])
   })
 
   it('applies easier support adjustments to editable program steps', () => {

@@ -95,7 +95,10 @@ export function getPresetKey(step: ProgramStep) {
 }
 
 export function getPresetStepMode(step: ProgramStep) {
-  if (typeof step.emomMinutes === 'number' || typeof step.emomReps === 'number') {
+  if (
+    typeof step.emomMinutes === 'number' ||
+    typeof step.emomReps === 'number'
+  ) {
     return 'emom' as const
   }
 

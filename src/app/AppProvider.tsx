@@ -1,11 +1,5 @@
-import {
-  createContext,
-  startTransition,
-  use,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react'
+import { startTransition, useEffect, useState, type ReactNode } from 'react'
+import { AppContext, type AppContextValue, type AppNotice } from './appContext'
 import { createSeedData } from '../domain/defaults'
 import {
   getBodyweightSnapshotValue,
@@ -34,16 +28,13 @@ import {
   getMaxExposures,
   getMaxTrendClassificationForNewResult,
   getProgramStepsForRecommendation,
-  getSupportVolumeScore,
   withComputedRecommendation,
 } from '../domain/selectors'
 import type {
   AppData,
   AppSettings,
   AthleteProfile,
-  BodyweightEntry,
   Exercise,
-  ProgramEntryDraft,
   ProgramTemplate,
   SaveSessionInput,
   SessionType,
@@ -57,60 +48,11 @@ import {
   resetAppData,
 } from '../storage/indexedDb'
 
-type NoticeTone = 'info' | 'error' | 'success'
-
-interface AppNotice {
-  tone: NoticeTone
-  message: string
-}
-
-interface AppContextValue {
-  activeExercises: Exercise[]
-  allTimeBestMax: number | null
-  bodyweightTrendPoints: Array<{
-    date: string
-    value: number
-  }>
-  cycleMaxTrendPoints: ReturnType<typeof buildMaxTrendPoints>
-  cycleSummary: ReturnType<typeof getCycleSummaryData>
-  data: AppData
-  daysSinceLastMax: number | null
-  daysSinceLastWorkout: number | null
-  deleteExercise: (exerciseId: string) => Promise<void>
-  errorMessage: string | null
-  exportBackup: () => string
-  getProgramPrefill: (sessionType: SessionType) => ProgramEntryDraft[]
-  importBackup: (rawText: string) => Promise<boolean>
-  isReady: boolean
-  latestBodyweightEntry: BodyweightEntry | null
-  maxHistory: ReturnType<typeof buildMaxHistory>
-  notice: AppNotice | null
-  recentWorkouts: ReturnType<typeof buildRecentWorkouts>
-  resetAllData: () => Promise<void>
-  saveBodyweight: (date: string, weightKg: number) => Promise<boolean>
-  saveSession: (input: SaveSessionInput) => Promise<boolean>
-  saveSettingsAndProgram: (
-    profileUpdates: Partial<AthleteProfile>,
-    settingsUpdates: Partial<AppSettings> | undefined,
-    nextTemplate: ProgramTemplate,
-  ) => Promise<boolean>
-  setNotice: (notice: AppNotice | null) => void
-  supportVolumeTrend: Array<{
-    date: string
-    value: number
-  }>
-  weeklyVolumeSummary: ReturnType<typeof getCurrentWeekVolumeSummary>
-  updateExercise: (
-    input: Omit<Exercise, 'id'> & { id?: string },
-  ) => Promise<void>
-}
-
-const AppContext = createContext<AppContextValue | null>(null)
-
 const EMPTY_APP_DATA = withComputedRecommendation(
   createSeedData(todayDateString()),
   todayDateString(),
 )
+const LOAD_TIMEOUT_MS = 8000
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(EMPTY_APP_DATA)
@@ -123,7 +65,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     async function loadData() {
       try {
-        const stored = await loadOrSeedAppData(todayDateString())
+        const today = todayDateString()
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+        const stored = await Promise.race([
+          loadOrSeedAppData(today),
+          new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => {
+              reject(
+                new Error(
+                  'Local storage took too long to respond. Try reloading the app or using a standard browser mode with storage enabled.',
+                ),
+              )
+            }, LOAD_TIMEOUT_MS)
+          }),
+        ])
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
 
         if (cancelled) {
           return
@@ -156,6 +114,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const cycleWindow = getCurrentCycleWindow(
     data.athleteProfile.cycleStartDate,
     data.settings.cycleLengthDays,
+    todayDateString(),
+    data.athleteProfile.cycleEndDate,
   )
   const cycleSummary = getCycleSummaryData(data)
   const recentWorkouts = buildRecentWorkouts(
@@ -193,25 +153,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const latestBodyweightEntry = getLatestSavedBodyweightEntry(
     data.bodyweightEntries,
   )
-  const exerciseLookup = new Map(
-    data.exercises.map((exercise) => [exercise.id, exercise]),
-  )
-  const supportVolumeTrend = recentWorkouts
-    .filter(
-      (session) =>
-        session.date >= cycleWindow.start &&
-        session.date <= cycleWindow.end &&
-        session.sessionType === 'support',
-    )
-    .slice(0, 12)
-    .reverse()
-    .map((session) => ({
-      date: session.date,
-      value: session.entries.reduce(
-        (sum, entry) => sum + getSupportVolumeScore(entry, exerciseLookup),
-        0,
-      ),
-    }))
   const weeklyVolumeSummary = getCurrentWeekVolumeSummary(data)
   const daysSinceLastMax = getDaysSinceLastMax(
     data.sessions,
@@ -495,20 +436,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveSession,
     saveSettingsAndProgram,
     setNotice,
-    supportVolumeTrend,
     weeklyVolumeSummary,
     updateExercise,
   }
 
   return <AppContext value={contextValue}>{children}</AppContext>
-}
-
-export function useAppState() {
-  const context = use(AppContext)
-
-  if (!context) {
-    throw new Error('useAppState must be used within AppProvider.')
-  }
-
-  return context
 }

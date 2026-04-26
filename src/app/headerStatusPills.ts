@@ -4,11 +4,7 @@ import type {
   TrendClassification,
 } from '../domain/types'
 
-export type HeaderStatusPillTone =
-  | 'neutral'
-  | 'accent'
-  | 'warning'
-  | 'success'
+export type HeaderStatusPillTone = 'neutral' | 'accent' | 'warning' | 'success'
 
 export interface HeaderStatusPillItem {
   id: string

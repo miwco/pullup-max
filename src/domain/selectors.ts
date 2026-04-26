@@ -173,8 +173,14 @@ export function getCurrentCycleWindow(
   cycleStartDate: string,
   cycleLengthDays: number,
   today = todayDateString(),
+  cycleEndDate?: string,
 ): CycleWindow {
-  return buildCurrentCycleWindow(cycleStartDate, cycleLengthDays, today)
+  return buildCurrentCycleWindow(
+    cycleStartDate,
+    cycleLengthDays,
+    today,
+    cycleEndDate,
+  )
 }
 
 export function getCurrentCyclePhase(
@@ -251,6 +257,7 @@ export function buildRecommendationInput(
     data.athleteProfile.cycleStartDate,
     data.settings.cycleLengthDays,
     today,
+    data.athleteProfile.cycleEndDate,
   )
   const cycleMaxResults = getMaxExposures(
     data.maxTests,
@@ -314,6 +321,7 @@ export function getCycleSummaryData(
     data.athleteProfile.cycleStartDate,
     data.settings.cycleLengthDays,
     today,
+    data.athleteProfile.cycleEndDate,
   )
   const cycleSessions = getSessionsInCycle(data.sessions, cycleWindow)
   const cycleBestMax = getBestMax(
@@ -323,10 +331,12 @@ export function getCycleSummaryData(
     cycleWindow,
   )
   const cycleLengthDays = data.settings.cycleLengthDays
-  const daysElapsed = Math.min(
-    cycleLengthDays,
-    diffInDays(cycleWindow.start, today) + 1,
-  )
+  const currentDate =
+    compareDateAsc(today, cycleWindow.end) > 0 ? cycleWindow.end : today
+  const cycleHasStarted = compareDateAsc(today, cycleWindow.start) >= 0
+  const daysElapsed = cycleHasStarted
+    ? Math.min(cycleLengthDays, diffInDays(cycleWindow.start, currentDate) + 1)
+    : 0
   const daysRemaining = Math.max(0, cycleLengthDays - daysElapsed)
   const progressPercent = Math.round((daysElapsed / cycleLengthDays) * 100)
   const counts = cycleSessions.reduce(
@@ -402,19 +412,33 @@ export function buildMaxHistory(
     .sort((left, right) => compareDateAsc(left.date, right.date))
 
   return datedMaxTests
-    .map((maxTest, index) => ({
-      id: maxTest.id,
-      date: maxTest.date,
-      reps: maxTest.reps,
-      bodyweightKgSnapshot: maxTest.bodyweightKgSnapshot,
-      videoUrl: maxTest.videoUrl,
-      trend: classifyTrend(
-        datedMaxTests
-          .slice(0, index + 1)
-          .map((item) => ({ date: item.date, reps: item.reps })),
-      ),
-      failurePoint: maxTest.failurePoint,
-    }))
+    .map((maxTest, index) => {
+      const previousMaxTest = datedMaxTests[index - 1]
+
+      return {
+        id: maxTest.id,
+        date: maxTest.date,
+        reps: maxTest.reps,
+        repDelta: previousMaxTest ? maxTest.reps - previousMaxTest.reps : null,
+        bodyweightKgSnapshot: maxTest.bodyweightKgSnapshot,
+        bodyweightDeltaKg:
+          typeof maxTest.bodyweightKgSnapshot === 'number' &&
+          typeof previousMaxTest?.bodyweightKgSnapshot === 'number'
+            ? Math.round(
+                (maxTest.bodyweightKgSnapshot -
+                  previousMaxTest.bodyweightKgSnapshot) *
+                  10,
+              ) / 10
+            : null,
+        videoUrl: maxTest.videoUrl,
+        trend: classifyTrend(
+          datedMaxTests
+            .slice(0, index + 1)
+            .map((item) => ({ date: item.date, reps: item.reps })),
+        ),
+        failurePoint: maxTest.failurePoint,
+      }
+    })
     .reverse()
 }
 
@@ -566,6 +590,7 @@ export function getCurrentWeekVolumeSummary(
     data.athleteProfile.cycleStartDate,
     data.settings.cycleLengthDays,
     today,
+    data.athleteProfile.cycleEndDate,
   )
 
   return getWeeklyVolumeSummary({

@@ -113,7 +113,10 @@ const MOVEMENT_EXERCISE_LABELS: Record<
   },
 }
 
-const MOVEMENT_EXERCISE_META: Record<ExerciseCategory, Omit<MovementExerciseSpec, 'name'>> = {
+const MOVEMENT_EXERCISE_META: Record<
+  ExerciseCategory,
+  Omit<MovementExerciseSpec, 'name'>
+> = {
   'main-movement': {
     defaultUnit: 'reps',
     tags: ['main movement', 'max test'],
@@ -181,10 +184,11 @@ function registerCategoryNames() {
       `Main ${mainMovement.toLowerCase()} practice`,
       'main-movement',
     )
-
-    ;(Object.keys(MOVEMENT_EXERCISE_LABELS) as Array<
-      Exclude<ExerciseCategory, 'main-movement'>
-    >).forEach((category) => {
+    ;(
+      Object.keys(MOVEMENT_EXERCISE_LABELS) as Array<
+        Exclude<ExerciseCategory, 'main-movement'>
+      >
+    ).forEach((category) => {
       CATEGORY_BY_EXERCISE_NAME.set(
         MOVEMENT_EXERCISE_LABELS[category][mainMovement],
         category,

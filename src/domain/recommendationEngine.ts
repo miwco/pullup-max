@@ -70,8 +70,7 @@ export function isMaxReady(daysSinceLastWorkout: number | null) {
 }
 
 export function shouldEaseSupport(input: RecommendationInput) {
-  const fatigueHigh =
-    input.fatigueAverage !== null && input.fatigueAverage >= 4
+  const fatigueHigh = input.fatigueAverage !== null && input.fatigueAverage >= 4
   const trend = classifyTrend(input.cycleMaxResults)
 
   return (

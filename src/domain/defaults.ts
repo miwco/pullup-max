@@ -6,20 +6,22 @@ import type {
   ProgramTemplate,
   RecommendationState,
 } from './types'
-import { DEFAULT_CYCLE_LENGTH_DAYS } from './cycle'
+import { DEFAULT_CYCLE_LENGTH_DAYS, getCycleEndDateForLength } from './cycle'
 import { createId } from '../lib/id'
 import { todayDateString } from '../lib/date'
 import { createMovementExerciseSpecs, MAIN_MOVEMENTS } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 
-export const EXPORT_FORMAT_VERSION = 6
+export const EXPORT_FORMAT_VERSION = 7
 
 const DEFAULT_EXERCISE_SPECS: Array<
   Omit<Exercise, 'id' | 'active' | 'builtIn'>
 > = MAIN_MOVEMENTS.flatMap((mainMovement) =>
   createMovementExerciseSpecs(mainMovement).map((exercise) => ({
     ...exercise,
-    type: exercise.tags.includes('main movement') ? ('max' as const) : ('support' as const),
+    type: exercise.tags.includes('main movement')
+      ? ('max' as const)
+      : ('support' as const),
   })),
 )
 
@@ -39,6 +41,7 @@ export function createDefaultAthleteProfile(
     id: 'athlete-default',
     mainMovement: 'Pull-up',
     cycleStartDate: today,
+    cycleEndDate: getCycleEndDateForLength(today, DEFAULT_CYCLE_LENGTH_DAYS),
     notes: '',
   }
 }

@@ -22,7 +22,7 @@ function getRepFactor(exercise: Exercise) {
     exercise.tags.includes('main movement') ||
     exercise.name.startsWith('EMOM ') ||
     exercise.name.includes('Mid-pause ') ||
-    exercise.name.includes('Paused ') && exercise.name.includes('dead hang')
+    (exercise.name.includes('Paused ') && exercise.name.includes('dead hang'))
   ) {
     return 1
   }
@@ -43,11 +43,7 @@ function getRepFactor(exercise: Exercise) {
     return 0.55
   }
 
-  return exercise.type === 'max'
-    ? 1
-    : exercise.type === 'support'
-      ? 0.75
-      : 0.6
+  return exercise.type === 'max' ? 1 : exercise.type === 'support' ? 0.75 : 0.6
 }
 
 function getSecondsFactor(exercise: Exercise) {

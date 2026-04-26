@@ -1,5 +1,5 @@
 import { createDefaultRecommendationState, createSeedData } from './defaults'
-import { clampCycleLengthDays } from './cycle'
+import { clampCycleLengthDays, getCycleEndDateForLength } from './cycle'
 import { normalizeMainMovement } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 import type {
@@ -94,19 +94,29 @@ function normalizeQualityFlag(value: unknown) {
 function normalizeAthleteProfile(
   value: unknown,
   today: string,
+  cycleLengthDays: number,
 ): AthleteProfile | null {
   if (!isRecord(value)) {
     return null
   }
 
+  const cycleStartDate =
+    typeof value.cycleStartDate === 'string' &&
+    isIsoDateString(value.cycleStartDate)
+      ? value.cycleStartDate
+      : today
+  const cycleEndDate =
+    typeof value.cycleEndDate === 'string' &&
+    isIsoDateString(value.cycleEndDate) &&
+    value.cycleEndDate >= cycleStartDate
+      ? value.cycleEndDate
+      : getCycleEndDateForLength(cycleStartDate, cycleLengthDays)
+
   return {
     id: typeof value.id === 'string' ? value.id : 'athlete-default',
     mainMovement: normalizeMainMovement(value.mainMovement),
-    cycleStartDate:
-      typeof value.cycleStartDate === 'string' &&
-      isIsoDateString(value.cycleStartDate)
-        ? value.cycleStartDate
-        : today,
+    cycleStartDate,
+    cycleEndDate,
     notes: typeof value.notes === 'string' ? value.notes : '',
   }
 }
@@ -129,7 +139,7 @@ function normalizeSettings(value: unknown): AppSettings | null {
     exportFormatVersion:
       typeof value.exportFormatVersion === 'number'
         ? value.exportFormatVersion
-        : 6,
+        : 7,
   }
 }
 
@@ -293,7 +303,9 @@ function normalizeEntries(value: unknown) {
             : undefined,
         presetTargetMode:
           typeof item.presetTargetMode === 'string' &&
-          VALID_PRESET_TARGET_MODES.has(item.presetTargetMode as PresetTargetMode)
+          VALID_PRESET_TARGET_MODES.has(
+            item.presetTargetMode as PresetTargetMode,
+          )
             ? (item.presetTargetMode as PresetTargetMode)
             : undefined,
         presetTargetSummary:
@@ -321,14 +333,12 @@ function normalizePresetProgressions(value: unknown) {
       typeof item.emomBaseReps === 'number' &&
       typeof item.emomStageOffset === 'number'
     ) {
-      normalized.push(
-        {
-          presetKey: item.presetKey,
-          mode: 'emom',
-          emomBaseReps: item.emomBaseReps,
-          emomStageOffset: item.emomStageOffset,
-        } satisfies PresetProgressionState,
-      )
+      normalized.push({
+        presetKey: item.presetKey,
+        mode: 'emom',
+        emomBaseReps: item.emomBaseReps,
+        emomStageOffset: item.emomStageOffset,
+      } satisfies PresetProgressionState)
 
       return normalized
     }
@@ -339,13 +349,11 @@ function normalizePresetProgressions(value: unknown) {
         item.mode === 'duration-seconds') &&
       typeof item.currentValue === 'number'
     ) {
-      normalized.push(
-        {
-          presetKey: item.presetKey,
-          mode: item.mode,
-          currentValue: item.currentValue,
-        } satisfies PresetProgressionState,
-      )
+      normalized.push({
+        presetKey: item.presetKey,
+        mode: item.mode,
+        currentValue: item.currentValue,
+      } satisfies PresetProgressionState)
     }
 
     return normalized
@@ -651,10 +659,19 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
     return null
   }
 
-  const athleteProfile = normalizeAthleteProfile(value.athleteProfile, today)
   const settings = normalizeSettings(value.settings)
 
-  if (!athleteProfile || !settings) {
+  if (!settings) {
+    return null
+  }
+
+  const athleteProfile = normalizeAthleteProfile(
+    value.athleteProfile,
+    today,
+    settings.cycleLengthDays,
+  )
+
+  if (!athleteProfile) {
     return null
   }
 
@@ -664,7 +681,7 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
     athleteProfile,
     settings: {
       ...settings,
-      exportFormatVersion: 6,
+      exportFormatVersion: 7,
     },
     exercises,
     bodyweightEntries: normalizeBodyweightEntries(value.bodyweightEntries),

@@ -1,5 +1,11 @@
 import type { CyclePhase, CycleWindow } from './types'
-import { addDays, diffInDays, todayDateString } from '../lib/date'
+import {
+  addDays,
+  compareDateAsc,
+  diffInDays,
+  isIsoDateString,
+  todayDateString,
+} from '../lib/date'
 
 export const MIN_CYCLE_LENGTH_DAYS = 30
 export const MAX_CYCLE_LENGTH_DAYS = 365
@@ -16,29 +22,47 @@ export function clampCycleLengthDays(value: number | null | undefined) {
   )
 }
 
+export function getCycleEndDateForLength(
+  cycleStartDate: string,
+  cycleLengthDays: number,
+) {
+  return addDays(cycleStartDate, clampCycleLengthDays(cycleLengthDays) - 1)
+}
+
+export function getCycleLengthDaysFromDates(
+  cycleStartDate: string,
+  cycleEndDate: string,
+) {
+  if (
+    !isIsoDateString(cycleStartDate) ||
+    !isIsoDateString(cycleEndDate) ||
+    compareDateAsc(cycleStartDate, cycleEndDate) > 0
+  ) {
+    return null
+  }
+
+  return diffInDays(cycleStartDate, cycleEndDate) + 1
+}
+
 export function getCurrentCycleWindow(
   cycleStartDate: string,
   cycleLengthDays: number,
   today = todayDateString(),
+  cycleEndDate?: string,
 ): CycleWindow {
+  void today
+
   const normalizedLength = clampCycleLengthDays(cycleLengthDays)
-
-  if (cycleStartDate > today) {
-    return {
-      start: today,
-      end: addDays(today, normalizedLength - 1),
-    }
-  }
-
-  let currentStart = cycleStartDate
-
-  while (addDays(currentStart, normalizedLength - 1) < today) {
-    currentStart = addDays(currentStart, normalizedLength)
-  }
+  const resolvedEndDate =
+    typeof cycleEndDate === 'string' &&
+    isIsoDateString(cycleEndDate) &&
+    compareDateAsc(cycleStartDate, cycleEndDate) <= 0
+      ? cycleEndDate
+      : getCycleEndDateForLength(cycleStartDate, normalizedLength)
 
   return {
-    start: currentStart,
-    end: addDays(currentStart, normalizedLength - 1),
+    start: cycleStartDate,
+    end: resolvedEndDate,
   }
 }
 

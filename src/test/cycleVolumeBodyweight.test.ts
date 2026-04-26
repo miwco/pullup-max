@@ -3,8 +3,10 @@ import { addDays } from '../lib/date'
 import { createDefaultExercises } from '../domain/defaults'
 import {
   clampCycleLengthDays,
+  getCycleEndDateForLength,
   getCurrentCycleWindow,
   getCyclePhase,
+  getCycleLengthDaysFromDates,
 } from '../domain/cycle'
 import {
   getBodyweightSnapshotValue,
@@ -19,19 +21,28 @@ describe('cycle, bodyweight, and volume logic', () => {
     expect(clampCycleLengthDays(500)).toBe(365)
   })
 
-  it('builds rolling cycle windows for 30, 90, and 365 day cycles', () => {
-    expect(getCurrentCycleWindow('2026-01-01', 30, '2026-02-15')).toEqual({
-      start: '2026-01-31',
-      end: '2026-03-01',
+  it('builds fixed cycle windows from explicit start and end dates', () => {
+    expect(
+      getCurrentCycleWindow('2026-01-01', 30, '2026-02-15', '2026-01-30'),
+    ).toEqual({
+      start: '2026-01-01',
+      end: '2026-01-30',
     })
-    expect(getCurrentCycleWindow('2026-01-01', 90, '2026-02-15')).toEqual({
+    expect(
+      getCurrentCycleWindow('2026-01-01', 90, '2026-02-15', '2026-03-31'),
+    ).toEqual({
       start: '2026-01-01',
       end: '2026-03-31',
     })
-    expect(getCurrentCycleWindow('2026-01-01', 365, '2026-08-15')).toEqual({
-      start: '2026-01-01',
-      end: '2026-12-31',
-    })
+  })
+
+  it('derives cycle length from start/end and derives end dates from exact day counts', () => {
+    expect(getCycleLengthDaysFromDates('2026-04-19', '2026-06-07')).toBe(50)
+    expect(getCycleLengthDaysFromDates('2026-04-19', '2026-07-17')).toBe(90)
+    expect(getCycleLengthDaysFromDates('2026-04-19', '2026-04-18')).toBeNull()
+
+    expect(getCycleEndDateForLength('2026-04-19', 50)).toBe('2026-06-07')
+    expect(getCycleEndDateForLength('2026-04-19', 90)).toBe('2026-07-17')
   })
 
   it('splits the active cycle into build, develop, and competition prep thirds', () => {

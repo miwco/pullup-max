@@ -11,10 +11,9 @@ const NAV_ITEMS: Array<{
   route: AppRoute
 }> = [
   { label: 'Today', route: 'today' },
-  { label: 'Log', route: 'log' },
+  { label: 'Workout', route: 'log' },
   { label: 'History', route: 'history' },
   { label: 'Progress', route: 'progress' },
-  { label: 'Cycle', route: 'cycle' },
 ]
 
 export function BottomNav({

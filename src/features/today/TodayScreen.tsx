@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
-import { useAppState } from '../../app/AppProvider'
+import { useAppState } from '../../app/appContext'
 import { formatLongDate, todayDateString } from '../../lib/date'
 
 interface TodayScreenProps {

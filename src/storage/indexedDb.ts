@@ -5,7 +5,7 @@ import type { AppData } from '../domain/types'
 import { todayDateString } from '../lib/date'
 
 const DATABASE_NAME = 'pullup-max-db'
-const DATABASE_VERSION = 4
+const DATABASE_VERSION = 5
 
 const STORE_NAMES = {
   athleteProfile: 'athleteProfile',
@@ -17,7 +17,6 @@ const STORE_NAMES = {
   maxTests: 'maxTests',
   presetProgressions: 'presetProgressions',
   programTemplate: 'programTemplate',
-  recommendationState: 'recommendationState',
 } as const
 
 function requestToPromise<T>(request: IDBRequest<T>) {
@@ -82,9 +81,7 @@ async function openDatabase() {
         })
       }
 
-      if (
-        !database.objectStoreNames.contains(STORE_NAMES.presetProgressions)
-      ) {
+      if (!database.objectStoreNames.contains(STORE_NAMES.presetProgressions)) {
         database.createObjectStore(STORE_NAMES.presetProgressions, {
           keyPath: 'presetKey',
         })
@@ -94,12 +91,8 @@ async function openDatabase() {
         database.createObjectStore(STORE_NAMES.programTemplate)
       }
 
-      if (
-        !database.objectStoreNames.contains(STORE_NAMES.recommendationState)
-      ) {
-        database.createObjectStore(STORE_NAMES.recommendationState, {
-          keyPath: 'id',
-        })
+      if (database.objectStoreNames.contains('recommendationState')) {
+        database.deleteObjectStore('recommendationState')
       }
     }
 
@@ -197,9 +190,6 @@ export async function persistAppData(appData: AppData) {
   const programTemplateStore = transaction.objectStore(
     STORE_NAMES.programTemplate,
   )
-  const recommendationStore = transaction.objectStore(
-    STORE_NAMES.recommendationState,
-  )
 
   athleteProfileStore.clear()
   settingsStore.clear()
@@ -210,7 +200,6 @@ export async function persistAppData(appData: AppData) {
   maxTestsStore.clear()
   presetProgressionsStore.clear()
   programTemplateStore.clear()
-  recommendationStore.clear()
 
   athleteProfileStore.put(appData.athleteProfile)
   settingsStore.put(appData.settings, 'current')
@@ -221,9 +210,10 @@ export async function persistAppData(appData: AppData) {
   appData.sessions.forEach((session) => sessionsStore.put(session))
   appData.exerciseEntries.forEach((entry) => exerciseEntriesStore.put(entry))
   appData.maxTests.forEach((maxTest) => maxTestsStore.put(maxTest))
-  appData.presetProgressions.forEach((state) => presetProgressionsStore.put(state))
+  appData.presetProgressions.forEach((state) =>
+    presetProgressionsStore.put(state),
+  )
   programTemplateStore.put(appData.programTemplate, 'current')
-  recommendationStore.put(appData.recommendationState)
 
   await transactionToPromise(transaction)
   database.close()

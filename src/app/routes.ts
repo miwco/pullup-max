@@ -37,13 +37,31 @@ function normalizeHash(hash: string): RouteState {
   }
 
   const [pathPart, queryString = ''] = cleaned.split('?')
+  const params = new URLSearchParams(queryString)
+
+  if (pathPart === 'cycle') {
+    return {
+      path: 'progress',
+      params,
+    }
+  }
+
+  if (pathPart === 'library') {
+    params.set('library', '1')
+
+    return {
+      path: 'settings',
+      params,
+    }
+  }
+
   const route = VALID_ROUTES.has(pathPart as AppRoute)
     ? (pathPart as AppRoute)
     : DEFAULT_ROUTE
 
   return {
     path: route,
-    params: new URLSearchParams(queryString),
+    params,
   }
 }
 

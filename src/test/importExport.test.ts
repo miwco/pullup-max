@@ -8,7 +8,7 @@ import {
 import { withComputedRecommendation } from '../domain/selectors'
 
 describe('import/export validation', () => {
-  it('accepts a valid v6 exported backup with cycle, weight, and video data', () => {
+  it('accepts a valid v7 exported backup with cycle, weight, and video data', () => {
     const seededBase = createSeedData('2026-04-18')
     const emomExerciseId = seededBase.exercises.find(
       (exercise) => exercise.name === 'EMOM ring pull-up block',
@@ -81,8 +81,11 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(6)
+      expect(parsed.value.version).toBe(7)
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Ring pull-up')
+      expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
+        seeded.athleteProfile.cycleEndDate,
+      )
       expect(parsed.value.data.settings.cycleLengthDays).toBe(120)
       expect(parsed.value.data.bodyweightEntries[0]?.weightKg).toBe(79.2)
       expect(
@@ -106,7 +109,7 @@ describe('import/export validation', () => {
     }
   })
 
-  it('accepts and normalizes a legacy v2 backup into the v6 model', () => {
+  it('accepts and normalizes a legacy v2 backup into the v7 model', () => {
     const seeded = createSeedData('2026-04-18')
     const legacyBundle = JSON.stringify({
       version: 2,
@@ -146,13 +149,16 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(6)
+      expect(parsed.value.version).toBe(7)
       expect(parsed.value.data.sessions[0]?.sessionType).toBe('support')
       expect(parsed.value.data.exercises[0]?.type).toBe('support')
       expect(parsed.value.data.maxTests[0]?.failurePoint).toBe('top')
       expect(parsed.value.data.maxTests[0]?.qualityFlag).toBe('clean')
       expect(parsed.value.data.settings.cycleLengthDays).toBe(90)
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
+      expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
+        seeded.athleteProfile.cycleEndDate,
+      )
       expect(parsed.value.data.bodyweightEntries).toEqual([])
       expect(
         parsed.value.data.programTemplate.supportFallback.steps.length,
@@ -166,7 +172,7 @@ describe('import/export validation', () => {
   it('normalizes unsupported main movement values back to Pull-up', () => {
     const seeded = createSeedData('2026-04-18')
     const invalidMovementBundle = JSON.stringify({
-      version: 6,
+      version: 7,
       exportedAt: new Date().toISOString(),
       data: {
         ...seeded,
@@ -183,6 +189,36 @@ describe('import/export validation', () => {
 
     if (parsed.ok) {
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
+    }
+  })
+
+  it('derives cycle end dates from legacy backups that only stored cycle length', () => {
+    const seeded = createSeedData('2026-04-18')
+    const legacyCycleBundle = JSON.stringify({
+      version: 6,
+      exportedAt: new Date().toISOString(),
+      data: {
+        ...seeded,
+        athleteProfile: {
+          id: seeded.athleteProfile.id,
+          mainMovement: seeded.athleteProfile.mainMovement,
+          cycleStartDate: '2026-04-18',
+          notes: '',
+        },
+        settings: {
+          ...seeded.settings,
+          cycleLengthDays: 50,
+        },
+      },
+    })
+
+    const parsed = parseImportBundle(legacyCycleBundle)
+
+    expect(parsed.ok).toBe(true)
+
+    if (parsed.ok) {
+      expect(parsed.value.data.athleteProfile.cycleEndDate).toBe('2026-06-06')
+      expect(parsed.value.data.settings.cycleLengthDays).toBe(50)
     }
   })
 
@@ -324,13 +360,13 @@ describe('import/export validation', () => {
 
     expect(parseImportBundle(unsupportedVersion)).toEqual({
       ok: false,
-      error: 'Unsupported backup version. Expected 2, 3, 4, 5, or 6.',
+      error: 'Unsupported backup version. Expected 2, 3, 4, 5, 6, or 7.',
     })
   })
 
   it('rejects structurally invalid backup data', () => {
     const invalidBundle = JSON.stringify({
-      version: 6,
+      version: 7,
       exportedAt: new Date().toISOString(),
       data: {
         athleteProfile: null,

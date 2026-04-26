@@ -75,7 +75,9 @@ describe('preset progression', () => {
     const durationStep = getStepByTitle(allSteps, 'Grip endurance work')
     const fixedRepStep = getStepByTitle(allSteps, 'Top-half pull-ups')
 
-    expect(resolvePresetTarget(rangedRepStep, undefined, 10).summary).toBe('6x3')
+    expect(resolvePresetTarget(rangedRepStep, undefined, 10).summary).toBe(
+      '6x3',
+    )
     expect(
       advancePresetProgression(rangedRepStep, undefined, 10),
     ).toMatchObject({
@@ -96,22 +98,22 @@ describe('preset progression', () => {
     expect(resolvePresetTarget(durationStep, undefined, 10).summary).toBe(
       '2x30s',
     )
-    expect(
-      advancePresetProgression(durationStep, undefined, 10),
-    ).toMatchObject({
-      presetKey: durationStep.id,
-      mode: 'duration-seconds',
-      currentValue: 35,
-    })
+    expect(advancePresetProgression(durationStep, undefined, 10)).toMatchObject(
+      {
+        presetKey: durationStep.id,
+        mode: 'duration-seconds',
+        currentValue: 35,
+      },
+    )
 
     expect(resolvePresetTarget(fixedRepStep, undefined, 10).summary).toBe('2x4')
-    expect(
-      advancePresetProgression(fixedRepStep, undefined, 10),
-    ).toMatchObject({
-      presetKey: fixedRepStep.id,
-      mode: 'reps',
-      currentValue: 5,
-    })
+    expect(advancePresetProgression(fixedRepStep, undefined, 10)).toMatchObject(
+      {
+        presetKey: fixedRepStep.id,
+        mode: 'reps',
+        currentValue: 5,
+      },
+    )
   })
 
   it('keeps ranged rep rows capped and ignores fail outcomes', () => {

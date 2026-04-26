@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
-import { useAppState } from '../../app/AppProvider'
+import { useAppState } from '../../app/appContext'
 import type {
   FailurePoint,
   ProgramEntryDraft,
@@ -220,7 +220,7 @@ export function LogWorkoutScreen({
   return (
     <div className="screen-stack">
       <form className="screen-stack" onSubmit={handleSubmit}>
-        <Section eyebrow="Fast logging" title="Log workout">
+        <Section eyebrow="Fast logging" title="Workout">
           <div className="summary-bar">
             <p className="muted-text">
               Recommended today: <strong>{recommendedType}</strong>

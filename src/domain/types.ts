@@ -33,6 +33,7 @@ export interface AthleteProfile {
   id: string
   mainMovement: MainMovement
   cycleStartDate: string
+  cycleEndDate: string
   notes: string
 }
 
@@ -243,7 +244,9 @@ export interface MaxHistoryItem {
   id: string
   date: string
   reps: number
+  repDelta: number | null
   bodyweightKgSnapshot?: number
+  bodyweightDeltaKg: number | null
   videoUrl?: string
   trend: TrendClassification
   failurePoint?: FailurePoint

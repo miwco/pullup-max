@@ -2,12 +2,12 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAppState } from '../app/AppProvider'
+import { useAppState } from '../app/appContext'
 import { createSeedData } from '../domain/defaults'
 import type { ProgramEntryDraft, SessionType } from '../domain/types'
 import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
 
-vi.mock('../app/AppProvider', () => ({
+vi.mock('../app/appContext', () => ({
   useAppState: vi.fn(),
 }))
 
@@ -41,7 +41,9 @@ function createMockAppState(): MockAppState {
   const emom = data.exercises.find(
     (exercise) => exercise.name === 'EMOM pull-up block',
   )
-  const topHold = data.exercises.find((exercise) => exercise.name === 'Top hold')
+  const topHold = data.exercises.find(
+    (exercise) => exercise.name === 'Top hold',
+  )
 
   const prefills: Record<SessionType, ProgramEntryDraft[]> = {
     max: [
@@ -130,7 +132,6 @@ function createMockAppState(): MockAppState {
     saveSession: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
     setNotice: vi.fn(),
-    supportVolumeTrend: [],
     updateExercise: vi.fn(async () => {}),
     weeklyVolumeSummary: {
       brakeApplied: false,
@@ -154,16 +155,14 @@ describe('LogWorkoutScreen preset rows', () => {
 
   it('renders compact pass/fail controls and removes manual row inputs', () => {
     render(
-      <LogWorkoutScreen
-        prefill={true}
-        requestedType="max"
-        onSaved={vi.fn()}
-      />,
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
     )
 
     expect(screen.getByText('10m EMOM @ 3')).toBeInTheDocument()
     expect(
-      screen.getByRole('radiogroup', { name: /outcome for emom pull-up block/i }),
+      screen.getByRole('radiogroup', {
+        name: /outcome for emom pull-up block/i,
+      }),
     ).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^pass$/i })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: /^fail$/i })).toHaveLength(2)
@@ -180,11 +179,7 @@ describe('LogWorkoutScreen preset rows', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     render(
-      <LogWorkoutScreen
-        prefill={true}
-        requestedType="max"
-        onSaved={vi.fn()}
-      />,
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
     )
 
     await user.click(screen.getByRole('button', { name: /^support$/i }))
@@ -198,11 +193,7 @@ describe('LogWorkoutScreen preset rows', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
 
     render(
-      <LogWorkoutScreen
-        prefill={true}
-        requestedType="max"
-        onSaved={vi.fn()}
-      />,
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
     )
 
     await user.click(screen.getAllByRole('button', { name: /^pass$/i })[0]!)
@@ -223,11 +214,7 @@ describe('LogWorkoutScreen preset rows', () => {
     })
 
     render(
-      <LogWorkoutScreen
-        prefill={true}
-        requestedType="max"
-        onSaved={vi.fn()}
-      />,
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
     )
 
     await user.type(screen.getByLabelText(/true max reps/i), '12')

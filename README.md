@@ -1,15 +1,94 @@
 # Pull-up Max
 
-Pull-up Max is a compact, local-first app for one job only:
-improving the maximum number of strict pull-ups in one set.
+**A compact local-first training app for improving your max strict pull-ups.**
 
-It is not a generic fitness app, not a workout builder, and not a social
-product.
+Pull-up Max is built for one narrow job: helping you raise the number of clean
+strict pull-ups you can do in one all-out set. It stays focused on max-rep
+progress, removes generic workout-tracker clutter, and keeps logging fast on
+mobile.
 
-## Stack
+There is no backend, no auth, and no cloud account to manage. Your data stays
+on your device, with JSON backup/export when you want it.
+
+## Why it is useful
+
+Most fitness apps are too broad for a single performance goal. Pull-up Max is
+useful because it gives you:
+
+- one clear max-pull-up workflow
+- readiness rules for when a true max test should happen
+- support-day prescriptions based on your latest weak point
+- compact pass/fail logging for preset work
+- local storage with offline-friendly PWA behavior
+
+## Screenshots
+
+### Today
+
+![Today screen](docs/screenshots/dashboard.png)
+
+### Workout
+
+![Workout screen](docs/screenshots/workout.png)
+
+### Progress
+
+![Progress screen](docs/screenshots/progress.png)
+
+## Key Features
+
+- **Today screen** with the recommended next session, readiness snapshot,
+  suggested exercises, weekly volume target, and optional bodyweight logging
+- **Workout logging** for Max and Support sessions with compact mobile-first
+  flow
+- **Pass / Fail preset rows** for built-in progression work instead of manual
+  data entry on every default row
+- **Progress view** with a lightweight cycle chart for max reps over time and
+  an optional bodyweight overlay
+- **Program editor** for cycle planning, main movement selection, editable
+  default workout blocks, and embedded exercise library management
+- **Local-first backups** through versioned JSON export/import
+- **Offline-friendly installable app** via Vite PWA tooling
+
+## Workout And Progression Logic
+
+The app is anchored to one true max-rep test.
+
+- A Max day is only recommended when at least `7` days have passed since the
+  last max test and at least `2` full days have passed since the most recent
+  logged workout of any kind.
+- If that freshness rule is not satisfied, the app recommends a Support day
+  instead.
+- Support programming is driven by the most recent repeated weak point from Max
+  logs, with a generic fallback when there is not enough signal yet.
+- Default preset rows are logged with **Pass** or **Fail** only.
+- Preset progression advances conservatively over time:
+  - EMOM pull-up blocks increase in small density steps
+  - hold work increases in small time increments
+  - support rows progress by small rep, time, or difficulty steps depending on
+    the step type
+- Failing a preset row does not regress the target in v1. It simply prevents
+  advancement next time.
+
+### Default Training Structure
+
+**Max day**
+
+- true max set
+- EMOM pull-up block
+- top hold finisher
+
+**Support day**
+
+- generated from the latest Max-day weak point when available
+- otherwise falls back to a simple support pair:
+  - scapular pull-ups
+  - dead hang
+
+## Tech Stack
 
 - Vite
-- React
+- React 19
 - TypeScript
 - Vitest
 - ESLint
@@ -17,132 +96,98 @@ product.
 - `vite-plugin-pwa`
 - IndexedDB
 
-No backend, no auth, and no cloud sync.
+## Getting Started
 
-## Current scope
+### Requirements
 
-- `Today`: recommendation, readiness snapshot, weekly volume, and fast
-  bodyweight save
-- `Workout`: fast logging for `max` and `support` sessions only
-- `History`: chronological workout log and optional weight log
-- `Progress`: one cycle-based max-rep chart with optional bodyweight overlay,
-  plus recent max-attempt history
-- `Program`: main movement, cycle planner, editable defaults, embedded exercise
-  library, JSON backup, and reset
+- Node.js
+- npm
 
-## Training model
-
-- The app is anchored to one true max-rep pull-up test.
-- A Max day is recommended only when:
-  - at least 7 days have passed since the last max test
-  - and 2 full days have passed since the most recent logged workout
-- Support day content is driven by the most recent repeated weak point from Max
-  logs.
-- Preset workout rows are logged with `Pass` or `Fail` only.
-- Preset targets progress conservatively over time.
-
-## Default program
-
-### Max day
-
-- `EMOM pull-up block`
-- `Top hold`
-
-### Support day
-
-- Support rows are generated from the most recent Max-day weak point
-- Generic fallback uses:
-  - `Scapular pull-ups`
-  - `Dead hang`
-
-The program stays editable, but the app remains narrowly focused on strict
-pull-up max improvement.
-
-## Cycle planning
-
-The cycle is explicit and fixed until you change it.
-
-- choose `Cycle start date`
-- choose `Cycle end date`
-- or set `Cycle length (days)` directly
-- quick presets: `30`, `60`, and `90` days
-
-The app syncs cycle start, end, and length bidirectionally.
-
-## Offline, backup, and persistence
-
-- local-only data storage in IndexedDB
-- installable PWA with offline support
-- JSON export/import backup
-- versioned export format with validation before import
-- normalization for legacy backups
-
-## Local development
-
-Install dependencies:
+### Install
 
 ```bash
 npm install
 ```
 
-Run the dev server:
+### Start the dev server
 
 ```bash
 npm run dev
 ```
 
-Run tests:
-
-```bash
-npm run test
-```
-
-Run lint:
-
-```bash
-npm run lint
-```
-
-Check formatting:
-
-```bash
-npm run format:check
-```
-
-Create a production build:
+### Build for production
 
 ```bash
 npm run build
 ```
 
+### Preview the production build
+
+```bash
+npm run preview
+```
+
+### Run tests
+
+```bash
+npm run test
+```
+
+### Run lint
+
+```bash
+npm run lint
+```
+
+### Check formatting
+
+```bash
+npm run format:check
+```
+
+## Project Structure
+
+```text
+src/
+  app/          App shell, routing, provider, app-level state
+  components/   Shared UI building blocks and chart components
+  domain/       Training logic, defaults, selectors, import/export, progression
+  features/     Screen-level feature modules
+  lib/          Small utility helpers
+  storage/      IndexedDB persistence
+  test/         Vitest coverage
+public/         Static PWA assets
+```
+
+## Data And Storage
+
+- All training data is stored locally in **IndexedDB**
+- There is **no backend** and **no cloud sync**
+- JSON export/import is available for backup and restore
+- Backup files are versioned and validated before import
+- The current export format is `v7`
+
+## Mobile And PWA Notes
+
+- Designed primarily for compact mobile use
+- Works well as a static deployment
+- Can be installed as a PWA on supported devices
+- Local data persistence depends on the browser/device storage for that device
+
+## Planned Improvements
+
+- continue tightening the mobile logging flow
+- keep refining pull-up-specific recommendation rules and preset progression
+- improve small release details around deployment, polish, and onboarding
+
 ## Deployment
 
-This is a static client app. After `npm run build`, deploy the `dist/` folder to
-any static host such as:
+This is a static client app, so it can be deployed to static hosts such as:
 
 - Vercel
 - Netlify
 - Cloudflare Pages
 - GitHub Pages
 
-Use HTTPS in production because the app relies on IndexedDB and PWA install
-behavior.
-
-## Project structure
-
-```text
-src/
-  app/          app shell, routing, provider
-  components/   reusable UI primitives and charts
-  domain/       training logic, defaults, selectors, import/export
-  features/     screen-level modules
-  lib/          small utilities
-  storage/      IndexedDB persistence
-  test/         Vitest coverage
-```
-
-## Notes
-
-- The default exercise library is preloaded, so the app works without setup.
-- Core recommendation and training logic lives in `src/domain`.
-- Backup exports currently use schema version `7`.
+Use HTTPS in production so browser storage and install behavior work as
+expected.

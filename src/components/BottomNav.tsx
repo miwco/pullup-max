@@ -14,6 +14,7 @@ const NAV_ITEMS: Array<{
   { label: 'Workout', route: 'log' },
   { label: 'History', route: 'history' },
   { label: 'Progress', route: 'progress' },
+  { label: 'Settings', route: 'profile' },
 ]
 
 export function BottomNav({

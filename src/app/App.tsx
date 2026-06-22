@@ -6,6 +6,7 @@ import { NoticeBanner } from '../components/NoticeBanner'
 import { HistoryScreen } from '../features/history/HistoryScreen'
 import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
 import { ProgressScreen } from '../features/progress/ProgressScreen'
+import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
 import type { SessionType } from '../domain/types'
@@ -67,6 +68,8 @@ function renderRouteContent(
           initialLibraryOpen={route.params.get('library') === '1'}
         />
       )
+    case 'profile':
+      return <ProfileSettingsScreen />
     default:
       return null
   }

@@ -470,7 +470,7 @@ export function SettingsScreen({
   const [openProgramBlockId, setOpenProgramBlockId] = useState<string | null>(
     null,
   )
-  const [isLibraryOpen, setIsLibraryOpen] = useState(initialLibraryOpen)
+  const [isLibraryOpen, setIsLibraryOpen] = useState(() => initialLibraryOpen)
   const [libraryDraftDirty, setLibraryDraftDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -491,14 +491,6 @@ export function SettingsScreen({
   )
 
   useUnsavedChangesPrompt(isDirty)
-
-  useEffect(() => {
-    if (initialLibraryOpen) {
-      queueMicrotask(() => {
-        setIsLibraryOpen(true)
-      })
-    }
-  }, [initialLibraryOpen])
 
   useEffect(() => {
     if (hasSettingsChanges || libraryDraftDirty) {

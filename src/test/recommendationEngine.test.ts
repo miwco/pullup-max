@@ -88,11 +88,19 @@ describe('recommendation engine', () => {
     expect(getBaselineMax([])).toBeNull()
   })
 
-  it('treats Max readiness as satisfied only after 3 days or with no recent workout', () => {
-    expect(isMaxReady(2)).toBe(false)
-    expect(isMaxReady(3)).toBe(true)
-    expect(isMaxReady(6)).toBe(true)
-    expect(isMaxReady(null)).toBe(true)
+  it('treats Max readiness as satisfied only after 3 days since last workout or with no recent workout', () => {
+    expect(isMaxReady(2, null)).toBe(false)
+    expect(isMaxReady(3, null)).toBe(true)
+    expect(isMaxReady(6, null)).toBe(true)
+    expect(isMaxReady(null, null)).toBe(true)
+  })
+
+  it('requires 7 days since last max test before recommending another max day', () => {
+    expect(isMaxReady(3, 5)).toBe(false)
+    expect(isMaxReady(3, 6)).toBe(false)
+    expect(isMaxReady(3, 7)).toBe(true)
+    expect(isMaxReady(3, 14)).toBe(true)
+    expect(isMaxReady(3, null)).toBe(true)
   })
 
   it('recommends Max only when the readiness rule is satisfied', () => {

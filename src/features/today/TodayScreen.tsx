@@ -28,6 +28,7 @@ export function TodayScreen({
   onQuickLog,
 }: TodayScreenProps) {
   const {
+    cycleSummary,
     data,
     daysSinceLastMax,
     daysSinceLastWorkout,
@@ -79,6 +80,15 @@ export function TodayScreen({
 
   return (
     <div className="screen-stack">
+      {cycleSummary.daysRemaining === 0 ? (
+        <div className="notice">
+          <span>
+            Your training cycle has ended — start a new one in{' '}
+            <a href="#/settings">Settings</a> to keep phase and volume tracking
+            accurate.
+          </span>
+        </div>
+      ) : null}
       <Section
         variant="summary"
         className="today-summary"

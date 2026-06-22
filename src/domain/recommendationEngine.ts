@@ -65,8 +65,14 @@ export function classifyTrend(results: MaxExposure[]): TrendClassification {
   return 'stable'
 }
 
-export function isMaxReady(daysSinceLastWorkout: number | null) {
-  return daysSinceLastWorkout === null || daysSinceLastWorkout >= 3
+export function isMaxReady(
+  daysSinceLastWorkout: number | null,
+  daysSinceLastMax: number | null,
+) {
+  const workoutFresh =
+    daysSinceLastWorkout === null || daysSinceLastWorkout >= 3
+  const maxGapMet = daysSinceLastMax === null || daysSinceLastMax >= 7
+  return workoutFresh && maxGapMet
 }
 
 export function shouldEaseSupport(input: RecommendationInput) {
@@ -193,7 +199,10 @@ export function createRecommendation(
   input: RecommendationInput,
   exercises: Exercise[],
 ): RecommendationState {
-  const maxReadinessSatisfied = isMaxReady(input.daysSinceLastWorkout)
+  const maxReadinessSatisfied = isMaxReady(
+    input.daysSinceLastWorkout,
+    input.daysSinceLastMax,
+  )
   const nextSessionType = maxReadinessSatisfied ? 'max' : 'support'
   const trend = classifyTrend(input.cycleMaxResults)
   const defaultSupportFocus = getSupportFocus(input)

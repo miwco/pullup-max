@@ -31,6 +31,7 @@ export function ProgressScreen() {
   } = useAppState()
   const [showMax, setShowMax] = useState(true)
   const [showWeight, setShowWeight] = useState(false)
+  const [visibleMaxHistory, setVisibleMaxHistory] = useState(8)
 
   return (
     <div className="screen-stack">
@@ -122,8 +123,9 @@ export function ProgressScreen() {
             Your max history will appear here after the first Max day is logged.
           </p>
         ) : (
-          <div className="workout-list">
-            {maxHistory.slice(0, 8).map((item) => {
+          <>
+            <div className="workout-list">
+              {maxHistory.slice(0, visibleMaxHistory).map((item) => {
               const repDeltaLabel = formatRepDelta(item.repDelta)
               const weightDeltaLabel = formatWeightDelta(item.bodyweightDeltaKg)
 
@@ -182,6 +184,16 @@ export function ProgressScreen() {
               )
             })}
           </div>
+          {maxHistory.length > visibleMaxHistory ? (
+            <button
+              className="button button--ghost button--compact"
+              style={{ marginTop: '0.75rem' }}
+              onClick={() => setVisibleMaxHistory((n) => n + 8)}
+            >
+              Show more ({maxHistory.length - visibleMaxHistory} remaining)
+            </button>
+          ) : null}
+          </>
         )}
       </Section>
     </div>

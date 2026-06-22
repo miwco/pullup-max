@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState, type ReactNode } from 'react'
+import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AppContext, type AppContextValue, type AppNotice } from './appContext'
 import { createSeedData } from '../domain/defaults'
 import {
@@ -111,55 +111,72 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const cycleWindow = getCurrentCycleWindow(
-    data.athleteProfile.cycleStartDate,
-    data.settings.cycleLengthDays,
-    todayDateString(),
-    data.athleteProfile.cycleEndDate,
-  )
-  const cycleSummary = getCycleSummaryData(data)
-  const recentWorkouts = buildRecentWorkouts(
-    data.sessions,
-    data.exerciseEntries,
-    data.exercises,
-    data.maxTests,
-  )
-  const cycleMaxTrendPoints = buildMaxTrendPoints(
-    data.maxTests,
-    data.sessions,
-    data.athleteProfile.mainMovement,
-    cycleWindow,
-  )
-  const bodyweightTrendPoints = buildBodyweightPoints(
-    data.bodyweightEntries,
-    cycleWindow,
-  )
-  const maxHistory = buildMaxHistory(
-    data.maxTests,
-    data.sessions,
-    data.athleteProfile.mainMovement,
-  )
-  const allTimeBestMax = getBestMax(
-    data.maxTests,
-    data.sessions,
-    data.athleteProfile.mainMovement,
-  )
-  const latestLoggedMaxReps = getLatestLoggedMaxReps(
-    data.maxTests,
-    data.sessions,
-    data.athleteProfile.mainMovement,
-  )
-  const activeExercises = data.exercises.filter((exercise) => exercise.active)
-  const latestBodyweightEntry = getLatestSavedBodyweightEntry(
-    data.bodyweightEntries,
-  )
-  const weeklyVolumeSummary = getCurrentWeekVolumeSummary(data)
-  const daysSinceLastMax = getDaysSinceLastMax(
-    data.sessions,
-    data.maxTests,
-    data.athleteProfile.mainMovement,
-  )
-  const daysSinceLastWorkout = getDaysSinceLastWorkout(data.sessions)
+  const {
+    cycleSummary,
+    recentWorkouts,
+    cycleMaxTrendPoints,
+    bodyweightTrendPoints,
+    maxHistory,
+    allTimeBestMax,
+    latestLoggedMaxReps,
+    activeExercises,
+    latestBodyweightEntry,
+    weeklyVolumeSummary,
+    daysSinceLastMax,
+    daysSinceLastWorkout,
+  } = useMemo(() => {
+    const cycleWindow = getCurrentCycleWindow(
+      data.athleteProfile.cycleStartDate,
+      data.settings.cycleLengthDays,
+      todayDateString(),
+      data.athleteProfile.cycleEndDate,
+    )
+    return {
+      cycleSummary: getCycleSummaryData(data),
+      recentWorkouts: buildRecentWorkouts(
+        data.sessions,
+        data.exerciseEntries,
+        data.exercises,
+        data.maxTests,
+      ),
+      cycleMaxTrendPoints: buildMaxTrendPoints(
+        data.maxTests,
+        data.sessions,
+        data.athleteProfile.mainMovement,
+        cycleWindow,
+      ),
+      bodyweightTrendPoints: buildBodyweightPoints(
+        data.bodyweightEntries,
+        cycleWindow,
+      ),
+      maxHistory: buildMaxHistory(
+        data.maxTests,
+        data.sessions,
+        data.athleteProfile.mainMovement,
+      ),
+      allTimeBestMax: getBestMax(
+        data.maxTests,
+        data.sessions,
+        data.athleteProfile.mainMovement,
+      ),
+      latestLoggedMaxReps: getLatestLoggedMaxReps(
+        data.maxTests,
+        data.sessions,
+        data.athleteProfile.mainMovement,
+      ),
+      activeExercises: data.exercises.filter((exercise) => exercise.active),
+      latestBodyweightEntry: getLatestSavedBodyweightEntry(
+        data.bodyweightEntries,
+      ),
+      weeklyVolumeSummary: getCurrentWeekVolumeSummary(data),
+      daysSinceLastMax: getDaysSinceLastMax(
+        data.sessions,
+        data.maxTests,
+        data.athleteProfile.mainMovement,
+      ),
+      daysSinceLastWorkout: getDaysSinceLastWorkout(data.sessions),
+    }
+  }, [data])
 
   async function saveNextData(nextData: AppData, successMessage?: string) {
     try {

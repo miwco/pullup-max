@@ -32,6 +32,7 @@ function makeMaxTest(
     workoutSessionId: sessionId,
     movement: 'Pull-up',
     reps,
+    trendClassification: 'stable',
     ...overrides,
   }
 }
@@ -86,37 +87,54 @@ describe('getDaysSinceLastMax', () => {
 })
 
 describe('getFailurePointPattern', () => {
+  function makeHistoryItem(
+    id: string,
+    date: string,
+    reps: number,
+    failurePoint?: 'top' | 'middle' | 'start/bottom' | 'grip' | 'not sure',
+  ) {
+    return {
+      id,
+      date,
+      reps,
+      repDelta: null,
+      bodyweightDeltaKg: null,
+      trend: 'stable' as const,
+      ...(failurePoint ? { failurePoint } : {}),
+    }
+  }
+
   it('returns null when fewer than 2 tests have failure points', () => {
     const history = [
-      { id: '1', date: '2026-04-19', reps: 12, trend: 'stable' as const, repDelta: null },
-      { id: '2', date: '2026-04-08', reps: 11, trend: 'stable' as const, repDelta: null, failurePoint: 'top' as const },
+      makeHistoryItem('1', '2026-04-19', 12),
+      makeHistoryItem('2', '2026-04-08', 11, 'top'),
     ]
     expect(getFailurePointPattern(history)).toBeNull()
   })
 
   it('returns null when failure points in the last 3 do not repeat', () => {
     const history = [
-      { id: '1', date: '2026-04-19', reps: 12, trend: 'stable' as const, repDelta: null, failurePoint: 'top' as const },
-      { id: '2', date: '2026-04-08', reps: 11, trend: 'stable' as const, repDelta: null, failurePoint: 'middle' as const },
-      { id: '3', date: '2026-03-28', reps: 10, trend: 'stable' as const, repDelta: null, failurePoint: 'start/bottom' as const },
+      makeHistoryItem('1', '2026-04-19', 12, 'top'),
+      makeHistoryItem('2', '2026-04-08', 11, 'middle'),
+      makeHistoryItem('3', '2026-03-28', 10, 'start/bottom'),
     ]
     expect(getFailurePointPattern(history)).toBeNull()
   })
 
   it('ignores "not sure" as a repeating failure point', () => {
     const history = [
-      { id: '1', date: '2026-04-19', reps: 12, trend: 'stable' as const, repDelta: null, failurePoint: 'not sure' as const },
-      { id: '2', date: '2026-04-08', reps: 11, trend: 'stable' as const, repDelta: null, failurePoint: 'not sure' as const },
-      { id: '3', date: '2026-03-28', reps: 10, trend: 'stable' as const, repDelta: null, failurePoint: 'not sure' as const },
+      makeHistoryItem('1', '2026-04-19', 12, 'not sure'),
+      makeHistoryItem('2', '2026-04-08', 11, 'not sure'),
+      makeHistoryItem('3', '2026-03-28', 10, 'not sure'),
     ]
     expect(getFailurePointPattern(history)).toBeNull()
   })
 
   it('returns the repeating point and count when 2 of last 3 match', () => {
     const history = [
-      { id: '1', date: '2026-04-19', reps: 12, trend: 'stable' as const, repDelta: null, failurePoint: 'top' as const },
-      { id: '2', date: '2026-04-08', reps: 11, trend: 'stable' as const, repDelta: null, failurePoint: 'top' as const },
-      { id: '3', date: '2026-03-28', reps: 10, trend: 'stable' as const, repDelta: null, failurePoint: 'middle' as const },
+      makeHistoryItem('1', '2026-04-19', 12, 'top'),
+      makeHistoryItem('2', '2026-04-08', 11, 'top'),
+      makeHistoryItem('3', '2026-03-28', 10, 'middle'),
     ]
     const result = getFailurePointPattern(history)
     expect(result).toEqual({ point: 'top', count: 2 })
@@ -124,9 +142,9 @@ describe('getFailurePointPattern', () => {
 
   it('returns count 3 when all three of the last tests share the same failure point', () => {
     const history = [
-      { id: '1', date: '2026-04-19', reps: 12, trend: 'stable' as const, repDelta: null, failurePoint: 'grip' as const },
-      { id: '2', date: '2026-04-08', reps: 11, trend: 'stable' as const, repDelta: null, failurePoint: 'grip' as const },
-      { id: '3', date: '2026-03-28', reps: 10, trend: 'stable' as const, repDelta: null, failurePoint: 'grip' as const },
+      makeHistoryItem('1', '2026-04-19', 12, 'grip'),
+      makeHistoryItem('2', '2026-04-08', 11, 'grip'),
+      makeHistoryItem('3', '2026-03-28', 10, 'grip'),
     ]
     const result = getFailurePointPattern(history)
     expect(result).toEqual({ point: 'grip', count: 3 })

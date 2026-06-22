@@ -44,7 +44,7 @@ import { todayDateString } from '../lib/date'
 import { createId } from '../lib/id'
 import {
   loadOrSeedAppData,
-  persistAppData,
+  persistAppDataDiff,
   replaceAppData,
   resetAppData,
 } from '../storage/indexedDb'
@@ -189,7 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function saveNextData(nextData: AppData, successMessage?: string) {
     try {
-      await persistAppData(nextData)
+      await persistAppDataDiff(data, nextData)
       startTransition(() => {
         setData(nextData)
       })

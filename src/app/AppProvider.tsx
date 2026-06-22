@@ -15,6 +15,7 @@ import {
   buildBodyweightPoints,
   buildMaxHistory,
   buildMaxTrendPoints,
+  buildPainTrendPoints,
   buildProgramEntryDrafts,
   buildRecentWorkouts,
   getCurrentWeekVolumeSummary,
@@ -43,7 +44,7 @@ import { todayDateString } from '../lib/date'
 import { createId } from '../lib/id'
 import {
   loadOrSeedAppData,
-  persistAppData,
+  persistAppDataDiff,
   replaceAppData,
   resetAppData,
 } from '../storage/indexedDb'
@@ -115,7 +116,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cycleSummary,
     recentWorkouts,
     cycleMaxTrendPoints,
+    allTimeMaxTrendPoints,
     bodyweightTrendPoints,
+    painTrendPoints,
     maxHistory,
     allTimeBestMax,
     latestLoggedMaxReps,
@@ -145,10 +148,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         data.athleteProfile.mainMovement,
         cycleWindow,
       ),
+      allTimeMaxTrendPoints: buildMaxTrendPoints(
+        data.maxTests,
+        data.sessions,
+        data.athleteProfile.mainMovement,
+      ),
       bodyweightTrendPoints: buildBodyweightPoints(
         data.bodyweightEntries,
         cycleWindow,
       ),
+      painTrendPoints: buildPainTrendPoints(data.sessions, cycleWindow),
       maxHistory: buildMaxHistory(
         data.maxTests,
         data.sessions,
@@ -180,7 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function saveNextData(nextData: AppData, successMessage?: string) {
     try {
-      await persistAppData(nextData)
+      await persistAppDataDiff(data, nextData)
       startTransition(() => {
         setData(nextData)
       })
@@ -444,8 +453,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const contextValue: AppContextValue = {
     activeExercises,
     allTimeBestMax,
+    allTimeMaxTrendPoints,
     bodyweightTrendPoints,
     cycleMaxTrendPoints,
+    painTrendPoints,
     cycleSummary,
     data,
     daysSinceLastMax,

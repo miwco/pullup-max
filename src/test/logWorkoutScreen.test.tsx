@@ -96,6 +96,7 @@ function createMockAppState(): MockAppState {
   return {
     activeExercises: data.exercises.filter((exercise) => exercise.active),
     allTimeBestMax: null,
+    allTimeMaxTrendPoints: [],
     bodyweightTrendPoints: [],
     cycleMaxTrendPoints: [],
     cycleSummary: {
@@ -127,6 +128,7 @@ function createMockAppState(): MockAppState {
     latestBodyweightEntry: null,
     maxHistory: [],
     notice: null,
+    painTrendPoints: [],
     recentWorkouts: [],
     resetAllData: vi.fn(async () => {}),
     saveBodyweight: vi.fn(async () => true),

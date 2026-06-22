@@ -7,6 +7,7 @@ import { AppShell } from '../app/App'
 import { createSeedData } from '../domain/defaults'
 import { HistoryScreen } from '../features/history/HistoryScreen'
 import { ProgressScreen } from '../features/progress/ProgressScreen'
+import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
 
@@ -55,6 +56,16 @@ function createMockAppState(): MockAppState {
   return {
     activeExercises: data.exercises.filter((exercise) => exercise.active),
     allTimeBestMax: 13,
+    allTimeMaxTrendPoints: [
+      {
+        date: '2026-04-08',
+        value: 11,
+      },
+      {
+        date: '2026-04-19',
+        value: 13,
+      },
+    ],
     bodyweightTrendPoints: [
       {
         date: '2026-04-08',
@@ -125,6 +136,7 @@ function createMockAppState(): MockAppState {
       },
     ],
     notice: null,
+    painTrendPoints: [],
     recentWorkouts: [
       {
         id: 'session-2',
@@ -248,11 +260,9 @@ describe('compact hybrid UI refresh', () => {
 
     const volumeToggle = screen.getByRole('button', { name: /volume block/i })
     const finisherToggle = screen.getByRole('button', { name: /finisher/i })
-    const mainMovementSelect = screen.getByLabelText(/main movement/i)
 
     expect(screen.queryByRole('button', { name: /warm-up/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /main set/i })).toBeNull()
-    expect(mainMovementSelect).toHaveDisplayValue('Pull-up')
     expect(screen.queryByLabelText(/fatigue sensitivity/i)).toBeNull()
     expect(screen.queryByLabelText(/joint-pain sensitivity/i)).toBeNull()
     expect(volumeToggle).toHaveAttribute('aria-expanded', 'false')
@@ -353,7 +363,7 @@ describe('compact hybrid UI refresh', () => {
   })
 
   it('supports bidirectional cycle planning with end date and quick length presets', async () => {
-    render(<SettingsScreen />)
+    render(<ProfileSettingsScreen />)
 
     const cycleEndDateInput = screen.getByLabelText(/cycle end date/i)
     const cycleLengthInput = screen.getByLabelText(/cycle length \(days\)/i)
@@ -406,7 +416,7 @@ describe('compact hybrid UI refresh', () => {
   })
 
   it('limits main movement choices to the four allowed options', async () => {
-    render(<SettingsScreen />)
+    render(<ProfileSettingsScreen />)
 
     const options = screen
       .getAllByRole('option')
@@ -433,11 +443,11 @@ describe('compact hybrid UI refresh', () => {
       saveSettingsAndProgram,
     })
 
-    render(<SettingsScreen />)
+    render(<ProfileSettingsScreen />)
 
     await user.selectOptions(screen.getByLabelText(/main movement/i), 'Chin-up')
     await user.click(
-      screen.getByRole('button', { name: /save settings & program/i }),
+      screen.getByRole('button', { name: /save settings/i }),
     )
 
     expect(saveSettingsAndProgram).toHaveBeenCalledWith(

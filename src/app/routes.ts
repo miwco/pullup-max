@@ -8,6 +8,7 @@ export type AppRoute =
   | 'library'
   | 'cycle'
   | 'settings'
+  | 'profile'
 
 export interface RouteState {
   path: AppRoute
@@ -24,6 +25,7 @@ const VALID_ROUTES = new Set<AppRoute>([
   'library',
   'cycle',
   'settings',
+  'profile',
 ])
 
 function normalizeHash(hash: string): RouteState {

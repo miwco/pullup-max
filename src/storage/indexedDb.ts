@@ -219,6 +219,104 @@ export async function persistAppData(appData: AppData) {
   database.close()
 }
 
+function upsertArrayDiff<T extends { id: string }>(
+  store: IDBObjectStore,
+  prev: readonly T[],
+  next: readonly T[],
+) {
+  if ((prev as unknown) === (next as unknown)) return
+
+  const prevMap = new Map(prev.map((item) => [item.id, item]))
+  const nextMap = new Map(next.map((item) => [item.id, item]))
+
+  for (const [id, item] of nextMap) {
+    if (prevMap.get(id) !== item) {
+      store.put(item)
+    }
+  }
+
+  for (const id of prevMap.keys()) {
+    if (!nextMap.has(id)) {
+      store.delete(id)
+    }
+  }
+}
+
+function upsertPresetDiff(
+  store: IDBObjectStore,
+  prev: AppData['presetProgressions'],
+  next: AppData['presetProgressions'],
+) {
+  if ((prev as unknown) === (next as unknown)) return
+
+  const prevMap = new Map(prev.map((item) => [item.presetKey, item]))
+  const nextMap = new Map(next.map((item) => [item.presetKey, item]))
+
+  for (const [key, item] of nextMap) {
+    if (prevMap.get(key) !== item) {
+      store.put(item)
+    }
+  }
+
+  for (const key of prevMap.keys()) {
+    if (!nextMap.has(key)) {
+      store.delete(key)
+    }
+  }
+}
+
+export async function persistAppDataDiff(prev: AppData, next: AppData) {
+  if (prev === next) return
+
+  const database = await openDatabase()
+  const transaction = database.transaction(
+    Object.values(STORE_NAMES),
+    'readwrite',
+  )
+
+  transaction
+    .objectStore(STORE_NAMES.athleteProfile)
+    .put(next.athleteProfile)
+  transaction.objectStore(STORE_NAMES.settings).put(next.settings, 'current')
+  transaction
+    .objectStore(STORE_NAMES.programTemplate)
+    .put(next.programTemplate, 'current')
+
+  upsertArrayDiff(
+    transaction.objectStore(STORE_NAMES.exercises),
+    prev.exercises,
+    next.exercises,
+  )
+  upsertArrayDiff(
+    transaction.objectStore(STORE_NAMES.bodyweightEntries),
+    prev.bodyweightEntries,
+    next.bodyweightEntries,
+  )
+  upsertArrayDiff(
+    transaction.objectStore(STORE_NAMES.sessions),
+    prev.sessions,
+    next.sessions,
+  )
+  upsertArrayDiff(
+    transaction.objectStore(STORE_NAMES.exerciseEntries),
+    prev.exerciseEntries,
+    next.exerciseEntries,
+  )
+  upsertArrayDiff(
+    transaction.objectStore(STORE_NAMES.maxTests),
+    prev.maxTests,
+    next.maxTests,
+  )
+  upsertPresetDiff(
+    transaction.objectStore(STORE_NAMES.presetProgressions),
+    prev.presetProgressions,
+    next.presetProgressions,
+  )
+
+  await transactionToPromise(transaction)
+  database.close()
+}
+
 export async function loadOrSeedAppData(today = todayDateString()) {
   const stored = await loadStoredAppData(today)
 

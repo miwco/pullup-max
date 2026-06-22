@@ -626,3 +626,76 @@ export function getFailurePointPattern(
 
   return { point: firstPoint, count: matchCount }
 }
+
+export interface PainTrendPoint {
+  weekStart: string
+  elbowAvg: number | null
+  shoulderAvg: number | null
+}
+
+function getWeekStartDate(dateString: string): string {
+  const date = new Date(
+    Number(dateString.slice(0, 4)),
+    Number(dateString.slice(5, 7)) - 1,
+    Number(dateString.slice(8, 10)),
+  )
+  const dayOfWeek = date.getDay()
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  date.setDate(date.getDate() - daysToMonday)
+  return todayDateString(date)
+}
+
+export function buildPainTrendPoints(
+  sessions: WorkoutSession[],
+  cycleWindow: CycleWindow,
+): PainTrendPoint[] {
+  const weekBuckets = new Map<string, { elbow: number[]; shoulder: number[] }>()
+
+  for (const session of sessions) {
+    if (session.date < cycleWindow.start || session.date > cycleWindow.end) {
+      continue
+    }
+
+    if (session.elbowPain === undefined && session.shoulderPain === undefined) {
+      continue
+    }
+
+    const weekStart = getWeekStartDate(session.date)
+    let bucket = weekBuckets.get(weekStart)
+
+    if (!bucket) {
+      bucket = { elbow: [], shoulder: [] }
+      weekBuckets.set(weekStart, bucket)
+    }
+
+    if (typeof session.elbowPain === 'number') {
+      bucket.elbow.push(session.elbowPain)
+    }
+
+    if (typeof session.shoulderPain === 'number') {
+      bucket.shoulder.push(session.shoulderPain)
+    }
+  }
+
+  return [...weekBuckets.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekStart, bucket]) => ({
+      weekStart,
+      elbowAvg:
+        bucket.elbow.length > 0
+          ? Math.round(
+              (bucket.elbow.reduce((sum, v) => sum + v, 0) /
+                bucket.elbow.length) *
+                10,
+            ) / 10
+          : null,
+      shoulderAvg:
+        bucket.shoulder.length > 0
+          ? Math.round(
+              (bucket.shoulder.reduce((sum, v) => sum + v, 0) /
+                bucket.shoulder.length) *
+                10,
+            ) / 10
+          : null,
+    }))
+}

@@ -56,6 +56,16 @@ function createMockAppState(): MockAppState {
   return {
     activeExercises: data.exercises.filter((exercise) => exercise.active),
     allTimeBestMax: 13,
+    allTimeMaxTrendPoints: [
+      {
+        date: '2026-04-08',
+        value: 11,
+      },
+      {
+        date: '2026-04-19',
+        value: 13,
+      },
+    ],
     bodyweightTrendPoints: [
       {
         date: '2026-04-08',

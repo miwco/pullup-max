@@ -96,6 +96,7 @@ function createMockAppState(): MockAppState {
   return {
     activeExercises: data.exercises.filter((exercise) => exercise.active),
     allTimeBestMax: null,
+    allTimeMaxTrendPoints: [],
     bodyweightTrendPoints: [],
     cycleMaxTrendPoints: [],
     cycleSummary: {

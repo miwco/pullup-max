@@ -28,6 +28,7 @@ export interface AppNotice {
 export interface AppContextValue {
   activeExercises: Exercise[]
   allTimeBestMax: number | null
+  allTimeMaxTrendPoints: ReturnType<typeof buildMaxTrendPoints>
   bodyweightTrendPoints: Array<{
     date: string
     value: number

@@ -2,9 +2,11 @@ import type { CycleWindow, ProgressPoint } from '../domain/types'
 import { diffInDays, formatShortDate } from '../lib/date'
 
 interface CycleLineChartProps {
+  ariaLabel?: string
   cycleWindow: CycleWindow
   maxPoints: ProgressPoint[]
   showMax: boolean
+  showPhaseBands?: boolean
   showWeight: boolean
   today: string
   weightPoints: ProgressPoint[]
@@ -43,9 +45,11 @@ function getHorizontalPosition(
 }
 
 export function CycleLineChart({
+  ariaLabel = 'Progress across the current cycle',
   cycleWindow,
   maxPoints,
   showMax,
+  showPhaseBands = true,
   showWeight,
   today,
   weightPoints,
@@ -102,9 +106,9 @@ export function CycleLineChart({
         viewBox={`0 0 ${width} ${height}`}
         className="chart-svg"
         role="img"
-        aria-label="Progress across the current cycle"
+        aria-label={ariaLabel}
       >
-        {phaseLabels.map((label, index) => {
+        {showPhaseBands ? phaseLabels.map((label, index) => {
           const x = padding.left + (innerWidth / 3) * index
 
           return (
@@ -126,7 +130,7 @@ export function CycleLineChart({
               </text>
             </g>
           )
-        })}
+        }) : null}
 
         <rect
           x={padding.left}

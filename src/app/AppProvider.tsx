@@ -115,6 +115,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cycleSummary,
     recentWorkouts,
     cycleMaxTrendPoints,
+    allTimeMaxTrendPoints,
     bodyweightTrendPoints,
     maxHistory,
     allTimeBestMax,
@@ -144,6 +145,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         data.sessions,
         data.athleteProfile.mainMovement,
         cycleWindow,
+      ),
+      allTimeMaxTrendPoints: buildMaxTrendPoints(
+        data.maxTests,
+        data.sessions,
+        data.athleteProfile.mainMovement,
       ),
       bodyweightTrendPoints: buildBodyweightPoints(
         data.bodyweightEntries,
@@ -444,6 +450,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const contextValue: AppContextValue = {
     activeExercises,
     allTimeBestMax,
+    allTimeMaxTrendPoints,
     bodyweightTrendPoints,
     cycleMaxTrendPoints,
     cycleSummary,

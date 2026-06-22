@@ -24,31 +24,61 @@ function formatWeightDelta(weightDeltaKg: number | null) {
 
 export function ProgressScreen() {
   const {
+    allTimeMaxTrendPoints,
     bodyweightTrendPoints,
     cycleMaxTrendPoints,
     cycleSummary,
     data,
     maxHistory,
   } = useAppState()
+  const [chartMode, setChartMode] = useState<'cycle' | 'all-time'>('cycle')
   const [showMax, setShowMax] = useState(true)
   const [showWeight, setShowWeight] = useState(false)
   const [visibleMaxHistory, setVisibleMaxHistory] = useState(8)
   const failurePattern = getFailurePointPattern(maxHistory)
 
+  const isAllTime = chartMode === 'all-time'
+  const activeMaxPoints = isAllTime ? allTimeMaxTrendPoints : cycleMaxTrendPoints
+  const activeWindow = isAllTime && allTimeMaxTrendPoints.length > 0
+    ? {
+        start: allTimeMaxTrendPoints[0]!.date,
+        end: todayDateString(),
+      }
+    : cycleSummary.cycleWindow
+
   return (
     <div className="screen-stack">
       <Section
-        eyebrow="Current cycle"
+        eyebrow={isAllTime ? 'All time' : 'Current cycle'}
         title="Progress"
         className="section--compact"
       >
-        <div className="cycle-window-note">
-          <p>
-            This graph shows max reps across the current cycle from{' '}
-            <strong>{formatLongDate(cycleSummary.cycleWindow.start)}</strong> to{' '}
-            <strong>{formatLongDate(cycleSummary.cycleWindow.end)}</strong>.
-          </p>
+        <div className="action-row action-row--compact">
+          <button
+            type="button"
+            className={`chip chip--button${!isAllTime ? ' is-active' : ''}`}
+            onClick={() => setChartMode('cycle')}
+          >
+            Current cycle
+          </button>
+          <button
+            type="button"
+            className={`chip chip--button${isAllTime ? ' is-active' : ''}`}
+            onClick={() => setChartMode('all-time')}
+          >
+            All time
+          </button>
         </div>
+
+        {!isAllTime ? (
+          <div className="cycle-window-note">
+            <p>
+              This graph shows max reps across the current cycle from{' '}
+              <strong>{formatLongDate(cycleSummary.cycleWindow.start)}</strong> to{' '}
+              <strong>{formatLongDate(cycleSummary.cycleWindow.end)}</strong>.
+            </p>
+          </div>
+        ) : null}
 
         <div className="action-row action-row--compact">
           <button
@@ -70,12 +100,14 @@ export function ProgressScreen() {
         </div>
 
         <CycleLineChart
-          cycleWindow={cycleSummary.cycleWindow}
-          maxPoints={cycleMaxTrendPoints}
+          ariaLabel={isAllTime ? 'Progress across all time' : 'Progress across the current cycle'}
+          cycleWindow={activeWindow}
+          maxPoints={activeMaxPoints}
           showMax={showMax}
+          showPhaseBands={!isAllTime}
           showWeight={showWeight}
           today={todayDateString()}
-          weightPoints={bodyweightTrendPoints}
+          weightPoints={isAllTime ? [] : bodyweightTrendPoints}
         />
 
         {data.settings.bodyweightTrackingEnabled ? (

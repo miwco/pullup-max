@@ -128,6 +128,7 @@ function createMockAppState(): MockAppState {
     latestBodyweightEntry: null,
     maxHistory: [],
     notice: null,
+    painTrendPoints: [],
     recentWorkouts: [],
     resetAllData: vi.fn(async () => {}),
     saveBodyweight: vi.fn(async () => true),

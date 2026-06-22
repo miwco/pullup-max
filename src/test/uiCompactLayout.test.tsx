@@ -136,6 +136,7 @@ function createMockAppState(): MockAppState {
       },
     ],
     notice: null,
+    painTrendPoints: [],
     recentWorkouts: [
       {
         id: 'session-2',

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { CycleLineChart } from '../../components/Charts'
+import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
 import { getFailurePointPattern } from '../../domain/selectors'
-import { formatLongDate, todayDateString } from '../../lib/date'
+import { formatLongDate, formatShortDate, todayDateString } from '../../lib/date'
 
 function formatRepDelta(repDelta: number | null) {
   if (repDelta === null) {
@@ -30,8 +31,13 @@ export function ProgressScreen() {
     cycleSummary,
     data,
     maxHistory,
+    painTrendPoints,
   } = useAppState()
   const [chartMode, setChartMode] = useState<'cycle' | 'all-time'>('cycle')
+  const [painOpen, setPainOpen] = useState(false)
+  const hasPainData = painTrendPoints.some(
+    (p) => p.elbowAvg !== null || p.shoulderAvg !== null,
+  )
   const [showMax, setShowMax] = useState(true)
   const [showWeight, setShowWeight] = useState(false)
   const [visibleMaxHistory, setVisibleMaxHistory] = useState(8)
@@ -150,6 +156,41 @@ export function ProgressScreen() {
           </div>
         </div>
       </Section>
+
+      {hasPainData ? (
+        <Section eyebrow="Wellness" title="Pain signals">
+          <AccordionSection
+            eyebrow="Weekly averages"
+            title="Elbow and shoulder pain"
+            isOpen={painOpen}
+            onToggle={() => setPainOpen((current) => !current)}
+            summary={`${painTrendPoints.length} week${painTrendPoints.length === 1 ? '' : 's'} with pain data`}
+          >
+            <div className="entry-list">
+              {painTrendPoints.map((point) => (
+                <div key={point.weekStart} className="entry-row entry-row--compact">
+                  <div className="field">
+                    <span className="metric-label">Week of</span>
+                    <strong>{formatShortDate(point.weekStart)}</strong>
+                  </div>
+                  {point.elbowAvg !== null ? (
+                    <div className="field">
+                      <span className="metric-label">Elbow</span>
+                      <strong>{point.elbowAvg}/5</strong>
+                    </div>
+                  ) : null}
+                  {point.shoulderAvg !== null ? (
+                    <div className="field">
+                      <span className="metric-label">Shoulder</span>
+                      <strong>{point.shoulderAvg}/5</strong>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </AccordionSection>
+        </Section>
+      ) : null}
 
       {failurePattern ? (
         <div className="inline-note">

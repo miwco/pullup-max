@@ -2,6 +2,7 @@ import { createContext, use } from 'react'
 import type {
   buildMaxHistory,
   buildMaxTrendPoints,
+  buildPainTrendPoints,
   buildRecentWorkouts,
   getCurrentWeekVolumeSummary,
   getCycleSummaryData,
@@ -48,6 +49,7 @@ export interface AppContextValue {
   latestBodyweightEntry: BodyweightEntry | null
   maxHistory: ReturnType<typeof buildMaxHistory>
   notice: AppNotice | null
+  painTrendPoints: ReturnType<typeof buildPainTrendPoints>
   recentWorkouts: ReturnType<typeof buildRecentWorkouts>
   resetAllData: () => Promise<void>
   saveBodyweight: (date: string, weightKg: number) => Promise<boolean>

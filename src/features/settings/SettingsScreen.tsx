@@ -8,6 +8,7 @@ import {
   MAX_CYCLE_LENGTH_DAYS,
   MIN_CYCLE_LENGTH_DAYS,
 } from '../../domain/cycle'
+import { serializeMaxTestsCsv } from '../../domain/importExport'
 import { MAIN_MOVEMENTS } from '../../domain/mainMovement'
 import type {
   BodyweightOption,
@@ -470,7 +471,7 @@ export function SettingsScreen({
   const [openProgramBlockId, setOpenProgramBlockId] = useState<string | null>(
     null,
   )
-  const [isLibraryOpen, setIsLibraryOpen] = useState(initialLibraryOpen)
+  const [isLibraryOpen, setIsLibraryOpen] = useState(() => initialLibraryOpen)
   const [libraryDraftDirty, setLibraryDraftDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -491,14 +492,6 @@ export function SettingsScreen({
   )
 
   useUnsavedChangesPrompt(isDirty)
-
-  useEffect(() => {
-    if (initialLibraryOpen) {
-      queueMicrotask(() => {
-        setIsLibraryOpen(true)
-      })
-    }
-  }, [initialLibraryOpen])
 
   useEffect(() => {
     if (hasSettingsChanges || libraryDraftDirty) {
@@ -594,6 +587,18 @@ export function SettingsScreen({
     const link = document.createElement('a')
     link.href = href
     link.download = `pullup-max-backup-${todayDateString()}.json`
+    link.click()
+    URL.revokeObjectURL(href)
+  }
+
+  function handleExportCsv() {
+    const blob = new Blob([serializeMaxTestsCsv(data)], {
+      type: 'text/csv',
+    })
+    const href = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = href
+    link.download = `pullup-max-max-tests-${todayDateString()}.csv`
     link.click()
     URL.revokeObjectURL(href)
   }
@@ -896,6 +901,13 @@ export function SettingsScreen({
             onClick={handleExport}
           >
             Export JSON backup
+          </button>
+          <button
+            type="button"
+            className="button button--ghost"
+            onClick={handleExportCsv}
+          >
+            Export max tests CSV
           </button>
           <button
             type="button"

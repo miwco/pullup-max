@@ -140,6 +140,10 @@ function normalizeSettings(value: unknown): AppSettings | null {
       typeof value.exportFormatVersion === 'number'
         ? value.exportFormatVersion
         : 7,
+    onboardingDismissed:
+      typeof value.onboardingDismissed === 'boolean'
+        ? value.onboardingDismissed
+        : true,
   }
 }
 

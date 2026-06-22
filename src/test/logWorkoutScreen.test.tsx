@@ -118,6 +118,7 @@ function createMockAppState(): MockAppState {
     daysSinceLastMax: null,
     daysSinceLastWorkout: null,
     deleteExercise: vi.fn(async () => {}),
+    dismissOnboarding: vi.fn(async () => true),
     errorMessage: null,
     exportBackup: () => '{"ok":true}',
     getProgramPrefill: vi.fn((type: SessionType) => prefills[type]),

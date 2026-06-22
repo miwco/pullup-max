@@ -177,6 +177,7 @@ export interface AppSettings {
   bandsAvailable: boolean
   cycleLengthDays: number
   exportFormatVersion: number
+  onboardingDismissed: boolean
 }
 
 export interface AppData {

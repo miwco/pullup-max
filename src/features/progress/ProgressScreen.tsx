@@ -3,6 +3,7 @@ import { CycleLineChart } from '../../components/Charts'
 import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
+import { getFailurePointPattern } from '../../domain/selectors'
 import { formatLongDate, todayDateString } from '../../lib/date'
 
 function formatRepDelta(repDelta: number | null) {
@@ -32,6 +33,7 @@ export function ProgressScreen() {
   const [showMax, setShowMax] = useState(true)
   const [showWeight, setShowWeight] = useState(false)
   const [visibleMaxHistory, setVisibleMaxHistory] = useState(8)
+  const failurePattern = getFailurePointPattern(maxHistory)
 
   return (
     <div className="screen-stack">
@@ -116,6 +118,16 @@ export function ProgressScreen() {
           </div>
         </div>
       </Section>
+
+      {failurePattern ? (
+        <div className="inline-note">
+          <p className="muted-text">
+            <strong>{failurePattern.point}</strong> has been your failure point
+            in {failurePattern.count} of your last{' '}
+            {Math.min(3, maxHistory.filter((item) => item.failurePoint && item.failurePoint !== 'not sure').length)} max tests — support is automatically targeting this.
+          </p>
+        </div>
+      ) : null}
 
       <Section eyebrow="Max attempts" title="Recent max history">
         {maxHistory.length === 0 ? (

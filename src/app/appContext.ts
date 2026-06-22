@@ -38,6 +38,7 @@ export interface AppContextValue {
   daysSinceLastMax: number | null
   daysSinceLastWorkout: number | null
   deleteExercise: (exerciseId: string) => Promise<void>
+  dismissOnboarding: () => Promise<boolean>
   errorMessage: string | null
   exportBackup: () => string
   getProgramPrefill: (sessionType: SessionType) => ProgramEntryDraft[]

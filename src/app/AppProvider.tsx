@@ -382,6 +382,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  async function dismissOnboarding() {
+    return saveNextData(
+      withComputedRecommendation(
+        {
+          ...data,
+          settings: { ...data.settings, onboardingDismissed: true },
+        },
+        todayDateString(),
+      ),
+    )
+  }
+
   async function importBackup(rawText: string) {
     const parsed = parseImportBundle(rawText)
 
@@ -439,6 +451,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     daysSinceLastMax,
     daysSinceLastWorkout,
     deleteExercise,
+    dismissOnboarding,
     errorMessage,
     exportBackup: () => serializeExportBundle(data),
     getProgramPrefill,

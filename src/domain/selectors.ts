@@ -603,3 +603,26 @@ export function getCurrentWeekVolumeSummary(
     trend: data.recommendationState.trend,
   })
 }
+
+export function getFailurePointPattern(
+  maxHistory: MaxHistoryItem[],
+): { point: FailurePoint; count: number } | null {
+  const withFailure = maxHistory
+    .filter((item) => item.failurePoint && item.failurePoint !== 'not sure')
+    .slice(0, 3)
+
+  if (withFailure.length < 2) {
+    return null
+  }
+
+  const firstPoint = withFailure[0]!.failurePoint!
+  const matchCount = withFailure.filter(
+    (item) => item.failurePoint === firstPoint,
+  ).length
+
+  if (matchCount < 2) {
+    return null
+  }
+
+  return { point: firstPoint, count: matchCount }
+}

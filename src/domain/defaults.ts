@@ -52,6 +52,7 @@ export function createDefaultSettings(): AppSettings {
     bodyweightTrackingEnabled: true,
     cycleLengthDays: DEFAULT_CYCLE_LENGTH_DAYS,
     exportFormatVersion: EXPORT_FORMAT_VERSION,
+    onboardingDismissed: false,
   }
 }
 

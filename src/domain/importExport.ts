@@ -31,6 +31,34 @@ export function serializeExportBundle(data: AppData) {
   return JSON.stringify(createExportBundle(data), null, 2)
 }
 
+export function serializeMaxTestsCsv(data: AppData): string {
+  const sessionById = new Map(data.sessions.map((s) => [s.id, s]))
+
+  const header =
+    'date,movement,reps,failure_point,quality_flag,bodyweight_kg\n'
+  const rows = [...data.maxTests]
+    .sort((left, right) => {
+      const dateLeft = sessionById.get(left.workoutSessionId)?.date ?? ''
+      const dateRight = sessionById.get(right.workoutSessionId)?.date ?? ''
+      return dateLeft.localeCompare(dateRight)
+    })
+    .map((test) => {
+      const session = sessionById.get(test.workoutSessionId)
+      const date = session?.date ?? ''
+      const bw = test.bodyweightKgSnapshot ?? session?.bodyweightKg ?? ''
+      return [
+        date,
+        test.movement,
+        test.reps,
+        test.failurePoint ?? '',
+        test.qualityFlag ?? '',
+        bw,
+      ].join(',')
+    })
+
+  return header + rows.join('\n')
+}
+
 export function parseImportBundle(
   rawText: string,
 ): ValidationResult<ExportBundle> {

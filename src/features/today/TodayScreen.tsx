@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
+import { getRecentSignalAverages } from '../../domain/selectors'
 import { formatLongDate, todayDateString } from '../../lib/date'
 
 interface TodayScreenProps {
@@ -32,12 +33,19 @@ export function TodayScreen({
     data,
     daysSinceLastMax,
     daysSinceLastWorkout,
+    dismissOnboarding,
     latestBodyweightEntry,
     saveBodyweight,
     weeklyVolumeSummary,
   } = useAppState()
   const recommendation = data.recommendationState
   const today = todayDateString()
+  const signalAverages = getRecentSignalAverages(data.sessions)
+  const painSignalActive =
+    signalAverages.jointPainAverage !== null &&
+    signalAverages.jointPainAverage >= 3
+  const fatigueSignalActive =
+    signalAverages.fatigueAverage !== null && signalAverages.fatigueAverage >= 4
   const todaysWeight =
     data.bodyweightEntries.find((entry) => entry.date === today)?.weightKg ??
     null
@@ -80,6 +88,33 @@ export function TodayScreen({
 
   return (
     <div className="screen-stack">
+      {!data.settings.onboardingDismissed && data.sessions.length === 0 ? (
+        <Section eyebrow="Getting started" title="Welcome to Pull-up Max">
+          <ol className="muted-text" style={{ paddingLeft: '1.25rem', lineHeight: 1.6 }}>
+            <li>
+              Go to <a href="#/settings">Settings</a> to confirm your main
+              movement and set your cycle start date.
+            </li>
+            <li>
+              Come back here and tap <strong>Log recommended workout</strong>.
+            </li>
+            <li>
+              Do one all-out max set and log the result — that sets your
+              baseline.
+            </li>
+          </ol>
+          <div className="button-row" style={{ marginTop: '0.75rem' }}>
+            <button
+              type="button"
+              className="button button--ghost button--compact"
+              onClick={() => void dismissOnboarding()}
+            >
+              Got it, dismiss
+            </button>
+          </div>
+        </Section>
+      ) : null}
+
       {cycleSummary.daysRemaining === 0 ? (
         <div className="notice">
           <span>
@@ -182,6 +217,18 @@ export function TodayScreen({
           ) : null}
         </div>
       </Section>
+
+      {painSignalActive || fatigueSignalActive ? (
+        <div className="inline-note">
+          <p className="muted-text">
+            {painSignalActive && fatigueSignalActive
+              ? `Average joint pain ${signalAverages.jointPainAverage}/5 and fatigue ${signalAverages.fatigueAverage}/5 over the last 6 sessions — support is being kept easier.`
+              : painSignalActive
+                ? `Average joint pain ${signalAverages.jointPainAverage}/5 over the last 6 sessions — support is being kept easier.`
+                : `Average fatigue ${signalAverages.fatigueAverage}/5 over the last 6 sessions — support is being kept easier.`}
+          </p>
+        </div>
+      ) : null}
 
       <Section eyebrow="Next work" title="Suggested exercises">
         <div className="chip-row">

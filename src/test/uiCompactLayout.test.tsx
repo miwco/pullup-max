@@ -183,11 +183,16 @@ function createMockAppState(): MockAppState {
         maxReps: null,
       },
     ],
+    requestPersistentStorage: vi.fn(async () => true),
     resetAllData: vi.fn(async () => {}),
     saveBodyweight: vi.fn(async () => true),
     saveSession: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
     setNotice: vi.fn(),
+    storageDurability: {
+      isPersisted: false,
+      isSupported: true,
+    },
     weeklyVolumeSummary: {
       brakeApplied: false,
       completedPoints: 28,
@@ -435,6 +440,22 @@ describe('compact hybrid UI refresh', () => {
     ])
   })
 
+  it('shows local data safety status and storage protection action', () => {
+    render(<ProfileSettingsScreen />)
+
+    expect(
+      screen.getByText(/app updates from vercel keep/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Storage protection')).toBeInTheDocument()
+    expect(screen.getByText('Not locked')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /protect local storage/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /export json backup/i }),
+    ).toBeInTheDocument()
+  })
+
   it('saves the selected main movement without sensitivity controls', async () => {
     const user = userEvent.setup()
     const saveSettingsAndProgram = vi.fn(async () => true)
@@ -446,9 +467,7 @@ describe('compact hybrid UI refresh', () => {
     render(<ProfileSettingsScreen />)
 
     await user.selectOptions(screen.getByLabelText(/main movement/i), 'Chin-up')
-    await user.click(
-      screen.getByRole('button', { name: /save settings/i }),
-    )
+    await user.click(screen.getByRole('button', { name: /save settings/i }))
 
     expect(saveSettingsAndProgram).toHaveBeenCalledWith(
       expect.objectContaining({

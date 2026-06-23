@@ -26,6 +26,11 @@ export interface AppNotice {
   message: string
 }
 
+export interface StorageDurabilityState {
+  isPersisted: boolean | null
+  isSupported: boolean
+}
+
 export interface AppContextValue {
   activeExercises: Exercise[]
   allTimeBestMax: number | null
@@ -51,6 +56,7 @@ export interface AppContextValue {
   notice: AppNotice | null
   painTrendPoints: ReturnType<typeof buildPainTrendPoints>
   recentWorkouts: ReturnType<typeof buildRecentWorkouts>
+  requestPersistentStorage: () => Promise<boolean>
   resetAllData: () => Promise<void>
   saveBodyweight: (date: string, weightKg: number) => Promise<boolean>
   saveSession: (input: SaveSessionInput) => Promise<boolean>
@@ -60,6 +66,7 @@ export interface AppContextValue {
     nextTemplate: ProgramTemplate,
   ) => Promise<boolean>
   setNotice: (notice: AppNotice | null) => void
+  storageDurability: StorageDurabilityState
   weeklyVolumeSummary: ReturnType<typeof getCurrentWeekVolumeSummary>
   updateExercise: (
     input: Omit<Exercise, 'id'> & { id?: string },

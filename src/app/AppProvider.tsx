@@ -1,4 +1,11 @@
-import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { AppContext, type AppContextValue, type AppNotice } from './appContext'
 import { createSeedData } from '../domain/defaults'
 import {
@@ -55,11 +62,37 @@ const EMPTY_APP_DATA = withComputedRecommendation(
 )
 const LOAD_TIMEOUT_MS = 8000
 
+async function readStorageDurability(): Promise<
+  AppContextValue['storageDurability']
+> {
+  if (!navigator.storage?.persisted) {
+    return {
+      isPersisted: null,
+      isSupported: false,
+    }
+  }
+
+  return {
+    isPersisted: await navigator.storage.persisted(),
+    isSupported: true,
+  }
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(EMPTY_APP_DATA)
   const [isReady, setIsReady] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [notice, setNotice] = useState<AppNotice | null>(null)
+  const [storageDurability, setStorageDurability] = useState<
+    AppContextValue['storageDurability']
+  >({
+    isPersisted: null,
+    isSupported: false,
+  })
+
+  const refreshStorageDurability = useCallback(async () => {
+    setStorageDurability(await readStorageDurability())
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -106,6 +139,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     void loadData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function checkStorageDurability() {
+      const nextStorageDurability = await readStorageDurability()
+
+      if (!cancelled) {
+        setStorageDurability(nextStorageDurability)
+      }
+    }
+
+    void checkStorageDurability()
 
     return () => {
       cancelled = true
@@ -439,6 +490,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function requestPersistentStorage() {
+    if (!navigator.storage?.persist) {
+      setNotice({
+        tone: 'info',
+        message:
+          'This browser does not expose persistent storage controls. Keep periodic JSON backups.',
+      })
+      await refreshStorageDurability()
+      return false
+    }
+
+    const isPersisted = await navigator.storage.persist()
+    await refreshStorageDurability()
+
+    setNotice({
+      tone: isPersisted ? 'success' : 'info',
+      message: isPersisted
+        ? 'Persistent storage enabled for this device.'
+        : 'The browser did not grant persistent storage. Keep periodic JSON backups.',
+    })
+
+    return isPersisted
+  }
+
   async function resetAllData() {
     const reset = await resetAppData(todayDateString())
     startTransition(() => {
@@ -472,11 +547,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     maxHistory,
     notice,
     recentWorkouts,
+    requestPersistentStorage,
     resetAllData,
     saveBodyweight,
     saveSession,
     saveSettingsAndProgram,
     setNotice,
+    storageDurability,
     weeklyVolumeSummary,
     updateExercise,
   }

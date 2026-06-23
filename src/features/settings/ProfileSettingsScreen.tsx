@@ -49,17 +49,34 @@ function getCyclePlannerError(
 }
 
 export function ProfileSettingsScreen() {
-  const { data, exportBackup, importBackup, resetAllData, saveSettingsAndProgram } =
-    useAppState()
+  const {
+    data,
+    exportBackup,
+    importBackup,
+    requestPersistentStorage,
+    resetAllData,
+    saveSettingsAndProgram,
+    storageDurability,
+  } = useAppState()
 
-  const [mainMovement, setMainMovement] = useState(data.athleteProfile.mainMovement)
-  const [cycleStartDate, setCycleStartDate] = useState(data.athleteProfile.cycleStartDate)
-  const [cycleEndDate, setCycleEndDate] = useState(data.athleteProfile.cycleEndDate)
-  const [cycleLengthDays, setCycleLengthDays] = useState(String(data.settings.cycleLengthDays))
+  const [mainMovement, setMainMovement] = useState(
+    data.athleteProfile.mainMovement,
+  )
+  const [cycleStartDate, setCycleStartDate] = useState(
+    data.athleteProfile.cycleStartDate,
+  )
+  const [cycleEndDate, setCycleEndDate] = useState(
+    data.athleteProfile.cycleEndDate,
+  )
+  const [cycleLengthDays, setCycleLengthDays] = useState(
+    String(data.settings.cycleLengthDays),
+  )
   const [bodyweightTrackingEnabled, setBodyweightTrackingEnabled] = useState(
     data.settings.bodyweightTrackingEnabled,
   )
-  const [bandsAvailable, setBandsAvailable] = useState(data.settings.bandsAvailable)
+  const [bandsAvailable, setBandsAvailable] = useState(
+    data.settings.bandsAvailable,
+  )
   const [notes, setNotes] = useState(data.athleteProfile.notes)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -73,7 +90,11 @@ export function ProfileSettingsScreen() {
     bandsAvailable !== data.settings.bandsAvailable ||
     notes !== data.athleteProfile.notes
 
-  const cyclePlannerError = getCyclePlannerError(cycleStartDate, cycleEndDate, cycleLengthDays)
+  const cyclePlannerError = getCyclePlannerError(
+    cycleStartDate,
+    cycleEndDate,
+    cycleLengthDays,
+  )
 
   useUnsavedChangesPrompt(hasChanges)
 
@@ -92,26 +113,35 @@ export function ProfileSettingsScreen() {
 
   function handleCycleStartDateChange(nextCycleStartDate: string) {
     setCycleStartDate(nextCycleStartDate)
-    const derivedLength = getCycleLengthDaysFromDates(nextCycleStartDate, cycleEndDate)
+    const derivedLength = getCycleLengthDaysFromDates(
+      nextCycleStartDate,
+      cycleEndDate,
+    )
     setCycleLengthDays(derivedLength === null ? '' : String(derivedLength))
   }
 
   function handleCycleEndDateChange(nextCycleEndDate: string) {
     setCycleEndDate(nextCycleEndDate)
-    const derivedLength = getCycleLengthDaysFromDates(cycleStartDate, nextCycleEndDate)
+    const derivedLength = getCycleLengthDaysFromDates(
+      cycleStartDate,
+      nextCycleEndDate,
+    )
     setCycleLengthDays(derivedLength === null ? '' : String(derivedLength))
   }
 
   function handleCycleLengthDaysChange(nextCycleLengthDays: string) {
     setCycleLengthDays(nextCycleLengthDays)
     const parsedLength = Number(nextCycleLengthDays)
-    if (!Number.isFinite(parsedLength) || parsedLength <= 0 || !cycleStartDate) return
+    if (!Number.isFinite(parsedLength) || parsedLength <= 0 || !cycleStartDate)
+      return
     setCycleEndDate(getCycleEndDateForLength(cycleStartDate, parsedLength))
   }
 
   function applyCycleLengthPreset(nextCycleLengthDays: number) {
     setCycleLengthDays(String(nextCycleLengthDays))
-    setCycleEndDate(getCycleEndDateForLength(cycleStartDate, nextCycleLengthDays))
+    setCycleEndDate(
+      getCycleEndDateForLength(cycleStartDate, nextCycleLengthDays),
+    )
   }
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
@@ -286,7 +316,41 @@ export function ProfileSettingsScreen() {
       </form>
 
       <Section eyebrow="Backup" title="Export and import">
+        <div className="inline-note">
+          <p className="muted-text">
+            App updates from Vercel keep your local IndexedDB progress on this
+            device. Backups still matter before clearing browser data, changing
+            devices, switching browsers, or reinstalling the app.
+          </p>
+        </div>
+
+        <div className="mini-stat-grid">
+          <div className="mini-stat">
+            <span className="metric-label">Storage protection</span>
+            <strong>
+              {!storageDurability.isSupported
+                ? 'Browser managed'
+                : storageDurability.isPersisted
+                  ? 'Persistent'
+                  : 'Not locked'}
+            </strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Backup format</span>
+            <strong>Version {data.settings.exportFormatVersion}</strong>
+          </div>
+        </div>
+
         <div className="action-row">
+          {storageDurability.isSupported && !storageDurability.isPersisted ? (
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => void requestPersistentStorage()}
+            >
+              Protect local storage
+            </button>
+          ) : null}
           <button
             type="button"
             className="button button--ghost"

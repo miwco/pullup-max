@@ -130,11 +130,16 @@ function createMockAppState(): MockAppState {
     notice: null,
     painTrendPoints: [],
     recentWorkouts: [],
+    requestPersistentStorage: vi.fn(async () => true),
     resetAllData: vi.fn(async () => {}),
     saveBodyweight: vi.fn(async () => true),
     saveSession: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
     setNotice: vi.fn(),
+    storageDurability: {
+      isPersisted: false,
+      isSupported: true,
+    },
     updateExercise: vi.fn(async () => {}),
     weeklyVolumeSummary: {
       brakeApplied: false,

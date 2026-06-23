@@ -17,6 +17,7 @@ import type {
   ProgramTemplate,
   SaveSessionInput,
   SessionType,
+  WorkoutLogDraft,
 } from '../domain/types'
 
 type NoticeTone = 'info' | 'error' | 'success'
@@ -48,6 +49,7 @@ export interface AppContextValue {
   dismissOnboarding: () => Promise<boolean>
   errorMessage: string | null
   exportBackup: () => string
+  clearWorkoutDraft: () => Promise<boolean>
   getProgramPrefill: (sessionType: SessionType) => ProgramEntryDraft[]
   importBackup: (rawText: string) => Promise<boolean>
   isReady: boolean
@@ -68,6 +70,8 @@ export interface AppContextValue {
   setNotice: (notice: AppNotice | null) => void
   storageDurability: StorageDurabilityState
   weeklyVolumeSummary: ReturnType<typeof getCurrentWeekVolumeSummary>
+  workoutDraft: WorkoutLogDraft | null
+  saveWorkoutDraft: (draft: WorkoutLogDraft) => Promise<boolean>
   updateExercise: (
     input: Omit<Exercise, 'id'> & { id?: string },
   ) => Promise<void>

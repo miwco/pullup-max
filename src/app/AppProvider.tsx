@@ -46,12 +46,16 @@ import type {
   ProgramTemplate,
   SaveSessionInput,
   SessionType,
+  WorkoutLogDraft,
 } from '../domain/types'
 import { todayDateString } from '../lib/date'
 import { createId } from '../lib/id'
 import {
+  clearWorkoutDraft as deleteStoredWorkoutDraft,
+  loadWorkoutDraft,
   loadOrSeedAppData,
   persistAppDataDiff,
+  persistWorkoutDraft,
   replaceAppData,
   resetAppData,
 } from '../storage/indexedDb'
@@ -83,6 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [notice, setNotice] = useState<AppNotice | null>(null)
+  const [workoutDraft, setWorkoutDraft] = useState<WorkoutLogDraft | null>(null)
   const [storageDurability, setStorageDurability] = useState<
     AppContextValue['storageDurability']
   >({
@@ -101,8 +106,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const today = todayDateString()
         let timeoutId: ReturnType<typeof setTimeout> | null = null
-        const stored = await Promise.race([
-          loadOrSeedAppData(today),
+        const [stored, storedWorkoutDraft] = await Promise.race([
+          Promise.all([loadOrSeedAppData(today), loadWorkoutDraft()]),
           new Promise<never>((_, reject) => {
             timeoutId = setTimeout(() => {
               reject(
@@ -123,6 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         startTransition(() => {
           setData(stored)
+          setWorkoutDraft(storedWorkoutDraft)
           setIsReady(true)
         })
       } catch (error) {
@@ -470,6 +476,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         parsed.value.data,
         todayDateString(),
       )
+      await clearCurrentWorkoutDraft()
       startTransition(() => {
         setData(imported)
       })
@@ -485,6 +492,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
           error instanceof Error
             ? error.message
             : 'Unable to import that backup.',
+      })
+      return false
+    }
+  }
+
+  async function saveCurrentWorkoutDraft(draft: WorkoutLogDraft) {
+    try {
+      await persistWorkoutDraft(draft)
+      setWorkoutDraft(draft)
+      return true
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to save workout draft.',
+      })
+      return false
+    }
+  }
+
+  async function clearCurrentWorkoutDraft() {
+    try {
+      await deleteStoredWorkoutDraft()
+      setWorkoutDraft(null)
+      return true
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to clear workout draft.',
       })
       return false
     }
@@ -516,6 +557,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function resetAllData() {
     const reset = await resetAppData(todayDateString())
+    await clearCurrentWorkoutDraft()
     startTransition(() => {
       setData(reset)
     })
@@ -536,6 +578,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     data,
     daysSinceLastMax,
     daysSinceLastWorkout,
+    clearWorkoutDraft: clearCurrentWorkoutDraft,
     deleteExercise,
     dismissOnboarding,
     errorMessage,
@@ -552,9 +595,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveBodyweight,
     saveSession,
     saveSettingsAndProgram,
+    saveWorkoutDraft: saveCurrentWorkoutDraft,
     setNotice,
     storageDurability,
     weeklyVolumeSummary,
+    workoutDraft,
     updateExercise,
   }
 

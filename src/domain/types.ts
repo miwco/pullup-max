@@ -284,6 +284,27 @@ export interface ProgramEntryDraft {
   outcome: PresetOutcome | ''
 }
 
+export interface WorkoutLogEntryDraft extends ProgramEntryDraft {
+  localId: string
+}
+
+export interface WorkoutLogDraft {
+  id: 'current-workout'
+  date: string
+  elbowPain: string
+  entries: WorkoutLogEntryDraft[]
+  failurePoint: FailurePoint | ''
+  fatigueAfter: string
+  fatigueBefore: string
+  maxReps: string
+  notes: string
+  qualityFlag: QualityFlag | ''
+  sessionType: SessionType
+  shoulderPain: string
+  updatedAt: string
+  videoLink: string
+}
+
 export interface WeeklyVolumeSummary {
   brakeApplied: boolean
   completedPoints: number

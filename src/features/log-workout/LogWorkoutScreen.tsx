@@ -1,12 +1,21 @@
-import { useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
+import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
 import type {
   FailurePoint,
   ProgramEntryDraft,
   QualityFlag,
   SessionType,
+  WorkoutLogDraft,
+  WorkoutLogEntryDraft,
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
 import { createId } from '../../lib/id'
@@ -16,10 +25,6 @@ interface LogWorkoutScreenProps {
   prefill: boolean
   requestedType: SessionType | null
   onSaved: () => void
-}
-
-interface EntryDraft extends ProgramEntryDraft {
-  localId: string
 }
 
 const FAILURE_POINTS: FailurePoint[] = [
@@ -41,7 +46,7 @@ function parseOptionalNumber(value: string) {
   return Number.isFinite(nextNumber) ? nextNumber : undefined
 }
 
-function toDrafts(prefillRows: ProgramEntryDraft[]) {
+function toDrafts(prefillRows: ProgramEntryDraft[]): WorkoutLogEntryDraft[] {
   return prefillRows.map((row) => ({
     ...row,
     localId: createId('draft'),
@@ -60,56 +65,175 @@ function createEntriesSignature(entries: ProgramEntryDraft[]) {
   return JSON.stringify(entries.map(serializeEntry))
 }
 
+function formatDraftSavedAt(value: string | null) {
+  if (!value) {
+    return null
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
 export function LogWorkoutScreen({
   requestedType,
   onSaved,
 }: LogWorkoutScreenProps) {
-  const { data, getProgramPrefill, saveSession } = useAppState()
+  const {
+    clearWorkoutDraft,
+    data,
+    getProgramPrefill,
+    saveSession,
+    saveWorkoutDraft,
+    workoutDraft,
+  } = useAppState()
   const recommendedType = data.recommendationState.nextSessionType
   const initialType = requestedType ?? recommendedType
-  const [sessionType, setSessionType] = useState<SessionType>(initialType)
-  const [date, setDate] = useState(() => todayDateString())
-  const [maxReps, setMaxReps] = useState('')
-  const [videoLink, setVideoLink] = useState('')
-  const [fatigueBefore, setFatigueBefore] = useState('')
-  const [fatigueAfter, setFatigueAfter] = useState('')
-  const [elbowPain, setElbowPain] = useState('')
-  const [shoulderPain, setShoulderPain] = useState('')
-  const [failurePoint, setFailurePoint] = useState<FailurePoint | ''>('')
-  const [qualityFlag, setQualityFlag] = useState<QualityFlag | ''>('')
-  const [notes, setNotes] = useState('')
-  const [entries, setEntries] = useState<EntryDraft[]>(() =>
-    toDrafts(getProgramPrefill(initialType)),
+  const initialSessionType = workoutDraft?.sessionType ?? initialType
+  const [sessionType, setSessionType] =
+    useState<SessionType>(initialSessionType)
+  const [date, setDate] = useState(
+    () => workoutDraft?.date ?? todayDateString(),
+  )
+  const [maxReps, setMaxReps] = useState(workoutDraft?.maxReps ?? '')
+  const [videoLink, setVideoLink] = useState(workoutDraft?.videoLink ?? '')
+  const [fatigueBefore, setFatigueBefore] = useState(
+    workoutDraft?.fatigueBefore ?? '',
+  )
+  const [fatigueAfter, setFatigueAfter] = useState(
+    workoutDraft?.fatigueAfter ?? '',
+  )
+  const [elbowPain, setElbowPain] = useState(workoutDraft?.elbowPain ?? '')
+  const [shoulderPain, setShoulderPain] = useState(
+    workoutDraft?.shoulderPain ?? '',
+  )
+  const [failurePoint, setFailurePoint] = useState<FailurePoint | ''>(
+    workoutDraft?.failurePoint ?? '',
+  )
+  const [qualityFlag, setQualityFlag] = useState<QualityFlag | ''>(
+    workoutDraft?.qualityFlag ?? '',
+  )
+  const [notes, setNotes] = useState(workoutDraft?.notes ?? '')
+  const [entries, setEntries] = useState<WorkoutLogEntryDraft[]>(() =>
+    workoutDraft?.entries.length
+      ? workoutDraft.entries
+      : toDrafts(getProgramPrefill(initialSessionType)),
   )
   const [showMaxDetail, setShowMaxDetail] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [initialDate] = useState(date)
-  const [initialEntriesSignature] = useState(() =>
-    createEntriesSignature(entries),
+  const [entriesBaselineSignature, setEntriesBaselineSignature] = useState(() =>
+    createEntriesSignature(toDrafts(getProgramPrefill(initialSessionType))),
   )
-  const [entriesBaselineSignature, setEntriesBaselineSignature] = useState(
-    initialEntriesSignature,
+  const [hasInteracted, setHasInteracted] = useState(() => !!workoutDraft)
+  const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>(
+    workoutDraft ? 'saved' : 'idle',
+  )
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(
+    workoutDraft?.updatedAt ?? null,
   )
   const currentEntriesSignature = createEntriesSignature(entries)
-  const isDirty =
-    sessionType !== initialType ||
-    date !== initialDate ||
-    maxReps.trim().length > 0 ||
-    videoLink.trim().length > 0 ||
-    fatigueBefore.trim().length > 0 ||
-    fatigueAfter.trim().length > 0 ||
-    elbowPain.trim().length > 0 ||
-    shoulderPain.trim().length > 0 ||
-    failurePoint !== '' ||
-    qualityFlag !== '' ||
-    notes.trim().length > 0 ||
-    currentEntriesSignature !== initialEntriesSignature
+  const savedAtLabel = formatDraftSavedAt(draftSavedAt)
+  const draftStatusLabel =
+    draftSaveStatus === 'saving'
+      ? 'Saving draft'
+      : draftSaveStatus === 'error'
+        ? 'Draft not saved'
+        : draftSaveStatus === 'saved'
+          ? savedAtLabel
+            ? `Draft saved ${savedAtLabel}`
+            : 'Draft saved'
+          : 'Draft ready'
 
-  useUnsavedChangesPrompt(isDirty)
+  useUnsavedChangesPrompt(
+    draftSaveStatus === 'saving' || draftSaveStatus === 'error',
+  )
 
-  function updateEntry(localId: string, updates: Partial<EntryDraft>) {
+  const currentDraft: WorkoutLogDraft = useMemo(
+    () => ({
+      id: 'current-workout',
+      date,
+      elbowPain,
+      entries,
+      failurePoint,
+      fatigueAfter,
+      fatigueBefore,
+      maxReps,
+      notes,
+      qualityFlag,
+      sessionType,
+      shoulderPain,
+      updatedAt: new Date().toISOString(),
+      videoLink,
+    }),
+    [
+      date,
+      elbowPain,
+      entries,
+      failurePoint,
+      fatigueAfter,
+      fatigueBefore,
+      maxReps,
+      notes,
+      qualityFlag,
+      sessionType,
+      shoulderPain,
+      videoLink,
+    ],
+  )
+
+  useEffect(() => {
+    if (!hasInteracted) {
+      return
+    }
+
+    let cancelled = false
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) {
+        return
+      }
+
+      setDraftSaveStatus('saving')
+
+      void saveWorkoutDraft(currentDraft).then((success) => {
+        if (cancelled) {
+          return
+        }
+
+        if (success) {
+          setDraftSaveStatus('saved')
+          setDraftSavedAt(currentDraft.updatedAt)
+          return
+        }
+
+        setDraftSaveStatus('error')
+      })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [currentDraft, hasInteracted, saveWorkoutDraft])
+
+  function markInteracted() {
+    setHasInteracted(true)
+  }
+
+  function updateText(setter: Dispatch<SetStateAction<string>>, value: string) {
+    markInteracted()
+    setter(value)
+  }
+
+  function updateEntry(
+    localId: string,
+    updates: Partial<WorkoutLogEntryDraft>,
+  ) {
+    markInteracted()
     setEntries((current) =>
       current.map((entry) =>
         entry.localId === localId ? { ...entry, ...updates } : entry,
@@ -118,9 +242,40 @@ export function LogWorkoutScreen({
   }
 
   function loadPrefill(nextType: SessionType) {
+    markInteracted()
     const nextEntries = toDrafts(getProgramPrefill(nextType))
     setEntries(nextEntries)
     setEntriesBaselineSignature(createEntriesSignature(nextEntries))
+  }
+
+  async function handleClearDraft() {
+    if (
+      !window.confirm(
+        'Clear the saved in-progress workout and reload today’s prescription?',
+      )
+    ) {
+      return
+    }
+
+    await clearWorkoutDraft()
+
+    const nextEntries = toDrafts(getProgramPrefill(initialType))
+    setSessionType(initialType)
+    setDate(todayDateString())
+    setMaxReps('')
+    setVideoLink('')
+    setFatigueBefore('')
+    setFatigueAfter('')
+    setElbowPain('')
+    setShoulderPain('')
+    setFailurePoint('')
+    setQualityFlag('')
+    setNotes('')
+    setEntries(nextEntries)
+    setEntriesBaselineSignature(createEntriesSignature(nextEntries))
+    setHasInteracted(false)
+    setDraftSaveStatus('idle')
+    setDraftSavedAt(null)
   }
 
   function canReplaceWorkoutRows() {
@@ -213,6 +368,7 @@ export function LogWorkoutScreen({
     setIsSaving(false)
 
     if (success) {
+      await clearWorkoutDraft()
       onSaved()
     }
   }
@@ -225,7 +381,31 @@ export function LogWorkoutScreen({
             <p className="muted-text">
               Recommended today: <strong>{recommendedType}</strong>
             </p>
+            <StatusPill
+              label={draftStatusLabel}
+              tone={draftSaveStatus === 'error' ? 'warning' : 'success'}
+            />
           </div>
+
+          <div className="inline-note">
+            <p className="muted-text">
+              Mark each set or row as you finish it. Changes save immediately as
+              an in-progress draft on this device; Save workout still commits
+              the session to History.
+            </p>
+          </div>
+
+          {hasInteracted ? (
+            <div className="button-row">
+              <button
+                type="button"
+                className="button button--ghost button--compact"
+                onClick={() => void handleClearDraft()}
+              >
+                Clear draft
+              </button>
+            </div>
+          ) : null}
 
           <div className="segment-row" role="tablist" aria-label="Session type">
             {(['max', 'support'] as SessionType[]).map((type) => (
@@ -238,6 +418,7 @@ export function LogWorkoutScreen({
                     return
                   }
 
+                  markInteracted()
                   setSessionType(type)
                   loadPrefill(type)
                 }}
@@ -254,7 +435,7 @@ export function LogWorkoutScreen({
                 type="date"
                 name="session-date"
                 value={date}
-                onChange={(event) => setDate(event.target.value)}
+                onChange={(event) => updateText(setDate, event.target.value)}
               />
             </label>
 
@@ -266,7 +447,9 @@ export function LogWorkoutScreen({
                 inputMode="numeric"
                 placeholder="1-5"
                 value={fatigueBefore}
-                onChange={(event) => setFatigueBefore(event.target.value)}
+                onChange={(event) =>
+                  updateText(setFatigueBefore, event.target.value)
+                }
               />
             </label>
 
@@ -278,7 +461,9 @@ export function LogWorkoutScreen({
                 inputMode="numeric"
                 placeholder="1-5"
                 value={fatigueAfter}
-                onChange={(event) => setFatigueAfter(event.target.value)}
+                onChange={(event) =>
+                  updateText(setFatigueAfter, event.target.value)
+                }
               />
             </label>
 
@@ -290,7 +475,9 @@ export function LogWorkoutScreen({
                 inputMode="numeric"
                 placeholder="0-5"
                 value={elbowPain}
-                onChange={(event) => setElbowPain(event.target.value)}
+                onChange={(event) =>
+                  updateText(setElbowPain, event.target.value)
+                }
               />
             </label>
 
@@ -302,7 +489,9 @@ export function LogWorkoutScreen({
                 inputMode="numeric"
                 placeholder="0-5"
                 value={shoulderPain}
-                onChange={(event) => setShoulderPain(event.target.value)}
+                onChange={(event) =>
+                  updateText(setShoulderPain, event.target.value)
+                }
               />
             </label>
           </div>
@@ -318,7 +507,7 @@ export function LogWorkoutScreen({
                 inputMode="numeric"
                 placeholder="0"
                 value={maxReps}
-                onChange={(event) => setMaxReps(event.target.value)}
+                onChange={(event) => updateText(setMaxReps, event.target.value)}
               />
             </label>
 
@@ -334,9 +523,10 @@ export function LogWorkoutScreen({
                   <span>Failure point</span>
                   <select
                     value={failurePoint}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      markInteracted()
                       setFailurePoint(event.target.value as FailurePoint | '')
-                    }
+                    }}
                   >
                     <option value="">Optional</option>
                     {FAILURE_POINTS.map((item) => (
@@ -351,9 +541,10 @@ export function LogWorkoutScreen({
                   <span>Set quality</span>
                   <select
                     value={qualityFlag}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      markInteracted()
                       setQualityFlag(event.target.value as QualityFlag | '')
-                    }
+                    }}
                   >
                     <option value="">Optional</option>
                     {QUALITY_FLAGS.map((item) => (
@@ -375,7 +566,9 @@ export function LogWorkoutScreen({
                   inputMode="url"
                   placeholder="https://example.com/attempt..."
                   value={videoLink}
-                  onChange={(event) => setVideoLink(event.target.value)}
+                  onChange={(event) =>
+                    updateText(setVideoLink, event.target.value)
+                  }
                 />
               </label>
             </AccordionSection>
@@ -385,7 +578,8 @@ export function LogWorkoutScreen({
         <Section eyebrow="Workout rows" title="Preset exercises">
           <div className="summary-bar">
             <p className="muted-text">
-              Treat each row as today&apos;s prescription. Mark it Pass or Fail.
+              Treat each row as today&apos;s prescription. Tap Pass or Fail as
+              soon as that work is done.
             </p>
           </div>
 
@@ -445,7 +639,7 @@ export function LogWorkoutScreen({
               <span>Notes</span>
               <textarea
                 value={notes}
-                onChange={(event) => setNotes(event.target.value)}
+                onChange={(event) => updateText(setNotes, event.target.value)}
               />
             </label>
           </AccordionSection>

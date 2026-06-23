@@ -105,6 +105,7 @@ function createMockAppState(): MockAppState {
     data,
     daysSinceLastMax: 8,
     daysSinceLastWorkout: 3,
+    clearWorkoutDraft: vi.fn(async () => true),
     deleteExercise: vi.fn(async () => {}),
     dismissOnboarding: vi.fn(async () => true),
     errorMessage: null,
@@ -188,6 +189,7 @@ function createMockAppState(): MockAppState {
     saveBodyweight: vi.fn(async () => true),
     saveSession: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
+    saveWorkoutDraft: vi.fn(async () => true),
     setNotice: vi.fn(),
     storageDurability: {
       isPersisted: false,
@@ -204,6 +206,7 @@ function createMockAppState(): MockAppState {
       weekNumber: 3,
       weekStart: '2026-04-14',
     },
+    workoutDraft: null,
     updateExercise: vi.fn(async () => {}),
   }
 }

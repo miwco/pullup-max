@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppState } from '../app/appContext'
@@ -118,6 +118,7 @@ function createMockAppState(): MockAppState {
     data,
     daysSinceLastMax: null,
     daysSinceLastWorkout: null,
+    clearWorkoutDraft: vi.fn(async () => true),
     deleteExercise: vi.fn(async () => {}),
     dismissOnboarding: vi.fn(async () => true),
     errorMessage: null,
@@ -135,6 +136,7 @@ function createMockAppState(): MockAppState {
     saveBodyweight: vi.fn(async () => true),
     saveSession: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
+    saveWorkoutDraft: vi.fn(async () => true),
     setNotice: vi.fn(),
     storageDurability: {
       isPersisted: false,
@@ -152,6 +154,7 @@ function createMockAppState(): MockAppState {
       weekNumber: 3,
       weekStart: '2026-04-14',
     },
+    workoutDraft: null,
   }
 }
 
@@ -213,11 +216,87 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.getByText('10m EMOM @ 3')).toBeInTheDocument()
   })
 
+  it('autosaves preset outcomes as an in-progress workout draft', async () => {
+    const user = userEvent.setup()
+    const saveWorkoutDraft = vi.fn(async () => true)
+    mockedUseAppState.mockReturnValue({
+      ...createMockAppState(),
+      saveWorkoutDraft,
+    })
+
+    render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    await user.click(screen.getAllByRole('button', { name: /^pass$/i })[0]!)
+
+    await waitFor(() => {
+      expect(saveWorkoutDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'current-workout',
+          entries: expect.arrayContaining([
+            expect.objectContaining({
+              presetKey: 'max-row',
+              outcome: 'pass',
+            }),
+          ]),
+        }),
+      )
+    })
+
+    expect(screen.getByText(/draft saved/i)).toBeInTheDocument()
+  })
+
+  it('restores an existing in-progress workout draft', () => {
+    mockedUseAppState.mockReturnValue({
+      ...createMockAppState(),
+      workoutDraft: {
+        id: 'current-workout',
+        date: '2026-04-19',
+        elbowPain: '',
+        entries: [
+          {
+            ...createPrefillRow({
+              templateStepId: 'max-row',
+              presetKey: 'max-row',
+              label: 'EMOM pull-up block',
+              exerciseName: 'EMOM pull-up block',
+              outcome: 'pass',
+            }),
+            localId: 'draft-existing',
+          },
+        ],
+        failurePoint: '',
+        fatigueAfter: '',
+        fatigueBefore: '',
+        maxReps: '12',
+        notes: '',
+        qualityFlag: '',
+        sessionType: 'max',
+        shoulderPain: '',
+        updatedAt: new Date('2026-04-19T12:00:00').toISOString(),
+        videoLink: '',
+      },
+    })
+
+    render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    expect(screen.getByLabelText(/true max reps/i)).toHaveValue('12')
+    expect(screen.getByRole('button', { name: /^pass$/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
   it('saves preset outcomes and target snapshots', async () => {
     const user = userEvent.setup()
     const saveSession = vi.fn(async () => true)
+    const clearWorkoutDraft = vi.fn(async () => true)
     mockedUseAppState.mockReturnValue({
       ...createMockAppState(),
+      clearWorkoutDraft,
       saveSession,
     })
 
@@ -253,5 +332,6 @@ describe('LogWorkoutScreen preset rows', () => {
         ]),
       }),
     )
+    expect(clearWorkoutDraft).toHaveBeenCalled()
   })
 })

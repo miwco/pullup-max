@@ -1,11 +1,12 @@
 import { createSeedData } from '../domain/defaults'
 import { normalizeAppData } from '../domain/normalization'
 import { withComputedRecommendation } from '../domain/selectors'
-import type { AppData } from '../domain/types'
+import type { AppData, WorkoutLogDraft } from '../domain/types'
 import { todayDateString } from '../lib/date'
 
 const DATABASE_NAME = 'pullup-max-db'
-const DATABASE_VERSION = 5
+const DATABASE_VERSION = 6
+const CURRENT_WORKOUT_DRAFT_ID = 'current-workout'
 
 const STORE_NAMES = {
   athleteProfile: 'athleteProfile',
@@ -17,6 +18,7 @@ const STORE_NAMES = {
   maxTests: 'maxTests',
   presetProgressions: 'presetProgressions',
   programTemplate: 'programTemplate',
+  workoutDrafts: 'workoutDrafts',
 } as const
 
 function requestToPromise<T>(request: IDBRequest<T>) {
@@ -89,6 +91,12 @@ async function openDatabase() {
 
       if (!database.objectStoreNames.contains(STORE_NAMES.programTemplate)) {
         database.createObjectStore(STORE_NAMES.programTemplate)
+      }
+
+      if (!database.objectStoreNames.contains(STORE_NAMES.workoutDrafts)) {
+        database.createObjectStore(STORE_NAMES.workoutDrafts, {
+          keyPath: 'id',
+        })
       }
 
       if (database.objectStoreNames.contains('recommendationState')) {
@@ -274,9 +282,7 @@ export async function persistAppDataDiff(prev: AppData, next: AppData) {
     'readwrite',
   )
 
-  transaction
-    .objectStore(STORE_NAMES.athleteProfile)
-    .put(next.athleteProfile)
+  transaction.objectStore(STORE_NAMES.athleteProfile).put(next.athleteProfile)
   transaction.objectStore(STORE_NAMES.settings).put(next.settings, 'current')
   transaction
     .objectStore(STORE_NAMES.programTemplate)
@@ -342,4 +348,50 @@ export async function replaceAppData(
   const computed = withComputedRecommendation(nextData, today)
   await persistAppData(computed)
   return computed
+}
+
+export async function loadWorkoutDraft() {
+  const database = await openDatabase()
+  const transaction = database.transaction(
+    STORE_NAMES.workoutDrafts,
+    'readonly',
+  )
+
+  try {
+    return ((await requestToPromise(
+      transaction
+        .objectStore(STORE_NAMES.workoutDrafts)
+        .get(CURRENT_WORKOUT_DRAFT_ID),
+    )) ?? null) as WorkoutLogDraft | null
+  } finally {
+    database.close()
+  }
+}
+
+export async function persistWorkoutDraft(draft: WorkoutLogDraft) {
+  const database = await openDatabase()
+  const transaction = database.transaction(
+    STORE_NAMES.workoutDrafts,
+    'readwrite',
+  )
+
+  transaction.objectStore(STORE_NAMES.workoutDrafts).put(draft)
+
+  await transactionToPromise(transaction)
+  database.close()
+}
+
+export async function clearWorkoutDraft() {
+  const database = await openDatabase()
+  const transaction = database.transaction(
+    STORE_NAMES.workoutDrafts,
+    'readwrite',
+  )
+
+  transaction
+    .objectStore(STORE_NAMES.workoutDrafts)
+    .delete(CURRENT_WORKOUT_DRAFT_ID)
+
+  await transactionToPromise(transaction)
+  database.close()
 }

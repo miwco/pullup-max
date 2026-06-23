@@ -196,9 +196,9 @@ describe('recommendation engine', () => {
     expect(recommendation.explanation).toContain('Build phase')
   })
 
-  it('trims and reduces Support work during competition prep', () => {
+  it('trims and reduces Support work during peak', () => {
     const { input } = createScenario({
-      currentPhase: 'competition-prep',
+      currentPhase: 'peak',
       daysSinceLastWorkout: 1,
       latestFailurePoint: 'top',
     })

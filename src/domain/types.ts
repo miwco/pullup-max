@@ -1,7 +1,7 @@
 export type SessionType = 'max' | 'support'
 export type ExerciseType = 'max' | 'support' | 'custom'
 export type DefaultUnit = 'reps' | 'seconds' | 'minutes' | 'sets'
-export type CyclePhase = 'build' | 'develop' | 'competition-prep'
+export type CyclePhase = 'build' | 'develop' | 'peak'
 export type MainMovement =
   | 'Pull-up'
   | 'Chin-up'

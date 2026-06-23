@@ -84,7 +84,7 @@ export function getCyclePhase(
     return 'develop'
   }
 
-  return 'competition-prep'
+  return 'peak'
 }
 
 export function getCurrentTrainingWeek(

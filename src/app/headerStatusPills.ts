@@ -48,9 +48,9 @@ function getPhaseBody(currentPhase: CyclePhase) {
       return 'Build is the early part of the cycle. The goal here is to build tolerance and reliable clean volume without rushing max attempts.'
     case 'develop':
       return 'Develop is the middle part of the cycle. The goal here is to turn your base into more specific pull-up performance with regular support exposure.'
-    case 'competition-prep':
+    case 'peak':
     default:
-      return 'Competition prep is the final part of the cycle. The goal here is to stay specific, reduce extra fatigue, and keep you fresh for strong max attempts.'
+      return 'Peak is the final part of the cycle. The goal here is to stay specific, reduce extra fatigue, and keep you fresh for strong max attempts.'
   }
 }
 

@@ -323,7 +323,7 @@ export function applyEasySupportAdjustments(
   })
 }
 
-export function applyCompetitionPrepAdjustments(
+export function applyPeakAdjustments(
   template: ProgramTemplate,
   steps: ProgramStep[],
 ) {

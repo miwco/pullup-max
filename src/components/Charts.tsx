@@ -98,7 +98,7 @@ export function CycleLineChart({
   const hasVisibleData =
     (showMax && maxCoordinates.length > 0) ||
     (showWeight && weightCoordinates.length > 0)
-  const phaseLabels = ['Build', 'Develop', 'Competition prep']
+  const phaseLabels = ['Build', 'Develop', 'Peak']
 
   return (
     <div className="chart-shell">
@@ -108,29 +108,31 @@ export function CycleLineChart({
         role="img"
         aria-label={ariaLabel}
       >
-        {showPhaseBands ? phaseLabels.map((label, index) => {
-          const x = padding.left + (innerWidth / 3) * index
+        {showPhaseBands
+          ? phaseLabels.map((label, index) => {
+              const x = padding.left + (innerWidth / 3) * index
 
-          return (
-            <g key={label}>
-              <rect
-                x={x}
-                y={padding.top}
-                width={innerWidth / 3}
-                height={innerHeight}
-                className={`chart-phase-band chart-phase-band--${index}`}
-              />
-              <text
-                x={x + innerWidth / 6}
-                y={padding.top + 14}
-                textAnchor="middle"
-                className="chart-phase-label"
-              >
-                {label}
-              </text>
-            </g>
-          )
-        }) : null}
+              return (
+                <g key={label}>
+                  <rect
+                    x={x}
+                    y={padding.top}
+                    width={innerWidth / 3}
+                    height={innerHeight}
+                    className={`chart-phase-band chart-phase-band--${index}`}
+                  />
+                  <text
+                    x={x + innerWidth / 6}
+                    y={padding.top + 14}
+                    textAnchor="middle"
+                    className="chart-phase-label"
+                  >
+                    {label}
+                  </text>
+                </g>
+              )
+            })
+          : null}
 
         <rect
           x={padding.left}

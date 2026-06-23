@@ -1,6 +1,6 @@
 import { getSupportBandExerciseName } from './mainMovement'
 import {
-  applyCompetitionPrepAdjustments,
+  applyPeakAdjustments,
   applyEasySupportAdjustments,
   getExerciseNamesForProgramSteps,
   getProgramStepsForSession,
@@ -111,8 +111,8 @@ export function getAdjustedProgramSteps(
   })
 
   if (sessionType === 'support') {
-    if (input.currentPhase === 'competition-prep') {
-      steps = applyCompetitionPrepAdjustments(input.programTemplate, steps)
+    if (input.currentPhase === 'peak') {
+      steps = applyPeakAdjustments(input.programTemplate, steps)
     }
 
     if (input.currentPhase === 'build' || shouldEaseSupport(input)) {
@@ -159,8 +159,8 @@ function buildExplanation(
   supportFocus: SupportFocus,
 ) {
   if (!maxReady) {
-    if (input.currentPhase === 'competition-prep') {
-      return 'Max day is not ready yet. Competition prep is active, so keep Support light, specific, and fresh this week.'
+    if (input.currentPhase === 'peak') {
+      return 'Max day is not ready yet. Peak phase is active, so keep Support light, specific, and fresh this week.'
     }
 
     if (input.currentPhase === 'build') {
@@ -188,8 +188,8 @@ function buildExplanation(
     return 'You are ready for a Max day. Trend is falling, so keep the follow-up support work easier and cleaner.'
   }
 
-  if (input.currentPhase === 'competition-prep') {
-    return 'You are ready for a Max day. Competition prep is active, so keep the rest of the week fresh and specific.'
+  if (input.currentPhase === 'peak') {
+    return 'You are ready for a Max day. Peak phase is active, so keep the rest of the week fresh and specific.'
   }
 
   return 'You are ready for a Max day. Continue the current two-session structure.'

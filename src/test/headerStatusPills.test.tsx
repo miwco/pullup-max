@@ -116,7 +116,7 @@ describe('getHeaderStatusPillItems', () => {
 
   it('returns the correct support and phase explanations', () => {
     const items = getHeaderStatusPillItems({
-      currentPhase: 'competition-prep',
+      currentPhase: 'peak',
       mainMovement: 'Pull-up',
       nextSessionType: 'support',
       trend: 'stable',
@@ -126,7 +126,7 @@ describe('getHeaderStatusPillItems', () => {
       'This means the app does not recommend a true max test yet. Support day is the default until you have enough recovery and freshness for the next real max attempt.',
     )
     expect(items.find((item) => item.id === 'current-phase')?.body).toBe(
-      'Competition prep is the final part of the cycle. The goal here is to stay specific, reduce extra fatigue, and keep you fresh for strong max attempts.',
+      'Peak is the final part of the cycle. The goal here is to stay specific, reduce extra fatigue, and keep you fresh for strong max attempts.',
     )
   })
 })

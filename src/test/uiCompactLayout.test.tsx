@@ -263,73 +263,101 @@ describe('compact hybrid UI refresh', () => {
     ).toHaveAttribute('href', '#/settings')
   })
 
-  it('renders program blocks collapsed by default with derived summaries', () => {
+  it('renders four editable program workouts collapsed by default', () => {
     render(<SettingsScreen />)
 
-    const volumeToggle = screen.getByRole('button', { name: /volume block/i })
-    const finisherToggle = screen.getByRole('button', { name: /finisher/i })
+    const maxDayToggle = screen.getByRole('button', {
+      name: /max day workout/i,
+    })
+    const topToggle = screen.getByRole('button', {
+      name: /top support workout/i,
+    })
+    const middleToggle = screen.getByRole('button', {
+      name: /middle support workout/i,
+    })
+    const lowToggle = screen.getByRole('button', {
+      name: /low support workout/i,
+    })
 
+    expect(maxDayToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(topToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(middleToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(lowToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'Max day' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Support' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Weak points' })).toBeNull()
     expect(screen.queryByRole('button', { name: /warm-up/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /main set/i })).toBeNull()
     expect(screen.queryByLabelText(/fatigue sensitivity/i)).toBeNull()
     expect(screen.queryByLabelText(/joint-pain sensitivity/i)).toBeNull()
-    expect(volumeToggle).toHaveAttribute('aria-expanded', 'false')
-    expect(finisherToggle).toHaveAttribute('aria-expanded', 'false')
     expect(
       screen.getByText(
         (content) =>
-          content.includes('1 step') && content.includes('EMOM pull-up block'),
+          content.includes('2 steps') &&
+          content.includes('EMOM pull-up block') &&
+          content.includes('Top hold'),
       ),
     ).toBeInTheDocument()
   })
 
-  it('keeps a single program block open at a time', async () => {
+  it('keeps a single program workout open at a time', async () => {
     const user = userEvent.setup()
 
     render(<SettingsScreen />)
 
-    const volumeToggle = screen.getByRole('button', { name: /volume block/i })
-    const finisherToggle = screen.getByRole('button', { name: /finisher/i })
+    const maxDayToggle = screen.getByRole('button', {
+      name: /max day workout/i,
+    })
+    const topToggle = screen.getByRole('button', {
+      name: /top support workout/i,
+    })
 
-    await user.click(volumeToggle)
-    expect(volumeToggle).toHaveAttribute('aria-expanded', 'true')
+    await user.click(maxDayToggle)
+    expect(maxDayToggle).toHaveAttribute('aria-expanded', 'true')
     expect(
       screen.getByDisplayValue(
         /adjust reps if needed so you can complete all 10 minutes with clean form/i,
       ),
     ).toBeInTheDocument()
-
-    await user.click(finisherToggle)
-    expect(volumeToggle).toHaveAttribute('aria-expanded', 'false')
-    expect(finisherToggle).toHaveAttribute('aria-expanded', 'true')
     expect(
       screen.getByDisplayValue(
         /chin above bar\. gradually try to increase the hold time over the weeks\./i,
       ),
     ).toBeInTheDocument()
+
+    await user.click(topToggle)
+    expect(maxDayToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(topToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByText(/used in every support workout/i),
+    ).toBeInTheDocument()
   })
 
-  it('shows EMOM inputs only on EMOM-based program steps', async () => {
+  it('shows workout-specific fields and supports adding/removing exercises', async () => {
     const user = userEvent.setup()
 
     render(<SettingsScreen />)
 
-    await user.click(screen.getByRole('button', { name: /volume block/i }))
+    await user.click(screen.getByRole('button', { name: /max day workout/i }))
     expect(screen.getByLabelText(/emom min/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/emom reps/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/hold sec/i)).toBeNull()
-
-    await user.click(screen.getByRole('button', { name: /finisher/i }))
-    expect(screen.queryByLabelText(/emom min/i)).toBeNull()
-    expect(screen.queryByLabelText(/emom reps/i)).toBeNull()
     expect(screen.getByLabelText(/hold sec/i)).toBeInTheDocument()
+    expect(screen.getAllByLabelText(/choose from library/i)).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: /add exercise/i }))
+    expect(screen.getAllByLabelText(/choose from library/i)).toHaveLength(3)
 
     await user.click(
-      screen.getByRole('button', { name: /generic support fallback/i }),
+      screen.getAllByRole('button', { name: /remove exercise/i })[0]!,
+    )
+    expect(screen.getAllByLabelText(/choose from library/i)).toHaveLength(2)
+
+    await user.click(
+      screen.getByRole('button', { name: /middle support workout/i }),
     )
     expect(screen.queryByLabelText(/emom min/i)).toBeNull()
     expect(screen.queryByLabelText(/emom reps/i)).toBeNull()
-    expect(screen.getByLabelText(/reps/i)).toBeInTheDocument()
+    expect(screen.getAllByLabelText(/reps/i).length).toBeGreaterThan(0)
     expect(screen.getByLabelText(/hold sec/i)).toBeInTheDocument()
   })
 

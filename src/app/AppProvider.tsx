@@ -460,6 +460,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  const saveCurrentWorkoutDraft = useCallback(
+    async (draft: WorkoutLogDraft) => {
+      try {
+        await persistWorkoutDraft(draft)
+        setWorkoutDraft(draft)
+        return true
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Unable to save workout draft.',
+        })
+        return false
+      }
+    },
+    [],
+  )
+
+  const clearCurrentWorkoutDraft = useCallback(async () => {
+    try {
+      await deleteStoredWorkoutDraft()
+      setWorkoutDraft(null)
+      return true
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to clear workout draft.',
+      })
+      return false
+    }
+  }, [])
+
   async function importBackup(rawText: string) {
     const parsed = parseImportBundle(rawText)
 
@@ -492,40 +529,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           error instanceof Error
             ? error.message
             : 'Unable to import that backup.',
-      })
-      return false
-    }
-  }
-
-  async function saveCurrentWorkoutDraft(draft: WorkoutLogDraft) {
-    try {
-      await persistWorkoutDraft(draft)
-      setWorkoutDraft(draft)
-      return true
-    } catch (error) {
-      setNotice({
-        tone: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to save workout draft.',
-      })
-      return false
-    }
-  }
-
-  async function clearCurrentWorkoutDraft() {
-    try {
-      await deleteStoredWorkoutDraft()
-      setWorkoutDraft(null)
-      return true
-    } catch (error) {
-      setNotice({
-        tone: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to clear workout draft.',
       })
       return false
     }

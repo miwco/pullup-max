@@ -180,9 +180,60 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.queryByLabelText(/block label/i)).toBeNull()
     expect(screen.queryByLabelText(/^exercise$/i)).toBeNull()
     expect(screen.queryByLabelText(/^seconds$/i)).toBeNull()
+    expect(screen.getByLabelText(/timer sound/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/volume/i)).toBeInTheDocument()
+    expect(screen.getByText('Pull-up block timer')).toBeInTheDocument()
+    expect(screen.getByText('Hold timer')).toBeInTheDocument()
+    expect(screen.getAllByText(/10s prep/i)).toHaveLength(2)
+    expect(screen.getByText(/work 15s/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/rest 60s/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/rest 2:00/i)).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /add row/i }),
     ).not.toBeInTheDocument()
+  })
+
+  it('adds five seconds to the EMOM work window for each rep above three', () => {
+    const customState = createMockAppState()
+    vi.mocked(customState.getProgramPrefill).mockReturnValue([
+      createPrefillRow({
+        templateStepId: 'max-row',
+        presetKey: 'max-row',
+        label: 'EMOM pull-up block',
+        exerciseName: 'EMOM pull-up block',
+        target: {
+          mode: 'emom',
+          summary: '10m EMOM @ 5',
+          entrySets: 1,
+          entryReps: 50,
+          emomMinutes: 10,
+          emomSegments: [{ sets: 10, reps: 5 }],
+        },
+      }),
+    ])
+    mockedUseAppState.mockReturnValue(customState)
+
+    render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    expect(screen.getByText(/work 25s/i)).toBeInTheDocument()
+  })
+
+  it('keeps readiness and joint pain fields inside optional detail', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    expect(screen.queryByLabelText(/fatigue before/i)).toBeNull()
+    expect(screen.queryByLabelText(/elbow pain/i)).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /readiness detail/i }))
+
+    expect(screen.getByLabelText(/fatigue before/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/elbow pain/i)).toBeInTheDocument()
   })
 
   it('does not warn when switching session type with untouched preset rows', async () => {
@@ -245,6 +296,22 @@ describe('LogWorkoutScreen preset rows', () => {
     })
 
     expect(screen.getByText(/draft saved/i)).toBeInTheDocument()
+  })
+
+  it('starts the next-exercise rest timer when a row is marked', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    expect(screen.queryByRole('button', { name: /pause rest/i })).toBeNull()
+
+    await user.click(screen.getAllByRole('button', { name: /^pass$/i })[0]!)
+
+    expect(
+      screen.getByRole('button', { name: /pause rest/i }),
+    ).toBeInTheDocument()
   })
 
   it('restores an existing in-progress workout draft', () => {

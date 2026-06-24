@@ -320,8 +320,8 @@ function EmomTimer({
         <p className="metric-label">Pull-up block timer</p>
         <strong>{phaseLabel}</strong>
         <p className="muted-text">
-          {PREP_SECONDS}s prep • {roundCount} rounds • {roundReps} reps • work{' '}
-          {workSeconds}s • rest {EMOM_REST_SECONDS}s
+          {PREP_SECONDS}s prep - {roundCount} rounds - {roundReps} reps - work{' '}
+          {workSeconds}s - rest {EMOM_REST_SECONDS}s
         </p>
       </div>
 
@@ -506,7 +506,7 @@ function HoldTimer({
         <p className="metric-label">Hold timer</p>
         <strong>{phaseLabel}</strong>
         <p className="muted-text">
-          {PREP_SECONDS}s prep • {setCount} holds • {holdSeconds}s work • rest{' '}
+          {PREP_SECONDS}s prep - {setCount} holds - {holdSeconds}s work - rest{' '}
           {formatTimer(timer.restSeconds)}
         </p>
       </div>
@@ -560,6 +560,212 @@ function HoldTimer({
               previousPhase: null,
               restSeconds: timer.restSeconds,
               secondsRemaining: holdSeconds,
+            })
+          }
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DurationTimer({
+  entry,
+  soundSettings,
+}: {
+  entry: WorkoutLogEntryDraft
+  soundSettings: TimerSoundSettings
+}) {
+  const workSeconds = entry.target.entryDurationSeconds ?? 0
+  const setCount = entry.target.entrySets
+  const [timer, setTimer] = useState(() => ({
+    currentSet: 1,
+    isRunning: false,
+    phase: 'ready' as TimerPhase,
+    previousPhase: null as TimerPhase | null,
+    restSeconds: DEFAULT_HOLD_REST_SECONDS,
+    secondsRemaining: workSeconds,
+  }))
+
+  useTimerBeeps({
+    isRunning: timer.isRunning,
+    phase: timer.phase,
+    previousPhase: timer.previousPhase,
+    secondsRemaining: timer.secondsRemaining,
+    soundSettings,
+  })
+
+  useEffect(() => {
+    if (
+      !timer.isRunning ||
+      timer.phase === 'ready' ||
+      timer.phase === 'complete'
+    ) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      setTimer((current) => {
+        if (!current.isRunning) {
+          return current
+        }
+
+        if (current.secondsRemaining > 1) {
+          return {
+            ...current,
+            secondsRemaining: current.secondsRemaining - 1,
+          }
+        }
+
+        if (current.phase === 'prep') {
+          return {
+            ...current,
+            phase: 'work',
+            previousPhase: 'prep',
+            secondsRemaining: workSeconds,
+          }
+        }
+
+        if (current.phase === 'work') {
+          if (current.currentSet >= setCount) {
+            return {
+              ...current,
+              isRunning: false,
+              phase: 'complete',
+              previousPhase: 'work',
+              secondsRemaining: 0,
+            }
+          }
+
+          return {
+            ...current,
+            phase: 'rest',
+            previousPhase: 'work',
+            secondsRemaining: current.restSeconds,
+          }
+        }
+
+        if (current.phase === 'rest') {
+          return {
+            ...current,
+            currentSet: current.currentSet + 1,
+            phase: 'prep',
+            previousPhase: 'rest',
+            secondsRemaining: PREP_SECONDS,
+          }
+        }
+
+        return current
+      })
+    }, 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [setCount, timer.isRunning, timer.phase, workSeconds])
+
+  function startTimer() {
+    setTimer((current) => ({
+      ...current,
+      currentSet: current.phase === 'complete' ? 1 : current.currentSet,
+      isRunning: true,
+      phase: current.phase === 'rest' ? 'rest' : 'prep',
+      previousPhase: current.phase,
+      secondsRemaining:
+        current.phase === 'ready' || current.phase === 'complete'
+          ? PREP_SECONDS
+          : current.secondsRemaining,
+    }))
+  }
+
+  function updateRestMinutes(value: string) {
+    const minutes = Number(value)
+
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      return
+    }
+
+    const nextRestSeconds = Math.round(minutes * 60)
+    setTimer((current) => ({
+      ...current,
+      restSeconds: nextRestSeconds,
+      secondsRemaining:
+        current.phase === 'rest' && !current.isRunning
+          ? nextRestSeconds
+          : current.secondsRemaining,
+    }))
+  }
+
+  const phaseLabel =
+    timer.phase === 'complete'
+      ? 'Work complete'
+      : timer.phase === 'prep'
+        ? 'Get ready'
+        : timer.phase === 'rest'
+          ? 'Rest before next set'
+          : timer.phase === 'work'
+            ? 'Work now'
+            : 'Ready'
+
+  return (
+    <div className="timer-panel">
+      <div>
+        <p className="metric-label">Timed exercise timer</p>
+        <strong>{phaseLabel}</strong>
+        <p className="muted-text">
+          {PREP_SECONDS}s prep - {setCount} sets - {workSeconds}s work - rest{' '}
+          {formatTimer(timer.restSeconds)}
+        </p>
+      </div>
+
+      <div className="timer-panel__readout">
+        <span>{formatTimer(timer.secondsRemaining)}</span>
+        <small>
+          Set {Math.min(timer.currentSet, setCount)} / {setCount}
+        </small>
+      </div>
+
+      <label className="field timer-panel__input">
+        <span>Rest min</span>
+        <input
+          type="number"
+          min="1"
+          step="1"
+          value={Math.round(timer.restSeconds / 60)}
+          onChange={(event) => updateRestMinutes(event.target.value)}
+        />
+      </label>
+
+      <div className="button-row">
+        <button
+          type="button"
+          className="button button--primary button--compact"
+          onClick={
+            timer.isRunning
+              ? () =>
+                  setTimer((current) => ({
+                    ...current,
+                    isRunning: false,
+                  }))
+              : startTimer
+          }
+        >
+          {timer.isRunning
+            ? 'Pause'
+            : timer.phase === 'ready'
+              ? 'Start'
+              : 'Resume'}
+        </button>
+        <button
+          type="button"
+          className="button button--ghost button--compact"
+          onClick={() =>
+            setTimer({
+              currentSet: 1,
+              isRunning: false,
+              phase: 'ready',
+              previousPhase: null,
+              restSeconds: timer.restSeconds,
+              secondsRemaining: workSeconds,
             })
           }
         >
@@ -724,16 +930,6 @@ export function LogWorkoutScreen({
   )
   const [maxReps, setMaxReps] = useState(workoutDraft?.maxReps ?? '')
   const [videoLink, setVideoLink] = useState(workoutDraft?.videoLink ?? '')
-  const [fatigueBefore, setFatigueBefore] = useState(
-    workoutDraft?.fatigueBefore ?? '',
-  )
-  const [fatigueAfter, setFatigueAfter] = useState(
-    workoutDraft?.fatigueAfter ?? '',
-  )
-  const [elbowPain, setElbowPain] = useState(workoutDraft?.elbowPain ?? '')
-  const [shoulderPain, setShoulderPain] = useState(
-    workoutDraft?.shoulderPain ?? '',
-  )
   const [failurePoint, setFailurePoint] = useState<FailurePoint | ''>(
     workoutDraft?.failurePoint ?? '',
   )
@@ -751,7 +947,6 @@ export function LogWorkoutScreen({
           ),
         ),
   )
-  const [showReadinessDetail, setShowReadinessDetail] = useState(false)
   const [showMaxDetail, setShowMaxDetail] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -804,32 +999,28 @@ export function LogWorkoutScreen({
     () => ({
       id: 'current-workout',
       date,
-      elbowPain,
+      elbowPain: '',
       entries,
       failurePoint,
-      fatigueAfter,
-      fatigueBefore,
+      fatigueAfter: '',
+      fatigueBefore: '',
       maxReps,
       notes,
       qualityFlag,
       sessionType,
-      shoulderPain,
+      shoulderPain: '',
       supportFocus,
       updatedAt: new Date().toISOString(),
       videoLink,
     }),
     [
       date,
-      elbowPain,
       entries,
       failurePoint,
-      fatigueAfter,
-      fatigueBefore,
       maxReps,
       notes,
       qualityFlag,
       sessionType,
-      shoulderPain,
       supportFocus,
       videoLink,
     ],
@@ -938,10 +1129,6 @@ export function LogWorkoutScreen({
     setDate(todayDateString())
     setMaxReps('')
     setVideoLink('')
-    setFatigueBefore('')
-    setFatigueAfter('')
-    setElbowPain('')
-    setShoulderPain('')
     setFailurePoint('')
     setQualityFlag('')
     setNotes('')
@@ -1021,10 +1208,6 @@ export function LogWorkoutScreen({
       session: {
         date,
         sessionType,
-        fatigueBefore: parseOptionalNumber(fatigueBefore),
-        fatigueAfter: parseOptionalNumber(fatigueAfter),
-        elbowPain: parseOptionalNumber(elbowPain),
-        shoulderPain: parseOptionalNumber(shoulderPain),
         notes: notes.trim(),
       },
       entries: cleanedEntries,
@@ -1143,72 +1326,6 @@ export function LogWorkoutScreen({
               />
             </label>
           </div>
-
-          <AccordionSection
-            eyebrow="Optional"
-            title="Readiness detail"
-            isOpen={showReadinessDetail}
-            onToggle={() => setShowReadinessDetail((current) => !current)}
-            summary="Fatigue and joint pain"
-          >
-            <div className="field-grid field-grid--compact">
-              <label className="field">
-                <span>Fatigue before</span>
-                <input
-                  name="fatigue-before"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  placeholder="1-5"
-                  value={fatigueBefore}
-                  onChange={(event) =>
-                    updateText(setFatigueBefore, event.target.value)
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Fatigue after</span>
-                <input
-                  name="fatigue-after"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  placeholder="1-5"
-                  value={fatigueAfter}
-                  onChange={(event) =>
-                    updateText(setFatigueAfter, event.target.value)
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Elbow pain</span>
-                <input
-                  name="elbow-pain"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  placeholder="0-5"
-                  value={elbowPain}
-                  onChange={(event) =>
-                    updateText(setElbowPain, event.target.value)
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Shoulder pain</span>
-                <input
-                  name="shoulder-pain"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  placeholder="0-5"
-                  value={shoulderPain}
-                  onChange={(event) =>
-                    updateText(setShoulderPain, event.target.value)
-                  }
-                />
-              </label>
-            </div>
-          </AccordionSection>
         </Section>
 
         {sessionType === 'max' ? (
@@ -1340,6 +1457,14 @@ export function LogWorkoutScreen({
                 {entry.target.mode === 'hold-seconds' &&
                 typeof entry.target.entryDurationSeconds === 'number' ? (
                   <HoldTimer entry={entry} soundSettings={timerSoundSettings} />
+                ) : null}
+
+                {entry.target.mode === 'duration-seconds' &&
+                typeof entry.target.entryDurationSeconds === 'number' ? (
+                  <DurationTimer
+                    entry={entry}
+                    soundSettings={timerSoundSettings}
+                  />
                 ) : null}
 
                 <RestTimer

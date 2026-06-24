@@ -180,6 +180,11 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.queryByLabelText(/block label/i)).toBeNull()
     expect(screen.queryByLabelText(/^exercise$/i)).toBeNull()
     expect(screen.queryByLabelText(/^seconds$/i)).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /readiness detail/i }),
+    ).toBeNull()
+    expect(screen.queryByLabelText(/fatigue before/i)).toBeNull()
+    expect(screen.queryByLabelText(/elbow pain/i)).toBeNull()
     expect(screen.queryByLabelText(/timer sound/i)).toBeNull()
     expect(screen.queryByLabelText(/timer volume/i)).toBeNull()
     expect(screen.getByText('Pull-up block timer')).toBeInTheDocument()
@@ -278,20 +283,34 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.getByText(/work 25s/i)).toBeInTheDocument()
   })
 
-  it('keeps readiness and joint pain fields inside optional detail', async () => {
-    const user = userEvent.setup()
+  it('adds a timer for duration-based preset rows', () => {
+    const customState = createMockAppState()
+    vi.mocked(customState.getProgramPrefill).mockReturnValue([
+      createPrefillRow({
+        templateStepId: 'duration-row',
+        presetKey: 'duration-row',
+        label: 'Grip endurance work',
+        exerciseName: 'Grip endurance work',
+        target: {
+          mode: 'duration-seconds',
+          summary: '2x30s',
+          entrySets: 2,
+          entryDurationSeconds: 30,
+        },
+      }),
+    ])
+    mockedUseAppState.mockReturnValue(customState)
 
     render(
-      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+      <LogWorkoutScreen
+        prefill={true}
+        requestedType="support"
+        onSaved={vi.fn()}
+      />,
     )
 
-    expect(screen.queryByLabelText(/fatigue before/i)).toBeNull()
-    expect(screen.queryByLabelText(/elbow pain/i)).toBeNull()
-
-    await user.click(screen.getByRole('button', { name: /readiness detail/i }))
-
-    expect(screen.getByLabelText(/fatigue before/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/elbow pain/i)).toBeInTheDocument()
+    expect(screen.getByText('Timed exercise timer')).toBeInTheDocument()
+    expect(screen.getByText(/30s work/i)).toBeInTheDocument()
   })
 
   it('does not warn when switching session type with untouched preset rows', async () => {

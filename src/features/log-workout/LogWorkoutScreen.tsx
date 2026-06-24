@@ -15,11 +15,13 @@ import type {
   ProgramEntryDraft,
   QualityFlag,
   SessionType,
+  SupportFocus,
   WorkoutLogDraft,
   WorkoutLogEntryDraft,
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
 import { createId } from '../../lib/id'
+import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
 interface LogWorkoutScreenProps {
@@ -37,6 +39,18 @@ const FAILURE_POINTS: FailurePoint[] = [
 ]
 
 const QUALITY_FLAGS: QualityFlag[] = ['clean', 'grindy', 'partial']
+type SupportWorkoutFocus = Extract<
+  SupportFocus,
+  'top' | 'middle' | 'start/bottom'
+>
+const SUPPORT_WORKOUT_OPTIONS: Array<{
+  id: SupportWorkoutFocus
+  label: string
+}> = [
+  { id: 'top', label: 'top' },
+  { id: 'middle', label: 'middle' },
+  { id: 'start/bottom', label: 'low' },
+]
 const PREP_SECONDS = 10
 const DEFAULT_EXERCISE_REST_SECONDS = 5 * 60
 const DEFAULT_HOLD_REST_SECONDS = 2 * 60
@@ -51,6 +65,20 @@ function parseOptionalNumber(value: string) {
 
   const nextNumber = Number(value)
   return Number.isFinite(nextNumber) ? nextNumber : undefined
+}
+
+function normalizeSupportWorkoutFocus(
+  supportFocus: SupportFocus | undefined,
+): SupportWorkoutFocus {
+  if (
+    supportFocus === 'top' ||
+    supportFocus === 'middle' ||
+    supportFocus === 'start/bottom'
+  ) {
+    return supportFocus
+  }
+
+  return 'middle'
 }
 
 function toDrafts(prefillRows: ProgramEntryDraft[]): WorkoutLogEntryDraft[] {
@@ -85,77 +113,6 @@ function formatDraftSavedAt(value: string | null) {
 
 type DraftSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type TimerPhase = 'ready' | 'prep' | 'work' | 'rest' | 'complete'
-type TimerSoundId = 'soft' | 'bright' | 'low'
-
-interface TimerSoundSettings {
-  soundId: TimerSoundId
-  volume: number
-}
-
-const TIMER_SOUND_OPTIONS: Array<{ id: TimerSoundId; label: string }> = [
-  { id: 'soft', label: 'Soft' },
-  { id: 'bright', label: 'Bright' },
-  { id: 'low', label: 'Low' },
-]
-
-let audioContext: AudioContext | null = null
-
-function getAudioContext() {
-  audioContext ??= new AudioContext()
-  return audioContext
-}
-
-function getToneFrequency(soundId: TimerSoundId, kind: 'countdown' | 'ending') {
-  const baseBySound: Record<TimerSoundId, number> = {
-    soft: 660,
-    bright: 920,
-    low: 440,
-  }
-
-  return baseBySound[soundId] + (kind === 'ending' ? 120 : 0)
-}
-
-function playTone(
-  settings: TimerSoundSettings,
-  kind: 'alarm' | 'countdown' | 'ending',
-) {
-  if (settings.volume <= 0) {
-    return
-  }
-
-  try {
-    const context = getAudioContext()
-    if (context.state === 'suspended') {
-      void context.resume()
-    }
-
-    const now = context.currentTime
-    const beepCount = kind === 'alarm' ? 3 : 1
-    const frequency =
-      kind === 'alarm'
-        ? getToneFrequency(settings.soundId, 'ending')
-        : getToneFrequency(settings.soundId, kind)
-
-    for (let index = 0; index < beepCount; index += 1) {
-      const oscillator = context.createOscillator()
-      const gain = context.createGain()
-      const start = now + index * 0.18
-      const stop = start + (kind === 'alarm' ? 0.12 : 0.08)
-
-      oscillator.type = settings.soundId === 'bright' ? 'square' : 'sine'
-      oscillator.frequency.setValueAtTime(frequency, start)
-      gain.gain.setValueAtTime(0, start)
-      gain.gain.linearRampToValueAtTime(settings.volume * 0.18, start + 0.01)
-      gain.gain.exponentialRampToValueAtTime(0.001, stop)
-      oscillator.connect(gain)
-      gain.connect(context.destination)
-      oscillator.start(start)
-      oscillator.stop(stop + 0.02)
-    }
-  } catch {
-    // Audio is a convenience cue; timer text still works if Web Audio is blocked.
-  }
-}
 
 function formatTimer(seconds: number) {
   const safeSeconds = Math.max(0, seconds)
@@ -755,8 +712,13 @@ export function LogWorkoutScreen({
   const recommendedType = data.recommendationState.nextSessionType
   const initialType = requestedType ?? recommendedType
   const initialSessionType = workoutDraft?.sessionType ?? initialType
+  const initialSupportFocus = normalizeSupportWorkoutFocus(
+    workoutDraft?.supportFocus ?? data.recommendationState.defaultSupportFocus,
+  )
   const [sessionType, setSessionType] =
     useState<SessionType>(initialSessionType)
+  const [supportFocus, setSupportFocus] =
+    useState<SupportWorkoutFocus>(initialSupportFocus)
   const [date, setDate] = useState(
     () => workoutDraft?.date ?? todayDateString(),
   )
@@ -782,7 +744,12 @@ export function LogWorkoutScreen({
   const [entries, setEntries] = useState<WorkoutLogEntryDraft[]>(() =>
     workoutDraft?.entries.length
       ? workoutDraft.entries
-      : toDrafts(getProgramPrefill(initialSessionType)),
+      : toDrafts(
+          getProgramPrefill(
+            initialSessionType,
+            initialSessionType === 'support' ? initialSupportFocus : undefined,
+          ),
+        ),
   )
   const [showReadinessDetail, setShowReadinessDetail] = useState(false)
   const [showMaxDetail, setShowMaxDetail] = useState(false)
@@ -790,7 +757,14 @@ export function LogWorkoutScreen({
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [entriesBaselineSignature, setEntriesBaselineSignature] = useState(() =>
-    createEntriesSignature(toDrafts(getProgramPrefill(initialSessionType))),
+    createEntriesSignature(
+      toDrafts(
+        getProgramPrefill(
+          initialSessionType,
+          initialSessionType === 'support' ? initialSupportFocus : undefined,
+        ),
+      ),
+    ),
   )
   const [hasInteracted, setHasInteracted] = useState(() => !!workoutDraft)
   const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>(
@@ -799,18 +773,16 @@ export function LogWorkoutScreen({
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(
     workoutDraft?.updatedAt ?? null,
   )
-  const [timerSoundId, setTimerSoundId] = useState<TimerSoundId>('bright')
-  const [timerVolume, setTimerVolume] = useState(0.7)
   const [restAutoStartByEntryId, setRestAutoStartByEntryId] = useState<
     Record<string, number>
   >({})
   const currentEntriesSignature = createEntriesSignature(entries)
   const timerSoundSettings = useMemo(
     () => ({
-      soundId: timerSoundId,
-      volume: timerVolume,
+      soundId: data.settings.timerSoundId,
+      volume: data.settings.timerVolume,
     }),
-    [timerSoundId, timerVolume],
+    [data.settings.timerSoundId, data.settings.timerVolume],
   )
   const savedAtLabel = formatDraftSavedAt(draftSavedAt)
   const draftStatusLabel =
@@ -842,6 +814,7 @@ export function LogWorkoutScreen({
       qualityFlag,
       sessionType,
       shoulderPain,
+      supportFocus,
       updatedAt: new Date().toISOString(),
       videoLink,
     }),
@@ -857,6 +830,7 @@ export function LogWorkoutScreen({
       qualityFlag,
       sessionType,
       shoulderPain,
+      supportFocus,
       videoLink,
     ],
   )
@@ -927,9 +901,14 @@ export function LogWorkoutScreen({
     }))
   }
 
-  function loadPrefill(nextType: SessionType) {
+  function loadPrefill(nextType: SessionType, nextSupportFocus = supportFocus) {
     markInteracted()
-    const nextEntries = toDrafts(getProgramPrefill(nextType))
+    const nextEntries = toDrafts(
+      getProgramPrefill(
+        nextType,
+        nextType === 'support' ? nextSupportFocus : undefined,
+      ),
+    )
     setEntries(nextEntries)
     setEntriesBaselineSignature(createEntriesSignature(nextEntries))
   }
@@ -945,8 +924,17 @@ export function LogWorkoutScreen({
 
     await clearWorkoutDraft()
 
-    const nextEntries = toDrafts(getProgramPrefill(initialType))
+    const nextSupportFocus = normalizeSupportWorkoutFocus(
+      data.recommendationState.defaultSupportFocus,
+    )
+    const nextEntries = toDrafts(
+      getProgramPrefill(
+        initialType,
+        initialType === 'support' ? nextSupportFocus : undefined,
+      ),
+    )
     setSessionType(initialType)
+    setSupportFocus(nextSupportFocus)
     setDate(todayDateString())
     setMaxReps('')
     setVideoLink('')
@@ -1081,44 +1069,6 @@ export function LogWorkoutScreen({
             </p>
           </div>
 
-          <div className="timer-settings">
-            <label className="field">
-              <span>Timer sound</span>
-              <select
-                value={timerSoundId}
-                onChange={(event) =>
-                  setTimerSoundId(event.target.value as TimerSoundId)
-                }
-              >
-                {TIMER_SOUND_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Volume</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={timerVolume}
-                onChange={(event) => setTimerVolume(Number(event.target.value))}
-              />
-            </label>
-
-            <button
-              type="button"
-              className="button button--ghost button--compact"
-              onClick={() => playTone(timerSoundSettings, 'alarm')}
-            >
-              Test sound
-            </button>
-          </div>
-
           {hasInteracted ? (
             <div className="button-row">
               <button
@@ -1144,13 +1094,43 @@ export function LogWorkoutScreen({
 
                   markInteracted()
                   setSessionType(type)
-                  loadPrefill(type)
+                  loadPrefill(type, supportFocus)
                 }}
               >
                 {type}
               </button>
             ))}
           </div>
+
+          {sessionType === 'support' ? (
+            <div
+              className="segment-row segment-row--triple"
+              role="tablist"
+              aria-label="Support workout"
+            >
+              {SUPPORT_WORKOUT_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`segment-row__item${supportFocus === option.id ? ' is-active' : ''}`}
+                  onClick={() => {
+                    if (
+                      option.id !== supportFocus &&
+                      !canReplaceWorkoutRows()
+                    ) {
+                      return
+                    }
+
+                    markInteracted()
+                    setSupportFocus(option.id)
+                    loadPrefill('support', option.id)
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <div className="field-grid field-grid--compact">
             <label className="field">

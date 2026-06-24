@@ -17,6 +17,7 @@ import type {
   ProgramTemplate,
   SaveSessionInput,
   SessionType,
+  SupportFocus,
   WorkoutLogDraft,
 } from '../domain/types'
 
@@ -50,7 +51,10 @@ export interface AppContextValue {
   errorMessage: string | null
   exportBackup: () => string
   clearWorkoutDraft: () => Promise<boolean>
-  getProgramPrefill: (sessionType: SessionType) => ProgramEntryDraft[]
+  getProgramPrefill: (
+    sessionType: SessionType,
+    supportFocus?: SupportFocus,
+  ) => ProgramEntryDraft[]
   importBackup: (rawText: string) => Promise<boolean>
   isReady: boolean
   latestBodyweightEntry: BodyweightEntry | null

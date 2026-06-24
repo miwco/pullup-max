@@ -34,8 +34,7 @@ export function serializeExportBundle(data: AppData) {
 export function serializeMaxTestsCsv(data: AppData): string {
   const sessionById = new Map(data.sessions.map((s) => [s.id, s]))
 
-  const header =
-    'date,movement,reps,failure_point,quality_flag,bodyweight_kg\n'
+  const header = 'date,movement,reps,failure_point,quality_flag,bodyweight_kg\n'
   const rows = [...data.maxTests]
     .sort((left, right) => {
       const dateLeft = sessionById.get(left.workoutSessionId)?.date ?? ''
@@ -86,11 +85,12 @@ export function parseImportBundle(
     parsed.version !== 4 &&
     parsed.version !== 5 &&
     parsed.version !== 6 &&
+    parsed.version !== 7 &&
     parsed.version !== EXPORT_FORMAT_VERSION
   ) {
     return {
       ok: false,
-      error: `Unsupported backup version. Expected 2, 3, 4, 5, 6, or ${EXPORT_FORMAT_VERSION}.`,
+      error: `Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, or ${EXPORT_FORMAT_VERSION}.`,
     }
   }
 

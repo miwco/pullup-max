@@ -46,6 +46,7 @@ import type {
   ProgramTemplate,
   SaveSessionInput,
   SessionType,
+  SupportFocus,
   WorkoutLogDraft,
 } from '../domain/types'
 import { todayDateString } from '../lib/date'
@@ -269,9 +270,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function getProgramPrefill(sessionType: SessionType) {
+  function getProgramPrefill(
+    sessionType: SessionType,
+    supportFocus?: SupportFocus,
+  ) {
     return buildProgramEntryDrafts(
-      getProgramStepsForRecommendation(data, sessionType),
+      getProgramStepsForRecommendation(data, sessionType, supportFocus),
       data.exercises,
       data.presetProgressions,
       latestLoggedMaxReps,

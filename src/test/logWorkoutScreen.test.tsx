@@ -180,8 +180,8 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.queryByLabelText(/block label/i)).toBeNull()
     expect(screen.queryByLabelText(/^exercise$/i)).toBeNull()
     expect(screen.queryByLabelText(/^seconds$/i)).toBeNull()
-    expect(screen.getByLabelText(/timer sound/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/volume/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/timer sound/i)).toBeNull()
+    expect(screen.queryByLabelText(/timer volume/i)).toBeNull()
     expect(screen.getByText('Pull-up block timer')).toBeInTheDocument()
     expect(screen.getByText('Hold timer')).toBeInTheDocument()
     expect(screen.getAllByText(/10s prep/i)).toHaveLength(2)
@@ -191,6 +191,64 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(
       screen.queryByRole('button', { name: /add row/i }),
     ).not.toBeInTheDocument()
+  })
+
+  it('lets support workouts switch between top, middle, and low presets', async () => {
+    const user = userEvent.setup()
+    const customState = createMockAppState()
+    vi.mocked(customState.getProgramPrefill).mockImplementation(
+      (type, supportFocus) => {
+        if (type === 'max') {
+          return []
+        }
+
+        return [
+          createPrefillRow({
+            templateStepId: `support-${supportFocus ?? 'middle'}`,
+            presetKey: `support-${supportFocus ?? 'middle'}`,
+            label:
+              supportFocus === 'top'
+                ? 'Top support'
+                : supportFocus === 'start/bottom'
+                  ? 'Low support'
+                  : 'Middle support',
+            target: {
+              mode: 'reps',
+              summary:
+                supportFocus === 'top'
+                  ? 'top target'
+                  : supportFocus === 'start/bottom'
+                    ? 'low target'
+                    : 'middle target',
+              entrySets: 2,
+              entryReps: 4,
+            },
+          }),
+        ]
+      },
+    )
+    customState.data.recommendationState.defaultSupportFocus = 'top'
+    mockedUseAppState.mockReturnValue(customState)
+
+    render(
+      <LogWorkoutScreen
+        prefill={true}
+        requestedType="support"
+        onSaved={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /^top$/i })).toHaveClass(
+      'is-active',
+    )
+    expect(screen.getByText('top target')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^low$/i }))
+
+    expect(screen.getByRole('button', { name: /^low$/i })).toHaveClass(
+      'is-active',
+    )
+    expect(screen.getByText('low target')).toBeInTheDocument()
   })
 
   it('adds five seconds to the EMOM work window for each rep above three', () => {

@@ -12,7 +12,7 @@ import { todayDateString } from '../lib/date'
 import { createMovementExerciseSpecs, MAIN_MOVEMENTS } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 
-export const EXPORT_FORMAT_VERSION = 7
+export const EXPORT_FORMAT_VERSION = 8
 
 const DEFAULT_EXERCISE_SPECS: Array<
   Omit<Exercise, 'id' | 'active' | 'builtIn'>
@@ -53,6 +53,8 @@ export function createDefaultSettings(): AppSettings {
     cycleLengthDays: DEFAULT_CYCLE_LENGTH_DAYS,
     exportFormatVersion: EXPORT_FORMAT_VERSION,
     onboardingDismissed: false,
+    timerSoundId: 'bright',
+    timerVolume: 0.7,
   }
 }
 

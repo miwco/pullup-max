@@ -94,8 +94,9 @@ function getSupportFocus(input: RecommendationInput): SupportFocus {
 export function getAdjustedProgramSteps(
   input: RecommendationInput,
   sessionType: 'max' | 'support',
+  supportFocusOverride?: SupportFocus,
 ) {
-  const supportFocus = getSupportFocus(input)
+  const supportFocus = supportFocusOverride ?? getSupportFocus(input)
   let steps: ProgramStep[] = getProgramStepsForSession(
     input.programTemplate,
     sessionType,

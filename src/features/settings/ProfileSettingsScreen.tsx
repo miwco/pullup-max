@@ -9,8 +9,9 @@ import {
 } from '../../domain/cycle'
 import { serializeMaxTestsCsv } from '../../domain/importExport'
 import { MAIN_MOVEMENTS } from '../../domain/mainMovement'
-import type { MainMovement } from '../../domain/types'
+import type { MainMovement, TimerSoundId } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
+import { playTone, TIMER_SOUND_OPTIONS } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
 const CYCLE_LENGTH_PRESETS = [
@@ -77,6 +78,10 @@ export function ProfileSettingsScreen() {
   const [bandsAvailable, setBandsAvailable] = useState(
     data.settings.bandsAvailable,
   )
+  const [timerSoundId, setTimerSoundId] = useState<TimerSoundId>(
+    data.settings.timerSoundId,
+  )
+  const [timerVolume, setTimerVolume] = useState(data.settings.timerVolume)
   const [notes, setNotes] = useState(data.athleteProfile.notes)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -88,6 +93,8 @@ export function ProfileSettingsScreen() {
     cycleLengthDays !== String(data.settings.cycleLengthDays) ||
     bodyweightTrackingEnabled !== data.settings.bodyweightTrackingEnabled ||
     bandsAvailable !== data.settings.bandsAvailable ||
+    timerSoundId !== data.settings.timerSoundId ||
+    timerVolume !== data.settings.timerVolume ||
     notes !== data.athleteProfile.notes
 
   const cyclePlannerError = getCyclePlannerError(
@@ -107,6 +114,8 @@ export function ProfileSettingsScreen() {
       setCycleLengthDays(String(data.settings.cycleLengthDays))
       setBodyweightTrackingEnabled(data.settings.bodyweightTrackingEnabled)
       setBandsAvailable(data.settings.bandsAvailable)
+      setTimerSoundId(data.settings.timerSoundId)
+      setTimerVolume(data.settings.timerVolume)
       setNotes(data.athleteProfile.notes)
     })
   }, [data, hasChanges])
@@ -159,6 +168,8 @@ export function ProfileSettingsScreen() {
         bodyweightTrackingEnabled,
         bandsAvailable,
         cycleLengthDays: Number(cycleLengthDays),
+        timerSoundId,
+        timerVolume,
       },
       data.programTemplate,
     )
@@ -289,6 +300,53 @@ export function ProfileSettingsScreen() {
               />
             </label>
 
+            <label className="field">
+              <span>Timer sound</span>
+              <select
+                value={timerSoundId}
+                onChange={(event) =>
+                  setTimerSoundId(event.target.value as TimerSoundId)
+                }
+              >
+                {TIMER_SOUND_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Timer volume</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={timerVolume}
+                onChange={(event) => setTimerVolume(Number(event.target.value))}
+              />
+            </label>
+
+            <div className="field field--span-2">
+              <span>Timer preview</span>
+              <button
+                type="button"
+                className="button button--ghost button--compact"
+                onClick={() =>
+                  playTone(
+                    {
+                      soundId: timerSoundId,
+                      volume: timerVolume,
+                    },
+                    'alarm',
+                  )
+                }
+              >
+                Test sound
+              </button>
+            </div>
+
             <label className="field field--span-2">
               <span>Notes</span>
               <textarea
@@ -309,7 +367,7 @@ export function ProfileSettingsScreen() {
               className="button button--primary"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving…' : 'Save settings'}
+              {isSaving ? 'Saving...' : 'Save settings'}
             </button>
           </div>
         </Section>

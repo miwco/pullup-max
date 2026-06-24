@@ -13,6 +13,7 @@ export type PresetTargetMode =
   | 'reps'
   | 'hold-seconds'
   | 'duration-seconds'
+export type TimerSoundId = 'soft' | 'bright' | 'low'
 export type FailurePoint =
   | 'top'
   | 'middle'
@@ -178,6 +179,8 @@ export interface AppSettings {
   cycleLengthDays: number
   exportFormatVersion: number
   onboardingDismissed: boolean
+  timerSoundId: TimerSoundId
+  timerVolume: number
 }
 
 export interface AppData {
@@ -301,6 +304,7 @@ export interface WorkoutLogDraft {
   qualityFlag: QualityFlag | ''
   sessionType: SessionType
   shoulderPain: string
+  supportFocus?: Extract<SupportFocus, 'top' | 'middle' | 'start/bottom'>
   updatedAt: string
   videoLink: string
 }

@@ -81,7 +81,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(7)
+      expect(parsed.value.version).toBe(8)
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Ring pull-up')
       expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
         seeded.athleteProfile.cycleEndDate,
@@ -149,7 +149,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(7)
+      expect(parsed.value.version).toBe(8)
       expect(parsed.value.data.sessions[0]?.sessionType).toBe('support')
       expect(parsed.value.data.exercises[0]?.type).toBe('support')
       expect(parsed.value.data.maxTests[0]?.failurePoint).toBe('top')
@@ -172,7 +172,7 @@ describe('import/export validation', () => {
   it('normalizes unsupported main movement values back to Pull-up', () => {
     const seeded = createSeedData('2026-04-18')
     const invalidMovementBundle = JSON.stringify({
-      version: 7,
+      version: 8,
       exportedAt: new Date().toISOString(),
       data: {
         ...seeded,
@@ -360,13 +360,13 @@ describe('import/export validation', () => {
 
     expect(parseImportBundle(unsupportedVersion)).toEqual({
       ok: false,
-      error: 'Unsupported backup version. Expected 2, 3, 4, 5, 6, or 7.',
+      error: 'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, or 8.',
     })
   })
 
   it('rejects structurally invalid backup data', () => {
     const invalidBundle = JSON.stringify({
-      version: 7,
+      version: 8,
       exportedAt: new Date().toISOString(),
       data: {
         athleteProfile: null,

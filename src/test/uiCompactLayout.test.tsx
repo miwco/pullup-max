@@ -479,6 +479,11 @@ describe('compact hybrid UI refresh', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Storage protection')).toBeInTheDocument()
     expect(screen.getByText('Not locked')).toBeInTheDocument()
+    expect(screen.getByLabelText(/timer sound/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/timer volume/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /test sound/i }),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /protect local storage/i }),
     ).toBeInTheDocument()
@@ -498,6 +503,10 @@ describe('compact hybrid UI refresh', () => {
     render(<ProfileSettingsScreen />)
 
     await user.selectOptions(screen.getByLabelText(/main movement/i), 'Chin-up')
+    await user.selectOptions(screen.getByLabelText(/timer sound/i), 'low')
+    fireEvent.change(screen.getByLabelText(/timer volume/i), {
+      target: { value: '0.3' },
+    })
     await user.click(screen.getByRole('button', { name: /save settings/i }))
 
     expect(saveSettingsAndProgram).toHaveBeenCalledWith(
@@ -508,6 +517,14 @@ describe('compact hybrid UI refresh', () => {
       expect.not.objectContaining({
         fatigueSensitivity: expect.anything(),
         jointPainSensitivity: expect.anything(),
+      }),
+      expect.any(Object),
+    )
+    expect(saveSettingsAndProgram).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        timerSoundId: 'low',
+        timerVolume: 0.3,
       }),
       expect.any(Object),
     )

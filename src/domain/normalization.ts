@@ -1,4 +1,8 @@
-import { createDefaultRecommendationState, createSeedData } from './defaults'
+import {
+  EXPORT_FORMAT_VERSION,
+  createDefaultRecommendationState,
+  createSeedData,
+} from './defaults'
 import { clampCycleLengthDays, getCycleEndDateForLength } from './cycle'
 import { normalizeMainMovement } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
@@ -18,6 +22,7 @@ import type {
   ProgramStep,
   ProgramTemplate,
   QualityFlag,
+  TimerSoundId,
   TrendClassification,
   WorkoutSession,
 } from './types'
@@ -44,6 +49,7 @@ const VALID_PRESET_TARGET_MODES = new Set<PresetTargetMode>([
   'hold-seconds',
   'duration-seconds',
 ])
+const VALID_TIMER_SOUND_IDS = new Set<TimerSoundId>(['soft', 'bright', 'low'])
 const LEGACY_QUALITY_FLAGS = new Map<string, QualityFlag>([
   ['cleaner', 'clean'],
   ['stronger', 'clean'],
@@ -144,6 +150,16 @@ function normalizeSettings(value: unknown): AppSettings | null {
       typeof value.onboardingDismissed === 'boolean'
         ? value.onboardingDismissed
         : true,
+    timerSoundId:
+      typeof value.timerSoundId === 'string' &&
+      VALID_TIMER_SOUND_IDS.has(value.timerSoundId as TimerSoundId)
+        ? (value.timerSoundId as TimerSoundId)
+        : 'bright',
+    timerVolume:
+      typeof value.timerVolume === 'number' &&
+      Number.isFinite(value.timerVolume)
+        ? Math.min(1, Math.max(0, value.timerVolume))
+        : 0.7,
   }
 }
 
@@ -685,7 +701,7 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
     athleteProfile,
     settings: {
       ...settings,
-      exportFormatVersion: 7,
+      exportFormatVersion: EXPORT_FORMAT_VERSION,
     },
     exercises,
     bodyweightEntries: normalizeBodyweightEntries(value.bodyweightEntries),

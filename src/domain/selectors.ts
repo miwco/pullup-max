@@ -515,6 +515,7 @@ export function getDefaultSupportFocus(
 export function getProgramStepsForRecommendation(
   data: AppData,
   sessionType: SessionType,
+  supportFocus?: SupportFocus,
 ): ProgramStep[] {
   const input = buildRecommendationInput(data)
   return getAdjustedProgramSteps(
@@ -526,6 +527,7 @@ export function getProgramStepsForRecommendation(
           : 0,
     },
     sessionType,
+    supportFocus,
   )
 }
 

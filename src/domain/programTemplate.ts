@@ -1,6 +1,7 @@
 import { createId } from '../lib/id'
 import { resolveProgramStepsForMainMovement } from './mainMovement'
 import type {
+  CyclePhase,
   Exercise,
   FailurePoint,
   MainMovement,
@@ -43,6 +44,178 @@ function createProgramStep(
 
 function cloneSteps(steps: ProgramStep[]) {
   return structuredClone(steps)
+}
+
+function appendPhaseNote(step: ProgramStep, note: string): ProgramStep {
+  return {
+    ...step,
+    notes: step.notes ? `${step.notes} ${note}` : note,
+  }
+}
+
+function getStepSets(step: ProgramStep, fallback = 1) {
+  return typeof step.sets === 'number' && Number.isFinite(step.sets)
+    ? Math.max(1, Math.round(step.sets))
+    : fallback
+}
+
+function getStepReps(step: ProgramStep, fallback = 1) {
+  return typeof step.reps === 'number' && Number.isFinite(step.reps)
+    ? Math.max(1, Math.round(step.reps))
+    : fallback
+}
+
+function isEmomStep(step: ProgramStep) {
+  return (
+    typeof step.emomMinutes === 'number' || typeof step.emomReps === 'number'
+  )
+}
+
+function withEmomMinutes(step: ProgramStep, emomMinutes: number): ProgramStep {
+  return {
+    ...step,
+    emomMinutes,
+    notes: step.notes.replace(/\b\d+ minutes\b/g, `${emomMinutes} minutes`),
+  }
+}
+
+function applyBuildStepAdjustment(step: ProgramStep, bandsAvailable: boolean) {
+  let nextStep = appendPhaseNote(
+    step,
+    'Build phase: use more easy exposures and stop every set clean.',
+  )
+
+  if (isEmomStep(nextStep)) {
+    return withEmomMinutes(nextStep, Math.max(12, nextStep.emomMinutes ?? 10))
+  }
+
+  if (typeof nextStep.holdSeconds === 'number') {
+    return {
+      ...nextStep,
+      sets: getStepSets(nextStep) + 1,
+      holdSeconds: Math.max(8, Math.round(nextStep.holdSeconds * 0.75)),
+    }
+  }
+
+  if (typeof nextStep.durationSeconds === 'number') {
+    return {
+      ...nextStep,
+      sets: getStepSets(nextStep) + 1,
+      durationSeconds: Math.max(
+        10,
+        Math.round(nextStep.durationSeconds * 0.75),
+      ),
+    }
+  }
+
+  if (
+    typeof nextStep.reps === 'number' ||
+    typeof nextStep.minReps === 'number'
+  ) {
+    nextStep = {
+      ...nextStep,
+      sets: getStepSets(nextStep) + 2,
+      reps:
+        typeof nextStep.minReps === 'number'
+          ? nextStep.minReps
+          : Math.max(1, getStepReps(nextStep) - 1),
+    }
+  }
+
+  if (bandsAvailable && nextStep.bandAllowed) {
+    nextStep = appendPhaseNote(
+      nextStep,
+      'Use bands whenever needed to keep the reps crisp.',
+    )
+  }
+
+  return nextStep
+}
+
+function applyDevelopStepAdjustment(step: ProgramStep) {
+  const nextStep = appendPhaseNote(
+    step,
+    'Develop phase: use fewer sets with longer, more specific work.',
+  )
+
+  if (isEmomStep(nextStep)) {
+    return withEmomMinutes(nextStep, Math.min(nextStep.emomMinutes ?? 10, 10))
+  }
+
+  if (typeof nextStep.holdSeconds === 'number') {
+    return {
+      ...nextStep,
+      holdSeconds: nextStep.holdSeconds + 5,
+    }
+  }
+
+  if (typeof nextStep.durationSeconds === 'number') {
+    return {
+      ...nextStep,
+      durationSeconds: nextStep.durationSeconds + 5,
+    }
+  }
+
+  if (
+    typeof nextStep.reps === 'number' ||
+    typeof nextStep.maxReps === 'number'
+  ) {
+    const currentReps = getStepReps(nextStep)
+    return {
+      ...nextStep,
+      sets: Math.max(2, getStepSets(nextStep) - 1),
+      reps:
+        typeof nextStep.maxReps === 'number'
+          ? nextStep.maxReps
+          : currentReps + 1,
+    }
+  }
+
+  return nextStep
+}
+
+function applyPeakStepAdjustment(step: ProgramStep) {
+  const nextStep = appendPhaseNote(
+    step,
+    'Peak phase: the true max is the all-out work; keep accessories hard, short, and fresh.',
+  )
+
+  if (isEmomStep(nextStep)) {
+    return withEmomMinutes(nextStep, Math.min(nextStep.emomMinutes ?? 10, 6))
+  }
+
+  if (typeof nextStep.holdSeconds === 'number') {
+    return {
+      ...nextStep,
+      sets: Math.max(1, Math.round(getStepSets(nextStep) * 0.75)),
+      holdSeconds: nextStep.holdSeconds + 5,
+    }
+  }
+
+  if (typeof nextStep.durationSeconds === 'number') {
+    return {
+      ...nextStep,
+      sets: Math.max(1, Math.round(getStepSets(nextStep) * 0.75)),
+      durationSeconds: nextStep.durationSeconds + 5,
+    }
+  }
+
+  if (
+    typeof nextStep.reps === 'number' ||
+    typeof nextStep.maxReps === 'number'
+  ) {
+    const currentReps = getStepReps(nextStep)
+    return {
+      ...nextStep,
+      sets: Math.max(1, Math.round(getStepSets(nextStep) * 0.75)),
+      reps:
+        typeof nextStep.maxReps === 'number'
+          ? nextStep.maxReps
+          : currentReps + 1,
+    }
+  }
+
+  return nextStep
 }
 
 export function createDefaultProgramTemplate(
@@ -323,19 +496,27 @@ export function applyEasySupportAdjustments(
   })
 }
 
-export function applyPeakAdjustments(
+export function applyPhaseAdjustments(
   template: ProgramTemplate,
   steps: ProgramStep[],
+  sessionType: SessionType,
+  phase: CyclePhase,
+  bandsAvailable: boolean,
 ) {
-  const keepCount = template.supportDayBase.steps.length + 1
+  if (phase === 'build') {
+    return steps.map((step) => applyBuildStepAdjustment(step, bandsAvailable))
+  }
 
-  return steps.slice(0, keepCount).map((step) => ({
-    ...step,
-    sets:
-      typeof step.sets === 'number'
-        ? Math.max(1, Math.round(step.sets * 0.75))
-        : step.sets,
-  }))
+  if (phase === 'develop') {
+    return steps.map((step) => applyDevelopStepAdjustment(step))
+  }
+
+  const peakSteps =
+    sessionType === 'support'
+      ? steps.slice(0, template.supportDayBase.steps.length + 1)
+      : steps
+
+  return peakSteps.map((step) => applyPeakStepAdjustment(step))
 }
 
 export function getProgramBlockLabel(supportFocus: SupportFocus) {

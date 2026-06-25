@@ -10,6 +10,11 @@ import {
 export const MIN_CYCLE_LENGTH_DAYS = 30
 export const MAX_CYCLE_LENGTH_DAYS = 365
 export const DEFAULT_CYCLE_LENGTH_DAYS = 90
+const DEFAULT_PEAK_DAYS = 18
+const DEFAULT_BUILD_DAYS = 35
+const MIN_PEAK_DAYS = 7
+const MAX_PEAK_DAYS = 21
+const BUILD_SHARE_BEFORE_PEAK = 0.45
 
 export function clampCycleLengthDays(value: number | null | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -73,14 +78,25 @@ export function getCyclePhase(
 ): CyclePhase {
   const normalizedLength = clampCycleLengthDays(cycleLengthDays)
   const currentDate = today > cycleWindow.end ? cycleWindow.end : today
-  const progressRatio =
-    diffInDays(cycleWindow.start, currentDate) / Math.max(1, normalizedLength)
+  const elapsedDays = diffInDays(cycleWindow.start, currentDate) + 1
+  const peakDays =
+    normalizedLength === DEFAULT_CYCLE_LENGTH_DAYS
+      ? DEFAULT_PEAK_DAYS
+      : Math.min(
+          MAX_PEAK_DAYS,
+          Math.max(MIN_PEAK_DAYS, Math.round(normalizedLength * 0.2)),
+        )
+  const nonPeakDays = Math.max(1, normalizedLength - peakDays)
+  const buildDays =
+    normalizedLength === DEFAULT_CYCLE_LENGTH_DAYS
+      ? DEFAULT_BUILD_DAYS
+      : Math.max(1, Math.round(nonPeakDays * BUILD_SHARE_BEFORE_PEAK))
 
-  if (progressRatio < 1 / 3) {
+  if (elapsedDays <= buildDays) {
     return 'build'
   }
 
-  if (progressRatio < 2 / 3) {
+  if (elapsedDays <= nonPeakDays) {
     return 'develop'
   }
 

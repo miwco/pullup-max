@@ -855,9 +855,6 @@ function RestTimer({
       <div>
         <p className="metric-label">Rest before next exercise</p>
         <strong>{formatTimer(timer.secondsRemaining)}</strong>
-        <p className="muted-text">
-          Start with 5 minutes. Adjust it if you need more time to stay fresh.
-        </p>
       </div>
 
       <label className="field timer-panel__input">
@@ -1244,14 +1241,6 @@ export function LogWorkoutScreen({
             />
           </div>
 
-          <div className="inline-note">
-            <p className="muted-text">
-              Mark each set or row as you finish it. Changes save immediately as
-              an in-progress draft on this device; Save workout still commits
-              the session to History.
-            </p>
-          </div>
-
           {hasInteracted ? (
             <div className="button-row">
               <button
@@ -1347,7 +1336,7 @@ export function LogWorkoutScreen({
               title="Max test detail"
               isOpen={showMaxDetail}
               onToggle={() => setShowMaxDetail((current) => !current)}
-              summary="Failure point, set quality, and video link"
+              summary="Details"
             >
               <div className="field-grid field-grid--compact">
                 <label className="field">
@@ -1407,13 +1396,6 @@ export function LogWorkoutScreen({
         ) : null}
 
         <Section eyebrow="Workout rows" title="Preset exercises">
-          <div className="summary-bar">
-            <p className="muted-text">
-              Treat each row as today&apos;s prescription. Tap Pass or Fail as
-              soon as that work is done.
-            </p>
-          </div>
-
           <div className="entry-list">
             {entries.length === 0 ? (
               <p className="muted-text">
@@ -1427,9 +1409,6 @@ export function LogWorkoutScreen({
                   <p className="metric-label">{entry.exerciseName}</p>
                   <strong>{entry.label}</strong>
                   <p className="preset-row__target">{entry.target.summary}</p>
-                  {entry.notes ? (
-                    <p className="muted-text preset-row__note">{entry.notes}</p>
-                  ) : null}
                 </div>
 
                 <div
@@ -1483,7 +1462,7 @@ export function LogWorkoutScreen({
             title="Session notes"
             isOpen={showNotes}
             onToggle={() => setShowNotes((current) => !current)}
-            summary="Add any extra notes for this workout"
+            summary="Notes"
           >
             <label className="field">
               <span>Notes</span>

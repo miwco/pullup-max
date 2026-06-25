@@ -45,12 +45,19 @@ describe('cycle, bodyweight, and volume logic', () => {
     expect(getCycleEndDateForLength('2026-04-19', 90)).toBe('2026-07-17')
   })
 
-  it('splits the active cycle into build, develop, and peak thirds', () => {
+  it('uses a shorter taper-minded peak instead of equal phase thirds', () => {
     const cycleWindow = getCurrentCycleWindow('2026-01-01', 90, '2026-01-01')
 
-    expect(getCyclePhase(cycleWindow, 90, '2026-01-30')).toBe('build')
-    expect(getCyclePhase(cycleWindow, 90, '2026-01-31')).toBe('develop')
-    expect(getCyclePhase(cycleWindow, 90, addDays('2026-01-01', 60))).toBe(
+    expect(getCyclePhase(cycleWindow, 90, addDays('2026-01-01', 34))).toBe(
+      'build',
+    )
+    expect(getCyclePhase(cycleWindow, 90, addDays('2026-01-01', 35))).toBe(
+      'develop',
+    )
+    expect(getCyclePhase(cycleWindow, 90, addDays('2026-01-01', 71))).toBe(
+      'develop',
+    )
+    expect(getCyclePhase(cycleWindow, 90, addDays('2026-01-01', 72))).toBe(
       'peak',
     )
   })

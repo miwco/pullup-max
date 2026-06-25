@@ -398,28 +398,28 @@ describe('compact hybrid UI refresh', () => {
     expect(screen.queryByText(/cycle snapshot/i)).toBeNull()
   })
 
-  it('supports bidirectional cycle planning with end date and quick length presets', async () => {
+  it('supports a 3-month cycle or a competition date', async () => {
+    const user = userEvent.setup()
     render(<ProfileSettingsScreen />)
 
     const cycleEndDateInput = screen.getByLabelText(/cycle end date/i)
-    const cycleLengthInput = screen.getByLabelText(/cycle length \(days\)/i)
 
     expect(cycleEndDateInput).toHaveValue('2026-07-17')
-    expect(cycleLengthInput).toHaveValue(90)
+    expect(screen.getByText('90 days')).toBeInTheDocument()
 
-    fireEvent.change(cycleEndDateInput, {
+    await user.click(screen.getByRole('button', { name: /competition date/i }))
+    fireEvent.change(screen.getByLabelText(/competition date/i), {
       target: {
         value: '2026-06-07',
       },
     })
 
-    expect(cycleLengthInput).toHaveValue(50)
+    expect(screen.getByText('50 days')).toBeInTheDocument()
 
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /90 days/i }))
+    await user.click(screen.getByRole('button', { name: /3 months/i }))
 
-    expect(cycleLengthInput).toHaveValue(90)
     expect(cycleEndDateInput).toHaveValue('2026-07-17')
+    expect(screen.getByText('90 days')).toBeInTheDocument()
   })
 
   it('routes the legacy cycle hash to Progress and removes Cycle from primary nav', () => {
@@ -451,24 +451,10 @@ describe('compact hybrid UI refresh', () => {
     expect(await screen.findByRole('searchbox')).toBeInTheDocument()
   })
 
-  it('limits main movement choices to the four allowed options', async () => {
+  it('does not expose main movement choices', async () => {
     render(<ProfileSettingsScreen />)
 
-    const options = screen
-      .getAllByRole('option')
-      .map((option) => option.textContent)
-      .filter((label) =>
-        ['Pull-up', 'Chin-up', 'Neutral-grip pull-up', 'Ring pull-up'].includes(
-          label ?? '',
-        ),
-      )
-
-    expect(options).toEqual([
-      'Pull-up',
-      'Chin-up',
-      'Neutral-grip pull-up',
-      'Ring pull-up',
-    ])
+    expect(screen.queryByLabelText(/main movement/i)).toBeNull()
   })
 
   it('shows local data safety status and storage protection action', () => {
@@ -492,7 +478,7 @@ describe('compact hybrid UI refresh', () => {
     ).toBeInTheDocument()
   })
 
-  it('saves the selected main movement without sensitivity controls', async () => {
+  it('saves Pull-up as the fixed main movement without sensitivity controls', async () => {
     const user = userEvent.setup()
     const saveSettingsAndProgram = vi.fn(async () => true)
     mockedUseAppState.mockReturnValue({
@@ -502,7 +488,6 @@ describe('compact hybrid UI refresh', () => {
 
     render(<ProfileSettingsScreen />)
 
-    await user.selectOptions(screen.getByLabelText(/main movement/i), 'Chin-up')
     await user.selectOptions(screen.getByLabelText(/timer sound/i), 'low')
     fireEvent.change(screen.getByLabelText(/timer volume/i), {
       target: { value: '0.3' },
@@ -511,7 +496,7 @@ describe('compact hybrid UI refresh', () => {
 
     expect(saveSettingsAndProgram).toHaveBeenCalledWith(
       expect.objectContaining({
-        mainMovement: 'Chin-up',
+        mainMovement: 'Pull-up',
         cycleEndDate: '2026-07-17',
       }),
       expect.not.objectContaining({

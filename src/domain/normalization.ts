@@ -4,7 +4,6 @@ import {
   createSeedData,
 } from './defaults'
 import { clampCycleLengthDays, getCycleEndDateForLength } from './cycle'
-import { normalizeMainMovement } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 import type {
   AppData,
@@ -120,7 +119,7 @@ function normalizeAthleteProfile(
 
   return {
     id: typeof value.id === 'string' ? value.id : 'athlete-default',
-    mainMovement: normalizeMainMovement(value.mainMovement),
+    mainMovement: 'Pull-up',
     cycleStartDate,
     cycleEndDate,
     notes: typeof value.notes === 'string' ? value.notes : '',

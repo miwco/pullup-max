@@ -82,7 +82,7 @@ describe('import/export validation', () => {
 
     if (parsed.ok) {
       expect(parsed.value.version).toBe(8)
-      expect(parsed.value.data.athleteProfile.mainMovement).toBe('Ring pull-up')
+      expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
       expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
         seeded.athleteProfile.cycleEndDate,
       )

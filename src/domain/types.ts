@@ -28,6 +28,10 @@ export type SupportFocus =
   | 'middle'
   | 'start/bottom'
   | 'grip'
+export type SupportRotationFocus = Extract<
+  SupportFocus,
+  'top' | 'middle' | 'start/bottom'
+>
 export type BodyweightOption = 'bodyweight' | 'band' | 'either'
 
 export interface AthleteProfile {
@@ -219,6 +223,7 @@ export interface RecommendationInput {
   exercises: Exercise[]
   fatigueAverage: number | null
   supportPainOverride: boolean
+  supportFocusHistory: SupportRotationFocus[]
   latestFailurePoint: FailurePoint | null
   mainMovement: MainMovement
   programTemplate: ProgramTemplate

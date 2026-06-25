@@ -39,6 +39,7 @@ function createScenario(overrides: Partial<RecommendationInput> = {}): {
       exercises,
       fatigueAverage: 2.2,
       supportPainOverride: false,
+      supportFocusHistory: [],
       latestFailurePoint: 'top',
       mainMovement: 'Pull-up',
       programTemplate: createDefaultProgramTemplate(exercises),
@@ -152,7 +153,7 @@ describe('recommendation engine', () => {
     expect(recommendation.suggestedExercises).toContain('Top hold')
   })
 
-  it('falls back to the generic support block when the latest failure point is missing or not sure', () => {
+  it('rotates support focus when the latest failure point is missing or not sure', () => {
     const { exercises, input } = createScenario({
       daysSinceLastWorkout: 1,
       latestFailurePoint: 'not sure',
@@ -160,9 +161,23 @@ describe('recommendation engine', () => {
     const recommendation = createRecommendation(input, exercises)
 
     expect(getSupportFocusFromFailurePoint('not sure')).toBe('generic')
-    expect(recommendation.defaultSupportFocus).toBe('generic')
-    expect(recommendation.suggestedExercises).toContain('Scapular pull-up')
-    expect(recommendation.suggestedExercises).toContain('Dead hang')
+    expect(recommendation.defaultSupportFocus).toBe('top')
+    expect(recommendation.suggestedExercises).toContain('Top hold')
+    expect(recommendation.explanation).toContain('rotate')
+  })
+
+  it('continues the support rotation after logged support days', () => {
+    const { exercises, input } = createScenario({
+      daysSinceLastWorkout: 1,
+      latestFailurePoint: 'not sure',
+      supportFocusHistory: ['top', 'middle'],
+    })
+    const recommendation = createRecommendation(input, exercises)
+
+    expect(recommendation.defaultSupportFocus).toBe('start/bottom')
+    expect(recommendation.suggestedExercises).toContain(
+      'Bottom-range partial pull-up',
+    )
   })
 
   it('keeps the two-session model but eases support when trend is falling', () => {
@@ -183,32 +198,65 @@ describe('recommendation engine', () => {
     expect(recommendation.explanation).toContain('easier clean Support day')
   })
 
-  it('always biases Support toward easier clean work in build phase', () => {
+  it('uses more short easy exposures in build phase', () => {
     const { exercises, input } = createScenario({
       currentPhase: 'build',
       daysSinceLastWorkout: 1,
     })
     const recommendation = createRecommendation(input, exercises)
+    const supportSteps = getAdjustedProgramSteps(input, 'support')
+    const maxSteps = getAdjustedProgramSteps(input, 'max')
 
     expect(shouldEaseSupport(input)).toBe(false)
     expect(recommendation.nextSessionType).toBe('support')
     expect(recommendation.suggestedExercises[0]).toBe('Band-assisted pull-up')
     expect(recommendation.explanation).toContain('Build phase')
+    expect(supportSteps[0]?.sets).toBe(8)
+    expect(supportSteps[0]?.reps).toBe(3)
+    expect(supportSteps.find((step) => step.title === 'Top holds')?.sets).toBe(
+      3,
+    )
+    expect(
+      supportSteps.find((step) => step.title === 'Top holds')?.holdSeconds,
+    ).toBe(15)
+    expect(maxSteps[0]?.emomMinutes).toBe(12)
+    expect(maxSteps[0]?.notes).toContain('12 minutes')
   })
 
-  it('trims and reduces Support work during peak', () => {
+  it('uses fewer longer support sets in develop phase', () => {
+    const { input } = createScenario({
+      currentPhase: 'develop',
+      daysSinceLastWorkout: 1,
+      latestFailurePoint: 'middle',
+    })
+    const supportSteps = getAdjustedProgramSteps(input, 'support')
+
+    expect(supportSteps[0]?.sets).toBe(5)
+    expect(supportSteps[0]?.reps).toBe(6)
+    expect(
+      supportSteps.find((step) => step.title === 'Mid-range isometric holds')
+        ?.holdSeconds,
+    ).toBe(15)
+  })
+
+  it('keeps peak work short, specific, and harder while max-test logic stays separate', () => {
     const { input } = createScenario({
       currentPhase: 'peak',
       daysSinceLastWorkout: 1,
       latestFailurePoint: 'top',
     })
     const steps = getAdjustedProgramSteps(input, 'support')
+    const maxSteps = getAdjustedProgramSteps(input, 'max')
 
     expect(steps).toHaveLength(2)
     expect(steps[0]?.title).toBe('Main pull-up practice')
     expect(steps[0]?.sets).toBe(5)
+    expect(steps[0]?.reps).toBe(6)
     expect(steps[1]?.title).toBe('Top holds')
     expect(steps[1]?.sets).toBe(2)
+    expect(steps[1]?.holdSeconds).toBe(25)
+    expect(maxSteps[0]?.emomMinutes).toBe(6)
+    expect(maxSteps[0]?.notes).toContain('6 minutes')
   })
 
   it('eases support when fatigue or joint pain are high without changing session types', () => {

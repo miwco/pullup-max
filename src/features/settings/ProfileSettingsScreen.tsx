@@ -8,35 +8,38 @@ import {
   MIN_CYCLE_LENGTH_DAYS,
 } from '../../domain/cycle'
 import { serializeMaxTestsCsv } from '../../domain/importExport'
-import { MAIN_MOVEMENTS } from '../../domain/mainMovement'
-import type { MainMovement, TimerSoundId } from '../../domain/types'
+import type { TimerSoundId } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
 import { playTone, TIMER_SOUND_OPTIONS } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
-const CYCLE_LENGTH_PRESETS = [
-  { label: '30 days', value: 30 },
-  { label: '60 days', value: 60 },
-  { label: '90 days', value: 90 },
-]
+const STANDARD_CYCLE_DAYS = 90
+type CyclePlanMode = 'standard' | 'competition'
+
+function getInitialCyclePlanMode(cycleLengthDays: number): CyclePlanMode {
+  return cycleLengthDays === STANDARD_CYCLE_DAYS ? 'standard' : 'competition'
+}
 
 function getCyclePlannerError(
   cycleStartDate: string,
   cycleEndDate: string,
   cycleLengthDays: string,
+  cyclePlanMode: CyclePlanMode,
 ) {
-  if (!cycleStartDate || !cycleEndDate || !cycleLengthDays.trim()) {
-    return 'Choose a cycle start date, end date, and length.'
+  if (!cycleStartDate || !cycleEndDate) {
+    return 'Choose a cycle start date and end date.'
   }
 
   const parsedLength = Number(cycleLengthDays)
 
   if (!Number.isFinite(parsedLength) || parsedLength <= 0) {
-    return 'Cycle length must be a whole number of days.'
+    return 'Cycle length must be valid.'
   }
 
   if (cycleEndDate < cycleStartDate) {
-    return 'Cycle end date must be on or after the cycle start date.'
+    return cyclePlanMode === 'competition'
+      ? 'Competition date must be on or after the cycle start date.'
+      : 'Cycle end date must be on or after the cycle start date.'
   }
 
   if (
@@ -60,8 +63,8 @@ export function ProfileSettingsScreen() {
     storageDurability,
   } = useAppState()
 
-  const [mainMovement, setMainMovement] = useState(
-    data.athleteProfile.mainMovement,
+  const [cyclePlanMode, setCyclePlanMode] = useState<CyclePlanMode>(() =>
+    getInitialCyclePlanMode(data.settings.cycleLengthDays),
   )
   const [cycleStartDate, setCycleStartDate] = useState(
     data.athleteProfile.cycleStartDate,
@@ -87,7 +90,8 @@ export function ProfileSettingsScreen() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const hasChanges =
-    mainMovement !== data.athleteProfile.mainMovement ||
+    data.athleteProfile.mainMovement !== 'Pull-up' ||
+    cyclePlanMode !== getInitialCyclePlanMode(data.settings.cycleLengthDays) ||
     cycleStartDate !== data.athleteProfile.cycleStartDate ||
     cycleEndDate !== data.athleteProfile.cycleEndDate ||
     cycleLengthDays !== String(data.settings.cycleLengthDays) ||
@@ -101,6 +105,7 @@ export function ProfileSettingsScreen() {
     cycleStartDate,
     cycleEndDate,
     cycleLengthDays,
+    cyclePlanMode,
   )
 
   useUnsavedChangesPrompt(hasChanges)
@@ -108,7 +113,7 @@ export function ProfileSettingsScreen() {
   useEffect(() => {
     if (hasChanges) return
     queueMicrotask(() => {
-      setMainMovement(data.athleteProfile.mainMovement)
+      setCyclePlanMode(getInitialCyclePlanMode(data.settings.cycleLengthDays))
       setCycleStartDate(data.athleteProfile.cycleStartDate)
       setCycleEndDate(data.athleteProfile.cycleEndDate)
       setCycleLengthDays(String(data.settings.cycleLengthDays))
@@ -122,6 +127,14 @@ export function ProfileSettingsScreen() {
 
   function handleCycleStartDateChange(nextCycleStartDate: string) {
     setCycleStartDate(nextCycleStartDate)
+    if (cyclePlanMode === 'standard') {
+      setCycleLengthDays(String(STANDARD_CYCLE_DAYS))
+      setCycleEndDate(
+        getCycleEndDateForLength(nextCycleStartDate, STANDARD_CYCLE_DAYS),
+      )
+      return
+    }
+
     const derivedLength = getCycleLengthDaysFromDates(
       nextCycleStartDate,
       cycleEndDate,
@@ -129,7 +142,8 @@ export function ProfileSettingsScreen() {
     setCycleLengthDays(derivedLength === null ? '' : String(derivedLength))
   }
 
-  function handleCycleEndDateChange(nextCycleEndDate: string) {
+  function handleCompetitionDateChange(nextCycleEndDate: string) {
+    setCyclePlanMode('competition')
     setCycleEndDate(nextCycleEndDate)
     const derivedLength = getCycleLengthDaysFromDates(
       cycleStartDate,
@@ -138,18 +152,11 @@ export function ProfileSettingsScreen() {
     setCycleLengthDays(derivedLength === null ? '' : String(derivedLength))
   }
 
-  function handleCycleLengthDaysChange(nextCycleLengthDays: string) {
-    setCycleLengthDays(nextCycleLengthDays)
-    const parsedLength = Number(nextCycleLengthDays)
-    if (!Number.isFinite(parsedLength) || parsedLength <= 0 || !cycleStartDate)
-      return
-    setCycleEndDate(getCycleEndDateForLength(cycleStartDate, parsedLength))
-  }
-
-  function applyCycleLengthPreset(nextCycleLengthDays: number) {
-    setCycleLengthDays(String(nextCycleLengthDays))
+  function applyStandardCycle() {
+    setCyclePlanMode('standard')
+    setCycleLengthDays(String(STANDARD_CYCLE_DAYS))
     setCycleEndDate(
-      getCycleEndDateForLength(cycleStartDate, nextCycleLengthDays),
+      getCycleEndDateForLength(cycleStartDate, STANDARD_CYCLE_DAYS),
     )
   }
 
@@ -159,7 +166,7 @@ export function ProfileSettingsScreen() {
     setIsSaving(true)
     await saveSettingsAndProgram(
       {
-        mainMovement,
+        mainMovement: 'Pull-up',
         cycleStartDate: cycleStartDate || todayDateString(),
         cycleEndDate,
         notes: notes.trim(),
@@ -209,23 +216,6 @@ export function ProfileSettingsScreen() {
       <form className="screen-stack" onSubmit={handleSave}>
         <Section eyebrow="Settings" title="Rules and defaults">
           <div className="field-grid field-grid--compact">
-            <label className="field field--span-2">
-              <span>Main movement</span>
-              <select
-                name="main-movement"
-                value={mainMovement}
-                onChange={(event) =>
-                  setMainMovement(event.target.value as MainMovement)
-                }
-              >
-                {MAIN_MOVEMENTS.map((movement) => (
-                  <option key={movement} value={movement}>
-                    {movement}
-                  </option>
-                ))}
-              </select>
-            </label>
-
             <label className="field">
               <span>Cycle start date</span>
               <input
@@ -238,46 +228,54 @@ export function ProfileSettingsScreen() {
               />
             </label>
 
+            <div className="field field--span-2">
+              <span>Cycle plan</span>
+              <div className="button-row button-row--wrap">
+                <button
+                  type="button"
+                  className={`button button--compact${
+                    cyclePlanMode === 'standard'
+                      ? ' button--primary'
+                      : ' button--ghost'
+                  }`}
+                  onClick={applyStandardCycle}
+                >
+                  3 months
+                </button>
+                <button
+                  type="button"
+                  className={`button button--compact${
+                    cyclePlanMode === 'competition'
+                      ? ' button--primary'
+                      : ' button--ghost'
+                  }`}
+                  onClick={() => setCyclePlanMode('competition')}
+                >
+                  Competition date
+                </button>
+              </div>
+            </div>
+
             <label className="field">
-              <span>Cycle end date</span>
+              <span>
+                {cyclePlanMode === 'competition'
+                  ? 'Competition date'
+                  : 'Cycle end date'}
+              </span>
               <input
                 type="date"
                 name="cycle-end-date"
                 value={cycleEndDate}
+                readOnly={cyclePlanMode === 'standard'}
                 onChange={(event) =>
-                  handleCycleEndDateChange(event.target.value)
+                  handleCompetitionDateChange(event.target.value)
                 }
               />
             </label>
 
-            <label className="field">
-              <span>Cycle length (days)</span>
-              <input
-                type="number"
-                min="30"
-                max="365"
-                name="cycle-length-days"
-                value={cycleLengthDays}
-                onChange={(event) =>
-                  handleCycleLengthDaysChange(event.target.value)
-                }
-              />
-            </label>
-
-            <div className="field field--span-2">
-              <span>Quick lengths</span>
-              <div className="button-row button-row--wrap">
-                {CYCLE_LENGTH_PRESETS.map((preset) => (
-                  <button
-                    key={preset.value}
-                    type="button"
-                    className="button button--ghost button--compact"
-                    onClick={() => applyCycleLengthPreset(preset.value)}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
+            <div className="mini-stat">
+              <span className="metric-label">Cycle length</span>
+              <strong>{cycleLengthDays || 'Invalid'} days</strong>
             </div>
 
             <label className="field field--checkbox">
@@ -372,6 +370,28 @@ export function ProfileSettingsScreen() {
           </div>
         </Section>
       </form>
+
+      <Section eyebrow="Rules" title="How it works">
+        <div className="mini-stat-grid">
+          <div className="mini-stat">
+            <span className="metric-label">Goal</span>
+            <strong>Max strict pull-ups</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Default cycle</span>
+            <strong>3 months</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Competition</span>
+            <strong>Peak at cycle end</strong>
+          </div>
+        </div>
+        <p className="muted-text">
+          Build uses more easy exposures, Develop uses fewer longer sets, and
+          Peak cuts extra volume so the final max attempt is fresh. If no weak
+          point is logged, support days rotate through top, middle, and low.
+        </p>
+      </Section>
 
       <Section eyebrow="Backup" title="Export and import">
         <div className="inline-note">

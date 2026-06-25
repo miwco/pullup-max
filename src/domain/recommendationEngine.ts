@@ -1,7 +1,7 @@
 import { getSupportBandExerciseName } from './mainMovement'
 import {
-  applyPeakAdjustments,
   applyEasySupportAdjustments,
+  applyPhaseAdjustments,
   getExerciseNamesForProgramSteps,
   getProgramStepsForSession,
   resolveProgramStepsForSession,
@@ -16,6 +16,10 @@ import type {
   SupportFocus,
   TrendClassification,
 } from './types'
+
+const SUPPORT_ROTATION: Array<
+  Extract<SupportFocus, 'top' | 'middle' | 'start/bottom'>
+> = ['top', 'middle', 'start/bottom']
 
 function sortMaxResults(results: MaxExposure[]) {
   return [...results].sort((left, right) => left.date.localeCompare(right.date))
@@ -88,7 +92,24 @@ export function shouldEaseSupport(input: RecommendationInput) {
 }
 
 function getSupportFocus(input: RecommendationInput): SupportFocus {
-  return getSupportFocusFromFailurePoint(input.latestFailurePoint)
+  const failurePointFocus = getSupportFocusFromFailurePoint(
+    input.latestFailurePoint,
+  )
+
+  if (failurePointFocus !== 'generic') {
+    return failurePointFocus
+  }
+
+  const latestRotatedFocus = input.supportFocusHistory?.at(-1)
+
+  if (!latestRotatedFocus) {
+    return SUPPORT_ROTATION[0]!
+  }
+
+  const currentIndex = SUPPORT_ROTATION.indexOf(latestRotatedFocus)
+  const nextIndex = currentIndex === -1 ? 0 : currentIndex + 1
+
+  return SUPPORT_ROTATION[nextIndex % SUPPORT_ROTATION.length]!
 }
 
 export function getAdjustedProgramSteps(
@@ -111,14 +132,20 @@ export function getAdjustedProgramSteps(
     supportPainOverride: input.supportPainOverride,
   })
 
-  if (sessionType === 'support') {
-    if (input.currentPhase === 'peak') {
-      steps = applyPeakAdjustments(input.programTemplate, steps)
-    }
+  steps = applyPhaseAdjustments(
+    input.programTemplate,
+    steps,
+    sessionType,
+    input.currentPhase,
+    input.bandsAvailable,
+  )
 
-    if (input.currentPhase === 'build' || shouldEaseSupport(input)) {
-      steps = applyEasySupportAdjustments(steps, input.bandsAvailable)
-    }
+  if (
+    sessionType === 'support' &&
+    input.currentPhase !== 'build' &&
+    shouldEaseSupport(input)
+  ) {
+    steps = applyEasySupportAdjustments(steps, input.bandsAvailable)
   }
 
   return steps
@@ -172,8 +199,11 @@ function buildExplanation(
       return 'Max day is not ready yet. Use an easier clean Support day and keep the stress under control.'
     }
 
-    if (supportFocus === 'generic') {
-      return 'Max day is not ready yet. Use the default clean Support day and keep the reps controlled.'
+    if (
+      getSupportFocusFromFailurePoint(input.latestFailurePoint) === 'generic' &&
+      supportFocus !== 'generic'
+    ) {
+      return `Max day is not ready yet. No clear failure point was logged, so rotate to the ${supportFocus} support block.`
     }
 
     return `Max day is not ready yet. Use the ${supportFocus} support block from the most recent max-day result.`

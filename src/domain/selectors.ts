@@ -34,6 +34,7 @@ import type {
   RecentWorkoutItem,
   SessionType,
   SupportFocus,
+  SupportRotationFocus,
   WeeklyVolumeSummary,
   WorkoutSession,
 } from './types'
@@ -201,6 +202,57 @@ export function getSessionsInCycle(
   )
 }
 
+export function getLoggedSupportFocusHistory(
+  sessions: WorkoutSession[],
+  exerciseEntries: ExerciseEntry[],
+  programTemplate: AppData['programTemplate'],
+  cycleWindow?: CycleWindow,
+): SupportRotationFocus[] {
+  const focusByPresetKey = new Map<string, SupportRotationFocus>()
+
+  ;(['top', 'middle', 'start/bottom'] as SupportRotationFocus[]).forEach(
+    (focus) => {
+      programTemplate.weakPointBlocks[focus].steps.forEach((step) => {
+        focusByPresetKey.set(step.id, focus)
+      })
+    },
+  )
+
+  const entriesBySessionId = new Map<string, ExerciseEntry[]>()
+
+  exerciseEntries.forEach((entry) => {
+    const current = entriesBySessionId.get(entry.workoutSessionId) ?? []
+    current.push(entry)
+    entriesBySessionId.set(entry.workoutSessionId, current)
+  })
+
+  return sortSessionsByDateDesc(sessions)
+    .reverse()
+    .filter((session) => {
+      if (session.sessionType !== 'support') {
+        return false
+      }
+
+      if (!cycleWindow) {
+        return true
+      }
+
+      return (
+        session.date >= cycleWindow.start && session.date <= cycleWindow.end
+      )
+    })
+    .flatMap((session) => {
+      const focus = entriesBySessionId
+        .get(session.id)
+        ?.map((entry) =>
+          entry.presetKey ? focusByPresetKey.get(entry.presetKey) : undefined,
+        )
+        .find(Boolean)
+
+      return focus ? [focus] : []
+    })
+}
+
 export function getBestMax(
   maxTests: MaxTestResult[],
   sessions: WorkoutSession[],
@@ -294,6 +346,12 @@ export function buildRecommendationInput(
     supportPainOverride:
       hasRecentJointPainSignal(data.sessions) ||
       (jointPainAverage !== null && jointPainAverage >= 3),
+    supportFocusHistory: getLoggedSupportFocusHistory(
+      data.sessions,
+      data.exerciseEntries,
+      data.programTemplate,
+      cycleWindow,
+    ),
     latestFailurePoint: getLatestFailurePoint(cycleMaxResults),
     mainMovement: data.athleteProfile.mainMovement,
     programTemplate: data.programTemplate,

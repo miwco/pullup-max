@@ -126,6 +126,7 @@ function createMockAppState(): MockAppState {
         videoUrl: 'https://example.com/max-2',
         trend: 'rising',
         failurePoint: 'top',
+        qualityFlag: 'clean',
       },
       {
         id: 'max-1',
@@ -161,6 +162,7 @@ function createMockAppState(): MockAppState {
         ],
         supportVolume: 0,
         maxReps: 13,
+        qualityFlag: 'grindy',
       },
       {
         id: 'session-1',
@@ -380,6 +382,7 @@ describe('compact hybrid UI refresh', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('+2 reps')).toBeInTheDocument()
     expect(screen.getByText('-0.7 kg')).toBeInTheDocument()
+    expect(screen.getByText('clean')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Weight' }))
 
@@ -393,6 +396,7 @@ describe('compact hybrid UI refresh', () => {
       screen.getByRole('heading', { name: /workout log/i }),
     ).toBeInTheDocument()
     expect(screen.getByText(/volume stayed controlled/i)).toBeInTheDocument()
+    expect(screen.getByText('hard')).toBeInTheDocument()
     expect(
       screen.queryByRole('img', { name: /progress across the current cycle/i }),
     ).toBeNull()

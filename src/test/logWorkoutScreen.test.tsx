@@ -391,6 +391,41 @@ describe('LogWorkoutScreen preset rows', () => {
     ).toBeInTheDocument()
   })
 
+  it('saves the max test step as an in-progress draft before workout rows', async () => {
+    const user = userEvent.setup()
+    const saveWorkoutDraft = vi.fn(async () => true)
+    mockedUseAppState.mockReturnValue({
+      ...createMockAppState(),
+      saveWorkoutDraft,
+    })
+
+    render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    await user.type(screen.getByLabelText(/true max reps/i), '12')
+    await user.click(screen.getByRole('button', { name: /max test detail/i }))
+    await user.selectOptions(screen.getByLabelText(/set quality/i), 'clean')
+    await user.click(screen.getByRole('button', { name: /save max/i }))
+
+    expect(screen.getByText('12 reps')).toBeInTheDocument()
+    expect(screen.getByText('clean')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /edit max/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText(/true max reps/i)).toBeNull()
+
+    await waitFor(() => {
+      expect(saveWorkoutDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxReps: '12',
+          maxTestSaved: true,
+          qualityFlag: 'clean',
+        }),
+      )
+    })
+  })
+
   it('restores an existing in-progress workout draft', () => {
     mockedUseAppState.mockReturnValue({
       ...createMockAppState(),
@@ -414,6 +449,7 @@ describe('LogWorkoutScreen preset rows', () => {
         fatigueAfter: '',
         fatigueBefore: '',
         maxReps: '12',
+        maxTestSaved: true,
         notes: '',
         qualityFlag: '',
         sessionType: 'max',
@@ -427,7 +463,10 @@ describe('LogWorkoutScreen preset rows', () => {
       <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
     )
 
-    expect(screen.getByLabelText(/true max reps/i)).toHaveValue('12')
+    expect(screen.getByText('12 reps')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /edit max/i }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^pass$/i })).toHaveAttribute(
       'aria-pressed',
       'true',

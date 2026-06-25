@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildMaxHistory,
+  buildRecentWorkouts,
   buildPainTrendPoints,
   getDaysSinceLastMax,
   getDaysSinceLastWorkout,
   getFailurePointPattern,
 } from '../domain/selectors'
-import type { MaxTestResult, WorkoutSession } from '../domain/types'
+import type { Exercise, MaxTestResult, WorkoutSession } from '../domain/types'
 
 function makeSession(
   id: string,
@@ -64,13 +66,17 @@ describe('getDaysSinceLastMax', () => {
 
   it('returns null when max tests exist but no matching sessions', () => {
     const maxTests = [makeMaxTest('mt1', 'missing-session', 10)]
-    expect(getDaysSinceLastMax([], maxTests, 'Pull-up', '2026-04-19')).toBeNull()
+    expect(
+      getDaysSinceLastMax([], maxTests, 'Pull-up', '2026-04-19'),
+    ).toBeNull()
   })
 
   it('ignores max tests for a different movement', () => {
     const sessions = [makeSession('s1', '2026-04-15')]
     const maxTests = [makeMaxTest('mt1', 's1', 10, { movement: 'Chin-up' })]
-    expect(getDaysSinceLastMax(sessions, maxTests, 'Pull-up', '2026-04-19')).toBeNull()
+    expect(
+      getDaysSinceLastMax(sessions, maxTests, 'Pull-up', '2026-04-19'),
+    ).toBeNull()
   })
 
   it('returns days since the most recent max test session', () => {
@@ -82,7 +88,9 @@ describe('getDaysSinceLastMax', () => {
       makeMaxTest('mt1', 's1', 10),
       makeMaxTest('mt2', 's2', 12),
     ]
-    expect(getDaysSinceLastMax(sessions, maxTests, 'Pull-up', '2026-04-19')).toBe(4)
+    expect(
+      getDaysSinceLastMax(sessions, maxTests, 'Pull-up', '2026-04-19'),
+    ).toBe(4)
   })
 })
 
@@ -148,6 +156,44 @@ describe('getFailurePointPattern', () => {
     ]
     const result = getFailurePointPattern(history)
     expect(result).toEqual({ point: 'grip', count: 3 })
+  })
+})
+
+describe('max quality selectors', () => {
+  it('preserves set quality for max history and recent workouts', () => {
+    const sessions = [
+      makeSession('s1', '2026-04-19', {
+        sessionType: 'max',
+      }),
+    ]
+    const maxTests = [
+      makeMaxTest('mt1', 's1', 12, {
+        qualityFlag: 'partial',
+      }),
+    ]
+    const exercises: Exercise[] = [
+      {
+        id: 'pull-up',
+        name: 'Pull-up',
+        type: 'max',
+        active: true,
+        builtIn: true,
+        defaultUnit: 'reps',
+        tags: [],
+      },
+    ]
+
+    expect(buildMaxHistory(maxTests, sessions, 'Pull-up')[0]).toEqual(
+      expect.objectContaining({
+        qualityFlag: 'partial',
+      }),
+    )
+    expect(buildRecentWorkouts(sessions, [], exercises, maxTests)[0]).toEqual(
+      expect.objectContaining({
+        maxReps: 12,
+        qualityFlag: 'partial',
+      }),
+    )
   })
 })
 

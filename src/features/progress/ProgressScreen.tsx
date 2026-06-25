@@ -5,7 +5,12 @@ import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
 import { getFailurePointPattern } from '../../domain/selectors'
-import { formatLongDate, formatShortDate, todayDateString } from '../../lib/date'
+import {
+  formatLongDate,
+  formatShortDate,
+  todayDateString,
+} from '../../lib/date'
+import { formatQualityFlag, getQualityTone } from '../../lib/qualityFlag'
 
 function formatRepDelta(repDelta: number | null) {
   if (repDelta === null) {
@@ -44,13 +49,16 @@ export function ProgressScreen() {
   const failurePattern = getFailurePointPattern(maxHistory)
 
   const isAllTime = chartMode === 'all-time'
-  const activeMaxPoints = isAllTime ? allTimeMaxTrendPoints : cycleMaxTrendPoints
-  const activeWindow = isAllTime && allTimeMaxTrendPoints.length > 0
-    ? {
-        start: allTimeMaxTrendPoints[0]!.date,
-        end: todayDateString(),
-      }
-    : cycleSummary.cycleWindow
+  const activeMaxPoints = isAllTime
+    ? allTimeMaxTrendPoints
+    : cycleMaxTrendPoints
+  const activeWindow =
+    isAllTime && allTimeMaxTrendPoints.length > 0
+      ? {
+          start: allTimeMaxTrendPoints[0]!.date,
+          end: todayDateString(),
+        }
+      : cycleSummary.cycleWindow
 
   return (
     <div className="screen-stack">
@@ -80,8 +88,9 @@ export function ProgressScreen() {
           <div className="cycle-window-note">
             <p>
               This graph shows max reps across the current cycle from{' '}
-              <strong>{formatLongDate(cycleSummary.cycleWindow.start)}</strong> to{' '}
-              <strong>{formatLongDate(cycleSummary.cycleWindow.end)}</strong>.
+              <strong>{formatLongDate(cycleSummary.cycleWindow.start)}</strong>{' '}
+              to <strong>{formatLongDate(cycleSummary.cycleWindow.end)}</strong>
+              .
             </p>
           </div>
         ) : null}
@@ -106,7 +115,11 @@ export function ProgressScreen() {
         </div>
 
         <CycleLineChart
-          ariaLabel={isAllTime ? 'Progress across all time' : 'Progress across the current cycle'}
+          ariaLabel={
+            isAllTime
+              ? 'Progress across all time'
+              : 'Progress across the current cycle'
+          }
           cycleWindow={activeWindow}
           maxPoints={activeMaxPoints}
           showMax={showMax}
@@ -168,7 +181,10 @@ export function ProgressScreen() {
           >
             <div className="entry-list">
               {painTrendPoints.map((point) => (
-                <div key={point.weekStart} className="entry-row entry-row--compact">
+                <div
+                  key={point.weekStart}
+                  className="entry-row entry-row--compact"
+                >
                   <div className="field">
                     <span className="metric-label">Week of</span>
                     <strong>{formatShortDate(point.weekStart)}</strong>
@@ -197,7 +213,13 @@ export function ProgressScreen() {
           <p className="muted-text">
             <strong>{failurePattern.point}</strong> has been your failure point
             in {failurePattern.count} of your last{' '}
-            {Math.min(3, maxHistory.filter((item) => item.failurePoint && item.failurePoint !== 'not sure').length)} max tests — support is automatically targeting this.
+            {Math.min(
+              3,
+              maxHistory.filter(
+                (item) => item.failurePoint && item.failurePoint !== 'not sure',
+              ).length,
+            )}{' '}
+            max tests; support is automatically targeting this.
           </p>
         </div>
       ) : null}
@@ -211,73 +233,87 @@ export function ProgressScreen() {
           <>
             <div className="workout-list">
               {maxHistory.slice(0, visibleMaxHistory).map((item) => {
-              const repDeltaLabel = formatRepDelta(item.repDelta)
-              const weightDeltaLabel = formatWeightDelta(item.bodyweightDeltaKg)
+                const repDeltaLabel = formatRepDelta(item.repDelta)
+                const weightDeltaLabel = formatWeightDelta(
+                  item.bodyweightDeltaKg,
+                )
 
-              return (
-                <article key={item.id} className="workout-list__item">
-                  <div className="workout-list__header">
-                    <div>
-                      <p className="workout-list__date">
-                        {formatLongDate(item.date)}
-                      </p>
-                      <div className="chip-row">
-                        <StatusPill
-                          label={`${item.reps} reps`}
-                          tone="success"
-                        />
-                        {repDeltaLabel ? (
+                return (
+                  <article key={item.id} className="workout-list__item">
+                    <div className="workout-list__header">
+                      <div>
+                        <p className="workout-list__date">
+                          {formatLongDate(item.date)}
+                        </p>
+                        <div className="chip-row">
                           <StatusPill
-                            label={repDeltaLabel}
-                            tone={
-                              item.repDelta === 0
-                                ? 'neutral'
-                                : typeof item.repDelta === 'number' &&
-                                    item.repDelta > 0
-                                  ? 'success'
-                                  : 'warning'
-                            }
+                            label={`${item.reps} reps`}
+                            tone={getQualityTone(item.qualityFlag)}
                           />
-                        ) : null}
-                        {typeof item.bodyweightKgSnapshot === 'number' ? (
-                          <StatusPill
-                            label={`${item.bodyweightKgSnapshot} kg`}
-                            tone="neutral"
-                          />
-                        ) : null}
-                        {weightDeltaLabel ? (
-                          <StatusPill label={weightDeltaLabel} tone="neutral" />
-                        ) : null}
-                        {item.failurePoint ? (
-                          <StatusPill label={item.failurePoint} tone="accent" />
-                        ) : null}
+                          {formatQualityFlag(item.qualityFlag) ? (
+                            <StatusPill
+                              label={formatQualityFlag(item.qualityFlag)!}
+                              tone={getQualityTone(item.qualityFlag)}
+                            />
+                          ) : null}
+                          {repDeltaLabel ? (
+                            <StatusPill
+                              label={repDeltaLabel}
+                              tone={
+                                item.repDelta === 0
+                                  ? 'neutral'
+                                  : typeof item.repDelta === 'number' &&
+                                      item.repDelta > 0
+                                    ? 'success'
+                                    : 'warning'
+                              }
+                            />
+                          ) : null}
+                          {typeof item.bodyweightKgSnapshot === 'number' ? (
+                            <StatusPill
+                              label={`${item.bodyweightKgSnapshot} kg`}
+                              tone="neutral"
+                            />
+                          ) : null}
+                          {weightDeltaLabel ? (
+                            <StatusPill
+                              label={weightDeltaLabel}
+                              tone="neutral"
+                            />
+                          ) : null}
+                          {item.failurePoint ? (
+                            <StatusPill
+                              label={item.failurePoint}
+                              tone="accent"
+                            />
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
 
-                    {item.videoUrl ? (
-                      <a
-                        href={item.videoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="button button--ghost button--compact"
-                      >
-                        Video
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-          {maxHistory.length > visibleMaxHistory ? (
-            <button
-              className="button button--ghost button--compact"
-              style={{ marginTop: '0.75rem' }}
-              onClick={() => setVisibleMaxHistory((n) => n + 8)}
-            >
-              Show more ({maxHistory.length - visibleMaxHistory} remaining)
-            </button>
-          ) : null}
+                      {item.videoUrl ? (
+                        <a
+                          href={item.videoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="button button--ghost button--compact"
+                        >
+                          Video
+                        </a>
+                      ) : null}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+            {maxHistory.length > visibleMaxHistory ? (
+              <button
+                className="button button--ghost button--compact"
+                style={{ marginTop: '0.75rem' }}
+                onClick={() => setVisibleMaxHistory((n) => n + 8)}
+              >
+                Show more ({maxHistory.length - visibleMaxHistory} remaining)
+              </button>
+            ) : null}
           </>
         )}
       </Section>

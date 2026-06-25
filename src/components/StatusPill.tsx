@@ -1,6 +1,13 @@
+export type StatusPillTone =
+  | 'neutral'
+  | 'accent'
+  | 'warning'
+  | 'success'
+  | 'danger'
+
 interface StatusPillProps {
   label: string
-  tone?: 'neutral' | 'accent' | 'warning' | 'success'
+  tone?: StatusPillTone
 }
 
 export function StatusPill({ label, tone = 'neutral' }: StatusPillProps) {

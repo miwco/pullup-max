@@ -259,12 +259,14 @@ export interface MaxHistoryItem {
   videoUrl?: string
   trend: TrendClassification
   failurePoint?: FailurePoint
+  qualityFlag?: QualityFlag
 }
 
 export interface RecentWorkoutItem extends WorkoutSession {
   entries: ExerciseEntry[]
   supportVolume: number
   maxReps: number | null
+  qualityFlag?: QualityFlag
 }
 
 export interface CycleSummaryData {
@@ -305,6 +307,7 @@ export interface WorkoutLogDraft {
   fatigueAfter: string
   fatigueBefore: string
   maxReps: string
+  maxTestSaved?: boolean
   notes: string
   qualityFlag: QualityFlag | ''
   sessionType: SessionType

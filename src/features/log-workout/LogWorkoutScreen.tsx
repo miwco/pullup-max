@@ -21,6 +21,7 @@ import type {
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
 import { createId } from '../../lib/id'
+import { formatQualityFlag, getQualityTone } from '../../lib/qualityFlag'
 import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
@@ -39,6 +40,11 @@ const FAILURE_POINTS: FailurePoint[] = [
 ]
 
 const QUALITY_FLAGS: QualityFlag[] = ['clean', 'grindy', 'partial']
+const QUALITY_FLAG_LABELS: Record<QualityFlag, string> = {
+  clean: 'clean',
+  grindy: 'hard',
+  partial: 'very hard',
+}
 type SupportWorkoutFocus = Extract<
   SupportFocus,
   'top' | 'middle' | 'start/bottom'
@@ -933,6 +939,9 @@ export function LogWorkoutScreen({
   const [qualityFlag, setQualityFlag] = useState<QualityFlag | ''>(
     workoutDraft?.qualityFlag ?? '',
   )
+  const [maxTestSaved, setMaxTestSaved] = useState(
+    () => workoutDraft?.maxTestSaved ?? false,
+  )
   const [notes, setNotes] = useState(workoutDraft?.notes ?? '')
   const [entries, setEntries] = useState<WorkoutLogEntryDraft[]>(() =>
     workoutDraft?.entries.length
@@ -968,6 +977,7 @@ export function LogWorkoutScreen({
   const [restAutoStartByEntryId, setRestAutoStartByEntryId] = useState<
     Record<string, number>
   >({})
+  const workoutRowsRef = useRef<HTMLDivElement | null>(null)
   const currentEntriesSignature = createEntriesSignature(entries)
   const timerSoundSettings = useMemo(
     () => ({
@@ -1002,6 +1012,7 @@ export function LogWorkoutScreen({
       fatigueAfter: '',
       fatigueBefore: '',
       maxReps,
+      maxTestSaved,
       notes,
       qualityFlag,
       sessionType,
@@ -1015,6 +1026,7 @@ export function LogWorkoutScreen({
       entries,
       failurePoint,
       maxReps,
+      maxTestSaved,
       notes,
       qualityFlag,
       sessionType,
@@ -1064,6 +1076,11 @@ export function LogWorkoutScreen({
   function updateText(setter: Dispatch<SetStateAction<string>>, value: string) {
     markInteracted()
     setter(value)
+  }
+
+  function updateMaxTest() {
+    markInteracted()
+    setMaxTestSaved(false)
   }
 
   function updateEntry(
@@ -1125,6 +1142,7 @@ export function LogWorkoutScreen({
     setSupportFocus(nextSupportFocus)
     setDate(todayDateString())
     setMaxReps('')
+    setMaxTestSaved(false)
     setVideoLink('')
     setFailurePoint('')
     setQualityFlag('')
@@ -1156,6 +1174,36 @@ export function LogWorkoutScreen({
     } catch {
       return false
     }
+  }
+
+  function handleSaveMaxTest() {
+    const parsedMaxReps = parseOptionalNumber(maxReps)
+
+    if (!parsedMaxReps || parsedMaxReps <= 0) {
+      setFormError('Max day needs a valid max reps number.')
+      return
+    }
+
+    if (!isValidVideoLink(videoLink)) {
+      setFormError('Video link must be a valid http or https URL.')
+      return
+    }
+
+    markInteracted()
+    setFormError(null)
+    setMaxTestSaved(true)
+    setShowMaxDetail(false)
+
+    window.setTimeout(() => {
+      if (typeof workoutRowsRef.current?.scrollIntoView !== 'function') {
+        return
+      }
+
+      workoutRowsRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }, 0)
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -1319,142 +1367,198 @@ export function LogWorkoutScreen({
 
         {sessionType === 'max' ? (
           <Section eyebrow="True max" title="Max test">
-            <label className="field field--max">
-              <span>True max reps</span>
-              <input
-                name="max-reps"
-                autoComplete="off"
-                inputMode="numeric"
-                placeholder="0"
-                value={maxReps}
-                onChange={(event) => updateText(setMaxReps, event.target.value)}
-              />
-            </label>
-
-            <AccordionSection
-              eyebrow="Optional"
-              title="Max test detail"
-              isOpen={showMaxDetail}
-              onToggle={() => setShowMaxDetail((current) => !current)}
-              summary="Details"
-            >
-              <div className="field-grid field-grid--compact">
-                <label className="field">
-                  <span>Failure point</span>
-                  <select
-                    value={failurePoint}
-                    onChange={(event) => {
-                      markInteracted()
-                      setFailurePoint(event.target.value as FailurePoint | '')
-                    }}
-                  >
-                    <option value="">Optional</option>
-                    {FAILURE_POINTS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>Set quality</span>
-                  <select
-                    value={qualityFlag}
-                    onChange={(event) => {
-                      markInteracted()
-                      setQualityFlag(event.target.value as QualityFlag | '')
-                    }}
-                  >
-                    <option value="">Optional</option>
-                    {QUALITY_FLAGS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+            {maxTestSaved ? (
+              <div className="summary-bar">
+                <div className="chip-row">
+                  <StatusPill
+                    label={`${maxReps} reps`}
+                    tone={getQualityTone(qualityFlag)}
+                  />
+                  {formatQualityFlag(qualityFlag) ? (
+                    <StatusPill
+                      label={formatQualityFlag(qualityFlag)!}
+                      tone={getQualityTone(qualityFlag)}
+                    />
+                  ) : null}
+                  {failurePoint ? (
+                    <StatusPill label={failurePoint} tone="accent" />
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="button button--ghost button--compact"
+                  onClick={() => {
+                    markInteracted()
+                    setMaxTestSaved(false)
+                  }}
+                >
+                  Edit max
+                </button>
               </div>
+            ) : (
+              <>
+                <label className="field field--max">
+                  <span>True max reps</span>
+                  <input
+                    name="max-reps"
+                    autoComplete="off"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={maxReps}
+                    onChange={(event) => {
+                      updateMaxTest()
+                      setMaxReps(event.target.value)
+                    }}
+                  />
+                </label>
 
-              <label className="field">
-                <span>Video link</span>
-                <input
-                  type="url"
-                  name="max-video-url"
-                  autoComplete="off"
-                  spellCheck={false}
-                  inputMode="url"
-                  placeholder="https://example.com/attempt..."
-                  value={videoLink}
-                  onChange={(event) =>
-                    updateText(setVideoLink, event.target.value)
-                  }
-                />
-              </label>
-            </AccordionSection>
+                <AccordionSection
+                  eyebrow="Optional"
+                  title="Max test detail"
+                  isOpen={showMaxDetail}
+                  onToggle={() => setShowMaxDetail((current) => !current)}
+                  summary="Details"
+                >
+                  <div className="field-grid field-grid--compact">
+                    <label className="field">
+                      <span>Failure point</span>
+                      <select
+                        value={failurePoint}
+                        onChange={(event) => {
+                          updateMaxTest()
+                          setFailurePoint(
+                            event.target.value as FailurePoint | '',
+                          )
+                        }}
+                      >
+                        <option value="">Optional</option>
+                        {FAILURE_POINTS.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="field">
+                      <span>Set quality</span>
+                      <select
+                        value={qualityFlag}
+                        onChange={(event) => {
+                          updateMaxTest()
+                          setQualityFlag(event.target.value as QualityFlag | '')
+                        }}
+                      >
+                        <option value="">Optional</option>
+                        {QUALITY_FLAGS.map((item) => (
+                          <option key={item} value={item}>
+                            {QUALITY_FLAG_LABELS[item]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="field">
+                    <span>Video link</span>
+                    <input
+                      type="url"
+                      name="max-video-url"
+                      autoComplete="off"
+                      spellCheck={false}
+                      inputMode="url"
+                      placeholder="https://example.com/attempt..."
+                      value={videoLink}
+                      onChange={(event) => {
+                        updateMaxTest()
+                        setVideoLink(event.target.value)
+                      }}
+                    />
+                  </label>
+                </AccordionSection>
+
+                <div className="action-row action-row--end">
+                  <button
+                    type="button"
+                    className="button button--primary button--compact"
+                    onClick={handleSaveMaxTest}
+                  >
+                    Save max
+                  </button>
+                </div>
+              </>
+            )}
           </Section>
         ) : null}
 
-        <Section eyebrow="Workout rows" title="Preset exercises">
-          <div className="entry-list">
-            {entries.length === 0 ? (
-              <p className="muted-text">
-                No preset rows are available for this workout yet.
-              </p>
-            ) : null}
+        <div ref={workoutRowsRef}>
+          <Section eyebrow="Workout rows" title="Preset exercises">
+            <div className="entry-list">
+              {entries.length === 0 ? (
+                <p className="muted-text">
+                  No preset rows are available for this workout yet.
+                </p>
+              ) : null}
 
-            {entries.map((entry) => (
-              <div key={entry.localId} className="entry-row preset-row">
-                <div className="preset-row__copy">
-                  <p className="metric-label">{entry.exerciseName}</p>
-                  <strong>{entry.label}</strong>
-                  <p className="preset-row__target">{entry.target.summary}</p>
-                </div>
+              {entries.map((entry) => (
+                <div key={entry.localId} className="entry-row preset-row">
+                  <div className="preset-row__copy">
+                    <p className="metric-label">{entry.exerciseName}</p>
+                    <strong>{entry.label}</strong>
+                    <p className="preset-row__target">{entry.target.summary}</p>
+                  </div>
 
-                <div
-                  className="segment-row preset-row__actions"
-                  role="radiogroup"
-                  aria-label={`Outcome for ${entry.label}`}
-                >
-                  {(['pass', 'fail'] as const).map((outcome) => (
-                    <button
-                      key={outcome}
-                      type="button"
-                      className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
-                      aria-pressed={entry.outcome === outcome}
-                      onClick={() => markEntryOutcome(entry.localId, outcome)}
-                    >
-                      {outcome}
-                    </button>
-                  ))}
-                </div>
+                  <div
+                    className="segment-row preset-row__actions"
+                    role="radiogroup"
+                    aria-label={`Outcome for ${entry.label}`}
+                  >
+                    {(['pass', 'fail'] as const).map((outcome) => (
+                      <button
+                        key={outcome}
+                        type="button"
+                        className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
+                        aria-pressed={entry.outcome === outcome}
+                        onClick={() => markEntryOutcome(entry.localId, outcome)}
+                      >
+                        {outcome}
+                      </button>
+                    ))}
+                  </div>
 
-                {entry.target.mode === 'emom' ? (
-                  <EmomTimer entry={entry} soundSettings={timerSoundSettings} />
-                ) : null}
+                  {entry.target.mode === 'emom' ? (
+                    <EmomTimer
+                      entry={entry}
+                      soundSettings={timerSoundSettings}
+                    />
+                  ) : null}
 
-                {entry.target.mode === 'hold-seconds' &&
-                typeof entry.target.entryDurationSeconds === 'number' ? (
-                  <HoldTimer entry={entry} soundSettings={timerSoundSettings} />
-                ) : null}
+                  {entry.target.mode === 'hold-seconds' &&
+                  typeof entry.target.entryDurationSeconds === 'number' ? (
+                    <HoldTimer
+                      entry={entry}
+                      soundSettings={timerSoundSettings}
+                    />
+                  ) : null}
 
-                {entry.target.mode === 'duration-seconds' &&
-                typeof entry.target.entryDurationSeconds === 'number' ? (
-                  <DurationTimer
-                    entry={entry}
+                  {entry.target.mode === 'duration-seconds' &&
+                  typeof entry.target.entryDurationSeconds === 'number' ? (
+                    <DurationTimer
+                      entry={entry}
+                      soundSettings={timerSoundSettings}
+                    />
+                  ) : null}
+
+                  <RestTimer
+                    key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
+                    autoStartKey={restAutoStartByEntryId[entry.localId] ?? 0}
                     soundSettings={timerSoundSettings}
                   />
-                ) : null}
-
-                <RestTimer
-                  key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
-                  autoStartKey={restAutoStartByEntryId[entry.localId] ?? 0}
-                  soundSettings={timerSoundSettings}
-                />
-              </div>
-            ))}
-          </div>
-        </Section>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
 
         <Section eyebrow="Finish" title="Save session">
           <AccordionSection

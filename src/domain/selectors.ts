@@ -495,6 +495,7 @@ export function buildMaxHistory(
             .map((item) => ({ date: item.date, reps: item.reps })),
         ),
         failurePoint: maxTest.failurePoint,
+        qualityFlag: maxTest.qualityFlag,
       }
     })
     .reverse()
@@ -521,6 +522,7 @@ export function buildRecentWorkouts(
 
   return sortSessionsByDateDesc(sessions).map((session) => {
     const sessionEntries = entriesBySession.get(session.id) ?? []
+    const maxTest = maxTestBySessionId.get(session.id)
 
     return {
       ...session,
@@ -529,7 +531,8 @@ export function buildRecentWorkouts(
         (sum, entry) => sum + getSupportVolumeScore(entry, exerciseLookup),
         0,
       ),
-      maxReps: maxTestBySessionId.get(session.id)?.reps ?? null,
+      maxReps: maxTest?.reps ?? null,
+      qualityFlag: maxTest?.qualityFlag,
     }
   })
 }

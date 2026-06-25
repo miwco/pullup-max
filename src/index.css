@@ -356,6 +356,12 @@ a {
   border-color: rgba(150, 97, 45, 0.22);
 }
 
+.status-pill--danger {
+  background: rgba(161, 69, 61, 0.12);
+  color: var(--danger);
+  border-color: rgba(161, 69, 61, 0.22);
+}
+
 .header-status-pill {
   position: relative;
   display: inline-flex;

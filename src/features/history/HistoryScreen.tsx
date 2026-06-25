@@ -3,6 +3,7 @@ import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
 import { formatLongDate } from '../../lib/date'
+import { formatQualityFlag, getQualityTone } from '../../lib/qualityFlag'
 
 const PAGE_SIZE = 12
 
@@ -14,8 +15,8 @@ export function HistoryScreen() {
   const exerciseById = new Map(
     data.exercises.map((exercise) => [exercise.id, exercise]),
   )
-  const sortedBodyweightEntries = [...data.bodyweightEntries].sort((left, right) =>
-    right.date.localeCompare(left.date),
+  const sortedBodyweightEntries = [...data.bodyweightEntries].sort(
+    (left, right) => right.date.localeCompare(left.date),
   )
 
   return (
@@ -52,10 +53,20 @@ export function HistoryScreen() {
                             tone="neutral"
                           />
                           {session.maxReps !== null ? (
-                            <StatusPill
-                              label={`${session.maxReps} reps`}
-                              tone="success"
-                            />
+                            <>
+                              <StatusPill
+                                label={`${session.maxReps} reps`}
+                                tone={getQualityTone(session.qualityFlag)}
+                              />
+                              {formatQualityFlag(session.qualityFlag) ? (
+                                <StatusPill
+                                  label={
+                                    formatQualityFlag(session.qualityFlag)!
+                                  }
+                                  tone={getQualityTone(session.qualityFlag)}
+                                />
+                              ) : null}
+                            </>
                           ) : null}
                         </div>
                       </div>
@@ -79,9 +90,7 @@ export function HistoryScreen() {
               <button
                 className="button button--ghost button--compact"
                 style={{ marginTop: '0.75rem' }}
-                onClick={() =>
-                  setVisibleWorkouts((n) => n + PAGE_SIZE)
-                }
+                onClick={() => setVisibleWorkouts((n) => n + PAGE_SIZE)}
               >
                 Show more ({recentWorkouts.length - visibleWorkouts} remaining)
               </button>
@@ -144,9 +153,7 @@ export function HistoryScreen() {
                 <button
                   className="button button--ghost button--compact"
                   style={{ marginTop: '0.75rem' }}
-                  onClick={() =>
-                    setVisibleWeightEntries((n) => n + PAGE_SIZE)
-                  }
+                  onClick={() => setVisibleWeightEntries((n) => n + PAGE_SIZE)}
                 >
                   Show more (
                   {sortedBodyweightEntries.length - visibleWeightEntries}{' '}

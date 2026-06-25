@@ -9,7 +9,7 @@ import {
 } from '../../domain/cycle'
 import { serializeMaxTestsCsv } from '../../domain/importExport'
 import type { TimerSoundId } from '../../domain/types'
-import { todayDateString } from '../../lib/date'
+import { addDays, todayDateString } from '../../lib/date'
 import { playTone, TIMER_SOUND_OPTIONS } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
@@ -145,8 +145,26 @@ export function ProfileSettingsScreen() {
   function handleCompetitionDateChange(nextCycleEndDate: string) {
     setCyclePlanMode('competition')
     setCycleEndDate(nextCycleEndDate)
+    const nextCycleStartDate = todayDateString()
+    setCycleStartDate(nextCycleStartDate)
     const derivedLength = getCycleLengthDaysFromDates(
-      cycleStartDate,
+      nextCycleStartDate,
+      nextCycleEndDate,
+    )
+    setCycleLengthDays(derivedLength === null ? '' : String(derivedLength))
+  }
+
+  function applyCompetitionCycle() {
+    const nextCycleStartDate = todayDateString()
+    const nextCycleEndDate =
+      cyclePlanMode === 'competition' && cycleEndDate >= nextCycleStartDate
+        ? cycleEndDate
+        : addDays(nextCycleStartDate, MIN_CYCLE_LENGTH_DAYS - 1)
+    setCyclePlanMode('competition')
+    setCycleStartDate(nextCycleStartDate)
+    setCycleEndDate(nextCycleEndDate)
+    const derivedLength = getCycleLengthDaysFromDates(
+      nextCycleStartDate,
       nextCycleEndDate,
     )
     setCycleLengthDays(derivedLength === null ? '' : String(derivedLength))
@@ -249,7 +267,7 @@ export function ProfileSettingsScreen() {
                       ? ' button--primary'
                       : ' button--ghost'
                   }`}
-                  onClick={() => setCyclePlanMode('competition')}
+                  onClick={applyCompetitionCycle}
                 >
                   Competition date
                 </button>
@@ -267,6 +285,9 @@ export function ProfileSettingsScreen() {
                 name="cycle-end-date"
                 value={cycleEndDate}
                 readOnly={cyclePlanMode === 'standard'}
+                onInput={(event) =>
+                  handleCompetitionDateChange(event.currentTarget.value)
+                }
                 onChange={(event) =>
                   handleCompetitionDateChange(event.target.value)
                 }

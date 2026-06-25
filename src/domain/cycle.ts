@@ -7,7 +7,7 @@ import {
   todayDateString,
 } from '../lib/date'
 
-export const MIN_CYCLE_LENGTH_DAYS = 30
+export const MIN_CYCLE_LENGTH_DAYS = 7
 export const MAX_CYCLE_LENGTH_DAYS = 365
 export const DEFAULT_CYCLE_LENGTH_DAYS = 90
 const DEFAULT_PEAK_DAYS = 18

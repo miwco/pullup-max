@@ -10,6 +10,7 @@ import { ProgressScreen } from '../features/progress/ProgressScreen'
 import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
+import { addDays, todayDateString } from '../lib/date'
 
 vi.mock('../app/appContext', () => ({
   useAppState: vi.fn(),
@@ -403,6 +404,8 @@ describe('compact hybrid UI refresh', () => {
     render(<ProfileSettingsScreen />)
 
     const cycleEndDateInput = screen.getByLabelText(/cycle end date/i)
+    const nextWeekCompetitionDate = addDays(todayDateString(), 7)
+    const standardCycleEndDateFromToday = addDays(todayDateString(), 89)
 
     expect(cycleEndDateInput).toHaveValue('2026-07-17')
     expect(screen.getByText('90 days')).toBeInTheDocument()
@@ -410,16 +413,49 @@ describe('compact hybrid UI refresh', () => {
     await user.click(screen.getByRole('button', { name: /competition date/i }))
     fireEvent.change(screen.getByLabelText(/competition date/i), {
       target: {
-        value: '2026-06-07',
+        value: nextWeekCompetitionDate,
       },
     })
 
-    expect(screen.getByText('50 days')).toBeInTheDocument()
+    expect(screen.getByText('8 days')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /3 months/i }))
 
-    expect(cycleEndDateInput).toHaveValue('2026-07-17')
+    expect(screen.getByLabelText(/cycle end date/i)).toHaveValue(
+      standardCycleEndDateFromToday,
+    )
     expect(screen.getByText('90 days')).toBeInTheDocument()
+  })
+
+  it('saves competition cycles from today instead of the old cycle start', async () => {
+    const user = userEvent.setup()
+    const saveSettingsAndProgram = vi.fn(async () => true)
+    mockedUseAppState.mockReturnValue({
+      ...createMockAppState(),
+      saveSettingsAndProgram,
+    })
+
+    render(<ProfileSettingsScreen />)
+
+    const nextWeekCompetitionDate = addDays(todayDateString(), 7)
+    await user.click(screen.getByRole('button', { name: /competition date/i }))
+    fireEvent.change(screen.getByLabelText(/competition date/i), {
+      target: {
+        value: nextWeekCompetitionDate,
+      },
+    })
+    await user.click(screen.getByRole('button', { name: /save settings/i }))
+
+    expect(saveSettingsAndProgram).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cycleStartDate: todayDateString(),
+        cycleEndDate: nextWeekCompetitionDate,
+      }),
+      expect.objectContaining({
+        cycleLengthDays: 8,
+      }),
+      expect.any(Object),
+    )
   })
 
   it('routes the legacy cycle hash to Progress and removes Cycle from primary nav', () => {

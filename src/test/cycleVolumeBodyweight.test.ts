@@ -15,8 +15,9 @@ import {
 import { getEntryVolumePoints, getWeeklyVolumeSummary } from '../domain/volume'
 
 describe('cycle, bodyweight, and volume logic', () => {
-  it('clamps cycle length between 30 and 365 days', () => {
-    expect(clampCycleLengthDays(10)).toBe(30)
+  it('clamps cycle length between 7 and 365 days', () => {
+    expect(clampCycleLengthDays(3)).toBe(7)
+    expect(clampCycleLengthDays(10)).toBe(10)
     expect(clampCycleLengthDays(90)).toBe(90)
     expect(clampCycleLengthDays(500)).toBe(365)
   })

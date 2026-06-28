@@ -86,7 +86,7 @@ function applyBuildStepAdjustment(step: ProgramStep, bandsAvailable: boolean) {
   )
 
   if (isEmomStep(nextStep)) {
-    return withEmomMinutes(nextStep, Math.max(12, nextStep.emomMinutes ?? 10))
+    return withEmomMinutes(nextStep, 10)
   }
 
   if (typeof nextStep.holdSeconds === 'number') {
@@ -139,7 +139,7 @@ function applyDevelopStepAdjustment(step: ProgramStep) {
   )
 
   if (isEmomStep(nextStep)) {
-    return withEmomMinutes(nextStep, Math.min(nextStep.emomMinutes ?? 10, 10))
+    return withEmomMinutes(nextStep, 10)
   }
 
   if (typeof nextStep.holdSeconds === 'number') {
@@ -181,7 +181,7 @@ function applyPeakStepAdjustment(step: ProgramStep) {
   )
 
   if (isEmomStep(nextStep)) {
-    return withEmomMinutes(nextStep, Math.min(nextStep.emomMinutes ?? 10, 6))
+    return withEmomMinutes(nextStep, 10)
   }
 
   if (typeof nextStep.holdSeconds === 'number') {

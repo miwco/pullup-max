@@ -219,8 +219,8 @@ describe('recommendation engine', () => {
     expect(
       supportSteps.find((step) => step.title === 'Top holds')?.holdSeconds,
     ).toBe(15)
-    expect(maxSteps[0]?.emomMinutes).toBe(12)
-    expect(maxSteps[0]?.notes).toContain('12 minutes')
+    expect(maxSteps[0]?.emomMinutes).toBe(10)
+    expect(maxSteps[0]?.notes).toContain('10 minutes')
   })
 
   it('uses fewer longer support sets in develop phase', () => {
@@ -255,8 +255,8 @@ describe('recommendation engine', () => {
     expect(steps[1]?.title).toBe('Top holds')
     expect(steps[1]?.sets).toBe(2)
     expect(steps[1]?.holdSeconds).toBe(25)
-    expect(maxSteps[0]?.emomMinutes).toBe(6)
-    expect(maxSteps[0]?.notes).toContain('6 minutes')
+    expect(maxSteps[0]?.emomMinutes).toBe(10)
+    expect(maxSteps[0]?.notes).toContain('10 minutes')
   })
 
   it('eases support when fatigue or joint pain are high without changing session types', () => {

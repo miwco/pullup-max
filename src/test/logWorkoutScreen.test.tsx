@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppState } from '../app/appContext'
 import { createSeedData } from '../domain/defaults'
 import type { ProgramEntryDraft, SessionType } from '../domain/types'
@@ -160,13 +160,27 @@ function createMockAppState(): MockAppState {
 
 describe('LogWorkoutScreen preset rows', () => {
   beforeEach(() => {
+    window.localStorage.clear()
     mockedUseAppState.mockReturnValue(createMockAppState())
     vi.restoreAllMocks()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+    window.localStorage.clear()
+  })
+
   it('renders compact pass/fail controls and removes manual row inputs', () => {
-    render(
+    const { container } = render(
       <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    const emomRow = container
+      .querySelector('[aria-label="Outcome for EMOM pull-up block"]')
+      ?.closest('.entry-row')
+    const emomTimer = emomRow?.querySelector('.timer-panel')
+    const emomOutcome = emomRow?.querySelector(
+      '[aria-label="Outcome for EMOM pull-up block"]',
     )
 
     expect(screen.getByText('10m EMOM @ 3')).toBeInTheDocument()
@@ -189,6 +203,12 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.queryByLabelText(/timer volume/i)).toBeNull()
     expect(screen.getByText('Pull-up block timer')).toBeInTheDocument()
     expect(screen.getByText('Hold timer')).toBeInTheDocument()
+    expect(emomTimer).not.toBeNull()
+    expect(emomOutcome).not.toBeNull()
+    expect(
+      emomTimer!.compareDocumentPosition(emomOutcome!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(screen.getAllByText(/10s prep/i)).toHaveLength(2)
     expect(screen.getByText(/work 15s/i)).toBeInTheDocument()
     expect(screen.getAllByText(/rest 60s/i).length).toBeGreaterThan(0)
@@ -281,6 +301,45 @@ describe('LogWorkoutScreen preset rows', () => {
     )
 
     expect(screen.getByText(/work 25s/i)).toBeInTheDocument()
+  })
+
+  it('uses the prep countdown only before the first EMOM set', () => {
+    vi.useFakeTimers()
+    const { container } = render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+    const emomRow = container
+      .querySelector('[aria-label="Outcome for EMOM pull-up block"]')
+      ?.closest('.entry-row') as HTMLElement
+
+    fireEvent.click(
+      emomRow.querySelector('.timer-panel--emom .button--primary')!,
+    )
+
+    expect(emomRow).toHaveTextContent('Get to the bar')
+    expect(emomRow).toHaveTextContent('Set 1: 3 reps')
+
+    act(() => {
+      vi.advanceTimersByTime(10000)
+    })
+
+    expect(emomRow).toHaveTextContent('Work')
+    expect(emomRow).toHaveTextContent('Set 1: 3 reps')
+
+    act(() => {
+      vi.advanceTimersByTime(15000)
+    })
+
+    expect(emomRow).toHaveTextContent('Rest')
+    expect(emomRow).toHaveTextContent('Next set 2: 3 reps')
+
+    act(() => {
+      vi.advanceTimersByTime(60000)
+    })
+
+    expect(emomRow).toHaveTextContent('Work')
+    expect(emomRow).toHaveTextContent('Set 2: 3 reps')
+    expect(emomRow).not.toHaveTextContent('Get to the bar')
   })
 
   it('adds a timer for duration-based preset rows', () => {
@@ -410,6 +469,11 @@ describe('LogWorkoutScreen preset rows', () => {
 
     expect(screen.getByText('12 reps')).toBeInTheDocument()
     expect(screen.getByText('clean')).toBeInTheDocument()
+    expect(screen.getByText('Rest before pull-up block')).toBeInTheDocument()
+    expect(screen.getByText('7:00')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /pause rest/i }),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /edit max/i }),
     ).toBeInTheDocument()

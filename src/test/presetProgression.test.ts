@@ -40,7 +40,7 @@ describe('preset progression', () => {
     )
   })
 
-  it('walks the EMOM ladder through mixed and full stages', () => {
+  it('walks the EMOM ladder two higher-rep sets at a time', () => {
     const emomStep = getStepByTitle(allSteps, 'EMOM pull-up block')
 
     expect(
@@ -54,7 +54,7 @@ describe('preset progression', () => {
         },
         6,
       ).summary,
-    ).toBe('10m EMOM: 5x3 + 5x2')
+    ).toBe('10m EMOM: 2x3 + 8x2')
     expect(
       resolvePresetTarget(
         emomStep,
@@ -63,6 +63,18 @@ describe('preset progression', () => {
           mode: 'emom',
           emomBaseReps: 2,
           emomStageOffset: 2,
+        },
+        6,
+      ).summary,
+    ).toBe('10m EMOM: 4x3 + 6x2')
+    expect(
+      resolvePresetTarget(
+        emomStep,
+        {
+          presetKey: emomStep.id,
+          mode: 'emom',
+          emomBaseReps: 2,
+          emomStageOffset: 5,
         },
         6,
       ).summary,

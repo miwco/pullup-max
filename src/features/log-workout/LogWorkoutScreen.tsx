@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -60,9 +61,12 @@ const SUPPORT_WORKOUT_OPTIONS: Array<{
 const PREP_SECONDS = 10
 const DEFAULT_EXERCISE_REST_SECONDS = 5 * 60
 const DEFAULT_HOLD_REST_SECONDS = 2 * 60
+const DEFAULT_MAX_TO_BLOCK_REST_SECONDS = 7 * 60
 const EMOM_REST_SECONDS = 60
 const COUNTDOWN_BEEP_SECONDS = 5
 const ENDING_BEEP_SECONDS = 3
+const EMOM_REST_WARNING_SECONDS = 5
+const TIMER_STORAGE_PREFIX = 'pullup-max:timer'
 
 function parseOptionalNumber(value: string) {
   if (!value.trim()) {
@@ -127,23 +131,56 @@ function formatTimer(seconds: number) {
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
 }
 
-function getEmomRoundReps(entry: WorkoutLogEntryDraft) {
-  return entry.target.emomSegments?.[0]?.reps ?? entry.target.entryReps ?? 0
+function getEmomWorkSeconds(reps: number) {
+  return 15 + Math.max(0, reps - 3) * 5
 }
 
-function getEmomRoundCount(entry: WorkoutLogEntryDraft) {
-  return (
-    entry.target.emomMinutes ??
-    entry.target.emomSegments?.reduce(
-      (sum, segment) => sum + segment.sets,
-      0,
-    ) ??
-    entry.target.entrySets
+function getEmomRoundPlan(entry: WorkoutLogEntryDraft) {
+  const segmentReps =
+    entry.target.emomSegments?.flatMap((segment) =>
+      Array.from({ length: segment.sets }, () => segment.reps),
+    ) ?? []
+  const roundCount =
+    entry.target.emomMinutes || segmentReps.length || entry.target.entrySets
+  const fallbackReps = Math.max(
+    1,
+    Math.round((entry.target.entryReps ?? roundCount) / roundCount),
+  )
+  const lastSegmentReps = segmentReps.at(-1)
+
+  return Array.from(
+    { length: roundCount },
+    (_, index) => segmentReps[index] ?? lastSegmentReps ?? fallbackReps,
   )
 }
 
-function getEmomWorkSeconds(reps: number) {
-  return 15 + Math.max(0, reps - 3) * 5
+function getStoredTimerKey(key: string) {
+  return `${TIMER_STORAGE_PREFIX}:${key}`
+}
+
+function readStoredTimer<T>(key: string): T | null {
+  try {
+    const stored = window.localStorage.getItem(getStoredTimerKey(key))
+    return stored ? (JSON.parse(stored) as T) : null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredTimer<T>(key: string, value: T) {
+  try {
+    window.localStorage.setItem(getStoredTimerKey(key), JSON.stringify(value))
+  } catch {
+    // Timer persistence is helpful, but the visible timer still works without it.
+  }
+}
+
+function clearStoredTimer(key: string) {
+  try {
+    window.localStorage.removeItem(getStoredTimerKey(key))
+  } catch {
+    // Ignore storage cleanup failures.
+  }
 }
 
 function useTimerBeeps({
@@ -195,29 +232,141 @@ function useTimerBeeps({
 
 function EmomTimer({
   entry,
+  onInteract,
   soundSettings,
+  timerKey,
 }: {
   entry: WorkoutLogEntryDraft
+  onInteract: () => void
   soundSettings: TimerSoundSettings
+  timerKey: string
 }) {
-  const roundReps = getEmomRoundReps(entry)
-  const roundCount = getEmomRoundCount(entry)
-  const workSeconds = getEmomWorkSeconds(roundReps)
-  const [timer, setTimer] = useState(() => ({
-    currentRound: 1,
-    isRunning: false,
-    phase: 'ready' as TimerPhase,
-    previousPhase: null as TimerPhase | null,
-    secondsRemaining: workSeconds,
-  }))
+  const roundPlan = useMemo(() => getEmomRoundPlan(entry), [entry])
+  const roundCount = roundPlan.length
+  const targetSignature = `${entry.presetKey}:${entry.target.summary}:${roundPlan.join(',')}`
+  const initialSeconds = getEmomWorkSeconds(roundPlan[0] ?? 1)
+  const beepKeyRef = useRef('')
+  const initialTimer = useMemo(
+    () => ({
+      currentRound: 1,
+      isRunning: false,
+      lastUpdatedAt: null as number | null,
+      phase: 'ready' as TimerPhase,
+      previousPhase: null as TimerPhase | null,
+      secondsRemaining: initialSeconds,
+      targetSignature,
+    }),
+    [initialSeconds, targetSignature],
+  )
 
-  useTimerBeeps({
-    isRunning: timer.isRunning,
-    phase: timer.phase,
-    previousPhase: timer.previousPhase,
-    secondsRemaining: timer.secondsRemaining,
-    soundSettings,
+  const advanceTimer = useCallback(
+    (
+      current: typeof initialTimer,
+      elapsedSeconds: number,
+      now: number,
+    ): typeof initialTimer => {
+      if (
+        !current.isRunning ||
+        current.phase === 'ready' ||
+        current.phase === 'complete'
+      ) {
+        return {
+          ...current,
+          lastUpdatedAt: current.isRunning ? now : current.lastUpdatedAt,
+        }
+      }
+
+      let next = { ...current }
+      let remainingElapsed = Math.max(0, elapsedSeconds)
+
+      while (remainingElapsed > 0 && next.isRunning) {
+        if (next.secondsRemaining > remainingElapsed) {
+          next = {
+            ...next,
+            secondsRemaining: next.secondsRemaining - remainingElapsed,
+            lastUpdatedAt: now,
+          }
+          remainingElapsed = 0
+          break
+        }
+
+        remainingElapsed -= next.secondsRemaining
+
+        if (next.phase === 'prep') {
+          next = {
+            ...next,
+            phase: 'work',
+            previousPhase: 'prep',
+            secondsRemaining: getEmomWorkSeconds(
+              roundPlan[next.currentRound - 1] ?? 1,
+            ),
+          }
+          continue
+        }
+
+        if (next.phase === 'work') {
+          if (next.currentRound >= roundCount) {
+            next = {
+              ...next,
+              isRunning: false,
+              lastUpdatedAt: null,
+              phase: 'complete',
+              previousPhase: 'work',
+              secondsRemaining: 0,
+            }
+            break
+          }
+
+          next = {
+            ...next,
+            phase: 'rest',
+            previousPhase: 'work',
+            secondsRemaining: EMOM_REST_SECONDS,
+          }
+          continue
+        }
+
+        if (next.phase === 'rest') {
+          const nextRound = Math.min(roundCount, next.currentRound + 1)
+          next = {
+            ...next,
+            currentRound: nextRound,
+            phase: 'work',
+            previousPhase: 'rest',
+            secondsRemaining: getEmomWorkSeconds(roundPlan[nextRound - 1] ?? 1),
+          }
+          continue
+        }
+
+        remainingElapsed = 0
+      }
+
+      return {
+        ...next,
+        lastUpdatedAt: next.isRunning ? now : next.lastUpdatedAt,
+      }
+    },
+    [roundCount, roundPlan],
+  )
+
+  const [timer, setTimer] = useState(() => {
+    const stored = readStoredTimer<typeof initialTimer>(timerKey)
+
+    if (stored?.targetSignature === targetSignature) {
+      const now = Date.now()
+      const elapsedSeconds =
+        stored.isRunning && stored.lastUpdatedAt
+          ? Math.floor((now - stored.lastUpdatedAt) / 1000)
+          : 0
+      return advanceTimer(stored, elapsedSeconds, now)
+    }
+
+    return initialTimer
   })
+
+  useEffect(() => {
+    writeStoredTimer(timerKey, timer)
+  }, [timer, timerKey])
 
   useEffect(() => {
     if (
@@ -230,127 +379,162 @@ function EmomTimer({
 
     const intervalId = window.setInterval(() => {
       setTimer((current) => {
-        if (!current.isRunning) {
+        const now = Date.now()
+        const elapsedSeconds = current.lastUpdatedAt
+          ? Math.floor((now - current.lastUpdatedAt) / 1000)
+          : 0
+
+        if (elapsedSeconds <= 0) {
           return current
         }
 
-        if (current.secondsRemaining > 1) {
-          return {
-            ...current,
-            secondsRemaining: current.secondsRemaining - 1,
-          }
-        }
-
-        if (current.phase === 'prep') {
-          return {
-            ...current,
-            phase: 'work',
-            previousPhase: 'prep',
-            secondsRemaining: workSeconds,
-          }
-        }
-
-        if (current.phase === 'work') {
-          if (current.currentRound >= roundCount) {
-            return {
-              ...current,
-              isRunning: false,
-              phase: 'complete',
-              previousPhase: 'work',
-              secondsRemaining: 0,
-            }
-          }
-
-          return {
-            ...current,
-            phase: 'rest',
-            previousPhase: 'work',
-            secondsRemaining: EMOM_REST_SECONDS,
-          }
-        }
-
-        if (current.phase === 'rest') {
-          return {
-            ...current,
-            currentRound: current.currentRound + 1,
-            phase: 'prep',
-            previousPhase: 'rest',
-            secondsRemaining: PREP_SECONDS,
-          }
-        }
-
-        return current
+        return advanceTimer(current, elapsedSeconds, now)
       })
-    }, 1000)
+    }, 500)
 
     return () => window.clearInterval(intervalId)
-  }, [roundCount, timer.isRunning, timer.phase, workSeconds])
+  }, [advanceTimer, timer.isRunning, timer.phase])
+
+  useEffect(() => {
+    if (!timer.isRunning) {
+      return
+    }
+
+    const shouldCountdownBeep =
+      timer.secondsRemaining > 0 &&
+      ((timer.phase === 'prep' &&
+        timer.secondsRemaining <= COUNTDOWN_BEEP_SECONDS) ||
+        (timer.phase === 'rest' &&
+          timer.secondsRemaining <= EMOM_REST_WARNING_SECONDS))
+
+    if (!shouldCountdownBeep) {
+      return
+    }
+
+    const beepKey = `${timer.phase}:${timer.currentRound}:${timer.secondsRemaining}`
+
+    if (beepKeyRef.current === beepKey) {
+      return
+    }
+
+    beepKeyRef.current = beepKey
+    playTone(soundSettings, timer.phase === 'rest' ? 'ending' : 'countdown')
+  }, [
+    soundSettings,
+    timer.currentRound,
+    timer.isRunning,
+    timer.phase,
+    timer.secondsRemaining,
+  ])
+
+  useEffect(() => {
+    if (!timer.previousPhase || timer.previousPhase === timer.phase) {
+      return
+    }
+
+    if (
+      timer.phase === 'work' ||
+      timer.phase === 'rest' ||
+      timer.phase === 'complete'
+    ) {
+      playTone(soundSettings, 'alarm')
+    }
+  }, [soundSettings, timer.phase, timer.previousPhase])
 
   function startTimer() {
+    onInteract()
+    setTimer((current) => {
+      const shouldRestart = current.phase === 'complete'
+      const currentRound = shouldRestart ? 1 : current.currentRound
+      const phase =
+        current.phase === 'ready' || shouldRestart ? 'prep' : current.phase
+
+      return {
+        ...current,
+        currentRound,
+        isRunning: true,
+        lastUpdatedAt: Date.now(),
+        phase,
+        previousPhase: current.phase,
+        secondsRemaining:
+          current.phase === 'ready' || shouldRestart
+            ? PREP_SECONDS
+            : current.secondsRemaining,
+      }
+    })
+  }
+
+  function pauseTimer() {
+    onInteract()
     setTimer((current) => ({
-      currentRound: current.phase === 'complete' ? 1 : current.currentRound,
-      isRunning: true,
-      phase: current.phase === 'rest' ? 'rest' : 'prep',
-      previousPhase: current.phase,
-      secondsRemaining:
-        current.phase === 'ready' || current.phase === 'complete'
-          ? PREP_SECONDS
-          : current.secondsRemaining,
+      ...current,
+      isRunning: false,
+      lastUpdatedAt: null,
     }))
   }
 
   function resetTimer() {
-    setTimer({
-      currentRound: 1,
-      isRunning: false,
-      phase: 'ready',
-      previousPhase: null,
-      secondsRemaining: workSeconds,
-    })
+    onInteract()
+    clearStoredTimer(timerKey)
+    setTimer(initialTimer)
   }
 
+  const currentReps = roundPlan[timer.currentRound - 1] ?? 1
+  const nextRound =
+    timer.phase === 'rest'
+      ? Math.min(roundCount, timer.currentRound + 1)
+      : timer.currentRound
+  const nextReps = roundPlan[nextRound - 1] ?? currentReps
+  const workSeconds = getEmomWorkSeconds(
+    timer.phase === 'rest' ? nextReps : currentReps,
+  )
   const phaseLabel =
     timer.phase === 'complete'
       ? 'Block complete'
       : timer.phase === 'prep'
         ? 'Get to the bar'
         : timer.phase === 'rest'
-          ? 'Rest before next round'
+          ? 'Rest'
           : timer.phase === 'work'
-            ? 'Do pull-ups'
+            ? 'Work'
             : 'Ready'
+  const instruction =
+    timer.phase === 'rest'
+      ? `Next set ${nextRound}: ${nextReps} reps`
+      : timer.phase === 'work' || timer.phase === 'prep'
+        ? `Set ${timer.currentRound}: ${currentReps} reps`
+        : `${roundCount} sets ready`
 
   return (
-    <div className="timer-panel">
+    <div
+      className={`timer-panel timer-panel--emom${timer.isRunning ? ' is-active' : ''}`}
+    >
       <div>
         <p className="metric-label">Pull-up block timer</p>
         <strong>{phaseLabel}</strong>
         <p className="muted-text">
-          {PREP_SECONDS}s prep - {roundCount} rounds - {roundReps} reps - work{' '}
-          {workSeconds}s - rest {EMOM_REST_SECONDS}s
+          10s prep before set 1 - {roundCount} sets - work {workSeconds}s - rest{' '}
+          {EMOM_REST_SECONDS}s
         </p>
       </div>
 
       <div className="timer-panel__readout">
         <span>{formatTimer(timer.secondsRemaining)}</span>
         <small>
-          Round {Math.min(timer.currentRound, roundCount)} / {roundCount}
+          Set {Math.min(nextRound, roundCount)} / {roundCount}
         </small>
+      </div>
+
+      <div className="timer-panel__instruction">
+        <span>{timer.phase}</span>
+        <strong>{instruction}</strong>
       </div>
 
       <div className="button-row">
         <button
           type="button"
           className="button button--primary button--compact"
-          onClick={
-            timer.isRunning
-              ? () =>
-                  setTimer((current) => ({
-                    ...current,
-                    isRunning: false,
-                  }))
-              : startTimer
-          }
+          onClick={timer.isRunning ? pauseTimer : startTimer}
         >
           {timer.isRunning
             ? 'Pause'
@@ -784,17 +968,91 @@ function DurationTimer({
 
 function RestTimer({
   autoStartKey = 0,
+  defaultRestSeconds = DEFAULT_EXERCISE_REST_SECONDS,
+  label = 'Rest before next exercise',
+  onInteract,
   soundSettings,
+  storageKey,
 }: {
   autoStartKey?: number
+  defaultRestSeconds?: number
+  label?: string
+  onInteract?: () => void
   soundSettings: TimerSoundSettings
+  storageKey: string
 }) {
   const hasRunRef = useRef(autoStartKey > 0)
-  const [timer, setTimer] = useState(() => ({
-    isRunning: autoStartKey > 0,
-    restSeconds: DEFAULT_EXERCISE_REST_SECONDS,
-    secondsRemaining: DEFAULT_EXERCISE_REST_SECONDS,
-  }))
+  const [timer, setTimer] = useState(() => {
+    const initialTimer = {
+      isRunning: autoStartKey > 0,
+      lastUpdatedAt: autoStartKey > 0 ? Date.now() : null,
+      restSeconds: defaultRestSeconds,
+      secondsRemaining: defaultRestSeconds,
+    }
+
+    if (autoStartKey > 0) {
+      return initialTimer
+    }
+
+    const stored = readStoredTimer<typeof initialTimer>(storageKey)
+
+    if (!stored) {
+      return initialTimer
+    }
+
+    const now = Date.now()
+    const elapsedSeconds =
+      stored.isRunning && stored.lastUpdatedAt
+        ? Math.floor((now - stored.lastUpdatedAt) / 1000)
+        : 0
+    const nextSeconds = Math.max(0, stored.secondsRemaining - elapsedSeconds)
+
+    return {
+      ...stored,
+      isRunning: stored.isRunning && nextSeconds > 0,
+      lastUpdatedAt: stored.isRunning && nextSeconds > 0 ? now : null,
+      secondsRemaining: nextSeconds,
+    }
+  })
+
+  useEffect(() => {
+    writeStoredTimer(storageKey, timer)
+  }, [storageKey, timer])
+
+  useEffect(() => {
+    if (!timer.isRunning) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      setTimer((current) => {
+        if (!current.isRunning || !current.lastUpdatedAt) {
+          return current
+        }
+
+        const now = Date.now()
+        const elapsedSeconds = Math.floor((now - current.lastUpdatedAt) / 1000)
+
+        if (elapsedSeconds <= 0) {
+          return current
+        }
+
+        const nextSeconds = Math.max(
+          0,
+          current.secondsRemaining - elapsedSeconds,
+        )
+
+        return {
+          ...current,
+          isRunning: nextSeconds > 0,
+          lastUpdatedAt: nextSeconds > 0 ? now : null,
+          secondsRemaining: nextSeconds,
+        }
+      })
+    }, 500)
+
+    return () => window.clearInterval(intervalId)
+  }, [timer.isRunning])
 
   useEffect(() => {
     if (
@@ -810,35 +1068,6 @@ function RestTimer({
     }
   }, [soundSettings, timer.isRunning, timer.secondsRemaining])
 
-  useEffect(() => {
-    if (!timer.isRunning) {
-      return
-    }
-
-    const intervalId = window.setInterval(() => {
-      setTimer((current) => {
-        if (!current.isRunning) {
-          return current
-        }
-
-        if (current.secondsRemaining <= 1) {
-          return {
-            ...current,
-            isRunning: false,
-            secondsRemaining: 0,
-          }
-        }
-
-        return {
-          ...current,
-          secondsRemaining: current.secondsRemaining - 1,
-        }
-      })
-    }, 1000)
-
-    return () => window.clearInterval(intervalId)
-  }, [timer.isRunning])
-
   function updateRestMinutes(value: string) {
     const minutes = Number(value)
 
@@ -847,8 +1076,10 @@ function RestTimer({
     }
 
     const nextRestSeconds = Math.round(minutes * 60)
+    onInteract?.()
     setTimer((current) => ({
       isRunning: current.isRunning,
+      lastUpdatedAt: current.isRunning ? Date.now() : null,
       restSeconds: nextRestSeconds,
       secondsRemaining: current.isRunning
         ? current.secondsRemaining
@@ -859,7 +1090,7 @@ function RestTimer({
   return (
     <div className="timer-panel timer-panel--rest">
       <div>
-        <p className="metric-label">Rest before next exercise</p>
+        <p className="metric-label">{label}</p>
         <strong>{formatTimer(timer.secondsRemaining)}</strong>
       </div>
 
@@ -879,10 +1110,12 @@ function RestTimer({
           type="button"
           className="button button--ghost button--compact"
           onClick={() => {
+            onInteract?.()
             hasRunRef.current = true
             setTimer((current) => ({
               ...current,
               isRunning: !current.isRunning,
+              lastUpdatedAt: !current.isRunning ? Date.now() : null,
             }))
           }}
         >
@@ -892,9 +1125,12 @@ function RestTimer({
           type="button"
           className="button button--ghost button--compact"
           onClick={() => {
+            onInteract?.()
+            clearStoredTimer(storageKey)
             setTimer((current) => ({
               ...current,
               isRunning: false,
+              lastUpdatedAt: null,
               secondsRemaining: current.restSeconds,
             }))
           }}
@@ -977,6 +1213,7 @@ export function LogWorkoutScreen({
   const [restAutoStartByEntryId, setRestAutoStartByEntryId] = useState<
     Record<string, number>
   >({})
+  const [maxRestAutoStartKey, setMaxRestAutoStartKey] = useState(0)
   const workoutRowsRef = useRef<HTMLDivElement | null>(null)
   const currentEntriesSignature = createEntriesSignature(entries)
   const timerSoundSettings = useMemo(
@@ -1193,6 +1430,7 @@ export function LogWorkoutScreen({
     setFormError(null)
     setMaxTestSaved(true)
     setShowMaxDetail(false)
+    setMaxRestAutoStartKey((current) => current + 1)
 
     window.setTimeout(() => {
       if (typeof workoutRowsRef.current?.scrollIntoView !== 'function') {
@@ -1368,33 +1606,44 @@ export function LogWorkoutScreen({
         {sessionType === 'max' ? (
           <Section eyebrow="True max" title="Max test">
             {maxTestSaved ? (
-              <div className="summary-bar">
-                <div className="chip-row">
-                  <StatusPill
-                    label={`${maxReps} reps`}
-                    tone={getQualityTone(qualityFlag)}
-                  />
-                  {formatQualityFlag(qualityFlag) ? (
+              <>
+                <div className="summary-bar">
+                  <div className="chip-row">
                     <StatusPill
-                      label={formatQualityFlag(qualityFlag)!}
+                      label={`${maxReps} reps`}
                       tone={getQualityTone(qualityFlag)}
                     />
-                  ) : null}
-                  {failurePoint ? (
-                    <StatusPill label={failurePoint} tone="accent" />
-                  ) : null}
+                    {formatQualityFlag(qualityFlag) ? (
+                      <StatusPill
+                        label={formatQualityFlag(qualityFlag)!}
+                        tone={getQualityTone(qualityFlag)}
+                      />
+                    ) : null}
+                    {failurePoint ? (
+                      <StatusPill label={failurePoint} tone="accent" />
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="button button--ghost button--compact"
+                    onClick={() => {
+                      markInteracted()
+                      setMaxTestSaved(false)
+                    }}
+                  >
+                    Edit max
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="button button--ghost button--compact"
-                  onClick={() => {
-                    markInteracted()
-                    setMaxTestSaved(false)
-                  }}
-                >
-                  Edit max
-                </button>
-              </div>
+                <RestTimer
+                  key={`max-rest-${maxRestAutoStartKey}`}
+                  autoStartKey={maxRestAutoStartKey}
+                  defaultRestSeconds={DEFAULT_MAX_TO_BLOCK_REST_SECONDS}
+                  label="Rest before pull-up block"
+                  onInteract={markInteracted}
+                  soundSettings={timerSoundSettings}
+                  storageKey={`rest:max:${date}`}
+                />
+              </>
             ) : (
               <>
                 <label className="field field--max">
@@ -1508,28 +1757,12 @@ export function LogWorkoutScreen({
                     <p className="preset-row__target">{entry.target.summary}</p>
                   </div>
 
-                  <div
-                    className="segment-row preset-row__actions"
-                    role="radiogroup"
-                    aria-label={`Outcome for ${entry.label}`}
-                  >
-                    {(['pass', 'fail'] as const).map((outcome) => (
-                      <button
-                        key={outcome}
-                        type="button"
-                        className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
-                        aria-pressed={entry.outcome === outcome}
-                        onClick={() => markEntryOutcome(entry.localId, outcome)}
-                      >
-                        {outcome}
-                      </button>
-                    ))}
-                  </div>
-
                   {entry.target.mode === 'emom' ? (
                     <EmomTimer
                       entry={entry}
+                      onInteract={markInteracted}
                       soundSettings={timerSoundSettings}
+                      timerKey={`emom:${date}:${entry.presetKey}:${entry.target.summary}`}
                     />
                   ) : null}
 
@@ -1549,10 +1782,30 @@ export function LogWorkoutScreen({
                     />
                   ) : null}
 
+                  <div
+                    className="segment-row preset-row__actions"
+                    role="radiogroup"
+                    aria-label={`Outcome for ${entry.label}`}
+                  >
+                    {(['pass', 'fail'] as const).map((outcome) => (
+                      <button
+                        key={outcome}
+                        type="button"
+                        className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
+                        aria-pressed={entry.outcome === outcome}
+                        onClick={() => markEntryOutcome(entry.localId, outcome)}
+                      >
+                        {outcome}
+                      </button>
+                    ))}
+                  </div>
+
                   <RestTimer
                     key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
                     autoStartKey={restAutoStartByEntryId[entry.localId] ?? 0}
+                    onInteract={markInteracted}
                     soundSettings={timerSoundSettings}
+                    storageKey={`rest:${date}:${entry.presetKey}:${entry.localId}`}
                   />
                 </div>
               ))}

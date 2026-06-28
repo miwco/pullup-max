@@ -16,7 +16,11 @@ function clampToPositiveInteger(value: number | undefined, fallback = 1) {
 }
 
 function getResolvedEmomMinutes(step: ProgramStep) {
-  return clampToPositiveInteger(step.emomMinutes, EMOM_DEFAULT_MINUTES)
+  if (typeof step.emomMinutes !== 'number') {
+    return EMOM_DEFAULT_MINUTES
+  }
+
+  return EMOM_DEFAULT_MINUTES
 }
 
 function getInitialEmomBaseReps(latestMaxReps: number | null) {
@@ -37,9 +41,11 @@ function resolveEmomStage(
   stageOffset: number,
 ) {
   const normalizedOffset = Math.max(0, stageOffset)
-  const tierOffset = Math.floor(normalizedOffset / 2)
+  const stepsPerTier = Math.ceil(minutes / 2)
+  const tierOffset = Math.floor(normalizedOffset / stepsPerTier)
+  const mixedStep = normalizedOffset % stepsPerTier
 
-  if (normalizedOffset % 2 === 0) {
+  if (mixedStep === 0) {
     const reps = baseReps + tierOffset
 
     return {
@@ -50,7 +56,7 @@ function resolveEmomStage(
 
   const lowerReps = baseReps + tierOffset
   const higherReps = lowerReps + 1
-  const higherSets = Math.ceil(minutes / 2)
+  const higherSets = Math.min(minutes, mixedStep * 2)
   const lowerSets = Math.max(0, minutes - higherSets)
 
   return {

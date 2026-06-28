@@ -53,12 +53,16 @@ export function playTone(
       const oscillator = context.createOscillator()
       const gain = context.createGain()
       const start = now + index * 0.18
-      const stop = start + (kind === 'alarm' ? 0.12 : 0.08)
+      const stop = start + (kind === 'alarm' ? 0.16 : 0.12)
+      const audibleVolume = Math.min(
+        1,
+        settings.volume * (kind === 'alarm' ? 0.8 : 0.62),
+      )
 
       oscillator.type = settings.soundId === 'bright' ? 'square' : 'sine'
       oscillator.frequency.setValueAtTime(frequency, start)
       gain.gain.setValueAtTime(0, start)
-      gain.gain.linearRampToValueAtTime(settings.volume * 0.18, start + 0.01)
+      gain.gain.linearRampToValueAtTime(audibleVolume, start + 0.01)
       gain.gain.exponentialRampToValueAtTime(0.001, stop)
       oscillator.connect(gain)
       gain.connect(context.destination)

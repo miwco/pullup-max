@@ -772,6 +772,14 @@ textarea:disabled {
   border-top: 1px solid var(--line);
 }
 
+.timer-panel.is-active {
+  gap: 12px;
+  padding: 13px 12px;
+  border: 1px solid rgba(24, 32, 39, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
 .timer-panel__readout {
   display: grid;
   gap: 2px;
@@ -789,6 +797,32 @@ textarea:disabled {
 
 .timer-panel__readout small {
   color: var(--muted-strong);
+}
+
+.timer-panel__instruction {
+  display: grid;
+  gap: 3px;
+}
+
+.timer-panel__instruction span {
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.timer-panel__instruction strong {
+  font-size: 1rem;
+}
+
+.timer-panel.is-active .timer-panel__readout span {
+  font-size: clamp(2.35rem, 14vw, 4.6rem);
+}
+
+.timer-panel.is-active .timer-panel__readout small,
+.timer-panel.is-active .timer-panel__instruction strong {
+  font-size: 1.05rem;
 }
 
 .timer-panel__input {

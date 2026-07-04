@@ -291,7 +291,7 @@ export function CycleLineChart({
 
 export function BarChart({ bars }: BarChartProps) {
   if (bars.length === 0) {
-    return <div className="chart-empty">No support volume logged yet.</div>
+    return <div className="chart-empty">No support load logged yet.</div>
   }
 
   const maxValue = Math.max(...bars.map((bar) => bar.value), 1)

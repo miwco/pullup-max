@@ -233,6 +233,14 @@ export function ProfileSettingsScreen() {
     <div className="screen-stack">
       <form className="screen-stack" onSubmit={handleSave}>
         <Section eyebrow="Settings" title="Rules and defaults">
+          <a className="settings-program-link" href="#/program">
+            <span>
+              <strong>Program</strong>
+              <small>Max day and three support workouts</small>
+            </span>
+            <span className="settings-program-link__action">Edit program</span>
+          </a>
+
           <div className="field-grid field-grid--compact">
             <label className="field">
               <span>Cycle start date</span>

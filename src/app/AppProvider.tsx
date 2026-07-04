@@ -259,7 +259,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         data.maxTests,
         data.athleteProfile.mainMovement,
       ),
-      daysSinceLastWorkout: getDaysSinceLastWorkout(data.sessions),
+      daysSinceLastWorkout: getDaysSinceLastWorkout(
+        data.sessions,
+        todayDateString(),
+        data.greaseGrooveEntries,
+      ),
     }
   }, [data])
 
@@ -314,6 +318,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
         todayDateString(),
       ),
       'Bodyweight saved.',
+    )
+  }
+
+  async function saveGreaseGrooveEntry(reps: number, date = todayDateString()) {
+    const normalizedReps = Math.round(reps)
+
+    if (!Number.isFinite(normalizedReps) || normalizedReps <= 0) {
+      return false
+    }
+
+    return saveNextData(
+      withComputedRecommendation(
+        {
+          ...data,
+          greaseGrooveEntries: [
+            ...data.greaseGrooveEntries,
+            {
+              id: createId('gg'),
+              date,
+              reps: normalizedReps,
+              loggedAt: new Date().toISOString(),
+            },
+          ],
+        },
+        todayDateString(),
+      ),
+      'GG set added.',
+    )
+  }
+
+  async function deleteGreaseGrooveEntry(entryId: string) {
+    return saveNextData(
+      withComputedRecommendation(
+        {
+          ...data,
+          greaseGrooveEntries: data.greaseGrooveEntries.filter(
+            (entry) => entry.id !== entryId,
+          ),
+        },
+        todayDateString(),
+      ),
+      'GG set removed.',
     )
   }
 
@@ -685,6 +731,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearWorkoutDraft: clearCurrentWorkoutDraft,
     clearFinishWorkoutDraft: clearCurrentFinishWorkoutDraft,
     deleteExercise,
+    deleteGreaseGrooveEntry,
     dismissOnboarding,
     errorMessage,
     exportBackup: () => serializeExportBundle(data),
@@ -699,6 +746,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     requestPersistentStorage,
     resetAllData,
     saveBodyweight,
+    saveGreaseGrooveEntry,
     saveSession,
     saveFinishWorkout,
     saveFinishWorkoutDraft: saveCurrentFinishWorkoutDraft,

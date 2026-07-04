@@ -12,9 +12,13 @@ import {
   getBodyweightSnapshotValue,
   upsertBodyweightEntry,
 } from '../domain/bodyweight'
-import { getEntryVolumePoints, getWeeklyVolumeSummary } from '../domain/volume'
+import {
+  getEntryTrainingLoadPoints,
+  getMaxTestTrainingLoadPoints,
+  getWeeklyVolumeSummary,
+} from '../domain/volume'
 
-describe('cycle, bodyweight, and volume logic', () => {
+describe('cycle, bodyweight, and training-load logic', () => {
   it('clamps cycle length between 7 and 365 days', () => {
     expect(clampCycleLengthDays(3)).toBe(7)
     expect(clampCycleLengthDays(10)).toBe(10)
@@ -74,7 +78,7 @@ describe('cycle, bodyweight, and volume logic', () => {
     expect(getBodyweightSnapshotValue(withLaterEntry, false)).toBeUndefined()
   })
 
-  it('weights different exercise types into comparable volume points', () => {
+  it('weights work and applies small fatigue modifiers', () => {
     const exercises = createDefaultExercises()
     const exerciseLookup = new Map(
       exercises.map((exercise) => [exercise.id, exercise]),
@@ -90,7 +94,7 @@ describe('cycle, bodyweight, and volume logic', () => {
     )!.id
 
     expect(
-      getEntryVolumePoints(
+      getEntryTrainingLoadPoints(
         {
           id: 'entry-1',
           workoutSessionId: 'session-1',
@@ -103,7 +107,7 @@ describe('cycle, bodyweight, and volume logic', () => {
       ),
     ).toBe(20)
     expect(
-      getEntryVolumePoints(
+      getEntryTrainingLoadPoints(
         {
           id: 'entry-2',
           workoutSessionId: 'session-1',
@@ -114,9 +118,9 @@ describe('cycle, bodyweight, and volume logic', () => {
         },
         exerciseLookup,
       ),
-    ).toBe(15)
+    ).toBe(12)
     expect(
-      getEntryVolumePoints(
+      getEntryTrainingLoadPoints(
         {
           id: 'entry-3',
           workoutSessionId: 'session-1',
@@ -129,7 +133,7 @@ describe('cycle, bodyweight, and volume logic', () => {
       ),
     ).toBe(8)
     expect(
-      getEntryVolumePoints(
+      getEntryTrainingLoadPoints(
         {
           id: 'entry-4',
           workoutSessionId: 'session-1',
@@ -141,10 +145,13 @@ describe('cycle, bodyweight, and volume logic', () => {
         },
         exerciseLookup,
       ),
-    ).toBe(0)
+    ).toBe(21.6)
+    expect(getMaxTestTrainingLoadPoints(10, 'clean')).toBe(10)
+    expect(getMaxTestTrainingLoadPoints(10, 'grindy')).toBe(10.5)
+    expect(getMaxTestTrainingLoadPoints(10, 'partial')).toBe(11)
   })
 
-  it('raises weekly volume targets gradually and applies a brake when trend falls', () => {
+  it('uses recent load, phase, and a brake to set weekly targets', () => {
     const exercises = createDefaultExercises()
     const pullUpId = exercises.find(
       (exercise) => exercise.name === 'Pull-up',
@@ -175,12 +182,13 @@ describe('cycle, bodyweight, and volume logic', () => {
       maxTests: [],
       sessions: [],
       today: '2026-04-09',
+      phase: 'develop',
       trend: 'stable',
     })
 
     expect(summaryWithoutBrake.weekNumber).toBe(2)
-    expect(summaryWithoutBrake.targetPoints).toBe(50)
-    expect(summaryWithoutBrake.remainingPoints).toBe(50)
+    expect(summaryWithoutBrake.targetPoints).toBe(48)
+    expect(summaryWithoutBrake.remainingPoints).toBe(48)
 
     const summaryWithBrake = getWeeklyVolumeSummary({
       cycleWindow: {
@@ -209,12 +217,49 @@ describe('cycle, bodyweight, and volume logic', () => {
       maxTests: [],
       sessions,
       today: '2026-04-09',
+      phase: 'develop',
       trend: 'falling',
     })
 
     expect(summaryWithBrake.brakeApplied).toBe(true)
     expect(summaryWithBrake.targetPoints).toBe(54)
     expect(summaryWithBrake.remainingPoints).toBe(54)
-    expect(summaryWithBrake.message).toContain('volume brake')
+    expect(summaryWithBrake.message).toContain('load brake')
+  })
+
+  it('reduces a recent-load target during Peak', () => {
+    const exercises = createDefaultExercises()
+    const pullUpId = exercises.find(
+      (exercise) => exercise.name === 'Pull-up',
+    )!.id
+    const summary = getWeeklyVolumeSummary({
+      cycleWindow: { start: '2026-04-01', end: '2026-06-29' },
+      exercises,
+      exerciseEntries: [
+        {
+          id: 'entry-peak',
+          workoutSessionId: 'session-peak',
+          exerciseId: pullUpId,
+          sets: 6,
+          reps: 10,
+          outcome: 'pass',
+          isMaxTest: false,
+        },
+      ],
+      maxTests: [],
+      sessions: [
+        {
+          id: 'session-peak',
+          date: '2026-04-03',
+          sessionType: 'support',
+          notes: '',
+        },
+      ],
+      today: '2026-04-09',
+      phase: 'peak',
+      trend: 'stable',
+    })
+
+    expect(summary.targetPoints).toBe(45)
   })
 })

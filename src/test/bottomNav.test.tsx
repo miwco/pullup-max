@@ -15,5 +15,12 @@ describe('BottomNav', () => {
       'href',
       '#/finish',
     )
+    expect(screen.getByRole('link', { name: 'GG' })).toHaveAttribute(
+      'href',
+      '#/gg',
+    )
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(5)
   })
 })

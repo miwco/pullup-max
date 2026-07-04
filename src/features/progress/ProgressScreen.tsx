@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { CycleLineChart } from '../../components/Charts'
 import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
-import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
 import { getFailurePointPattern } from '../../domain/selectors'
 import {
@@ -10,23 +9,7 @@ import {
   formatShortDate,
   todayDateString,
 } from '../../lib/date'
-import { formatQualityFlag, getQualityTone } from '../../lib/qualityFlag'
-
-function formatRepDelta(repDelta: number | null) {
-  if (repDelta === null) {
-    return null
-  }
-
-  return `${repDelta > 0 ? '+' : ''}${repDelta} rep${Math.abs(repDelta) === 1 ? '' : 's'}`
-}
-
-function formatWeightDelta(weightDeltaKg: number | null) {
-  if (weightDeltaKg === null) {
-    return null
-  }
-
-  return `${weightDeltaKg > 0 ? '+' : ''}${weightDeltaKg} kg`
-}
+import { WorkoutHistory } from './WorkoutHistory'
 
 export function ProgressScreen() {
   const {
@@ -37,6 +20,7 @@ export function ProgressScreen() {
     data,
     maxHistory,
     painTrendPoints,
+    recentWorkouts,
   } = useAppState()
   const [chartMode, setChartMode] = useState<'cycle' | 'all-time'>('cycle')
   const [painOpen, setPainOpen] = useState(false)
@@ -45,7 +29,6 @@ export function ProgressScreen() {
   )
   const [showMax, setShowMax] = useState(true)
   const [showWeight, setShowWeight] = useState(false)
-  const [visibleMaxHistory, setVisibleMaxHistory] = useState(8)
   const failurePattern = getFailurePointPattern(maxHistory)
 
   const isAllTime = chartMode === 'all-time'
@@ -224,99 +207,12 @@ export function ProgressScreen() {
         </div>
       ) : null}
 
-      <Section eyebrow="Max attempts" title="Recent max history">
-        {maxHistory.length === 0 ? (
-          <p className="muted-text">
-            Your max history will appear here after the first Max day is logged.
-          </p>
-        ) : (
-          <>
-            <div className="workout-list">
-              {maxHistory.slice(0, visibleMaxHistory).map((item) => {
-                const repDeltaLabel = formatRepDelta(item.repDelta)
-                const weightDeltaLabel = formatWeightDelta(
-                  item.bodyweightDeltaKg,
-                )
-
-                return (
-                  <article key={item.id} className="workout-list__item">
-                    <div className="workout-list__header">
-                      <div>
-                        <p className="workout-list__date">
-                          {formatLongDate(item.date)}
-                        </p>
-                        <div className="chip-row">
-                          <StatusPill
-                            label={`${item.reps} reps`}
-                            tone={getQualityTone(item.qualityFlag)}
-                          />
-                          {formatQualityFlag(item.qualityFlag) ? (
-                            <StatusPill
-                              label={formatQualityFlag(item.qualityFlag)!}
-                              tone={getQualityTone(item.qualityFlag)}
-                            />
-                          ) : null}
-                          {repDeltaLabel ? (
-                            <StatusPill
-                              label={repDeltaLabel}
-                              tone={
-                                item.repDelta === 0
-                                  ? 'neutral'
-                                  : typeof item.repDelta === 'number' &&
-                                      item.repDelta > 0
-                                    ? 'success'
-                                    : 'warning'
-                              }
-                            />
-                          ) : null}
-                          {typeof item.bodyweightKgSnapshot === 'number' ? (
-                            <StatusPill
-                              label={`${item.bodyweightKgSnapshot} kg`}
-                              tone="neutral"
-                            />
-                          ) : null}
-                          {weightDeltaLabel ? (
-                            <StatusPill
-                              label={weightDeltaLabel}
-                              tone="neutral"
-                            />
-                          ) : null}
-                          {item.failurePoint ? (
-                            <StatusPill
-                              label={item.failurePoint}
-                              tone="accent"
-                            />
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {item.videoUrl ? (
-                        <a
-                          href={item.videoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="button button--ghost button--compact"
-                        >
-                          Video
-                        </a>
-                      ) : null}
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-            {maxHistory.length > visibleMaxHistory ? (
-              <button
-                className="button button--ghost button--compact"
-                style={{ marginTop: '0.75rem' }}
-                onClick={() => setVisibleMaxHistory((n) => n + 8)}
-              >
-                Show more ({maxHistory.length - visibleMaxHistory} remaining)
-              </button>
-            ) : null}
-          </>
-        )}
-      </Section>
+      <WorkoutHistory
+        bodyweightEntries={data.bodyweightEntries}
+        bodyweightTrackingEnabled={data.settings.bodyweightTrackingEnabled}
+        exercises={data.exercises}
+        workouts={recentWorkouts}
+      />
     </div>
   )
 }

@@ -13,7 +13,7 @@ import { createMovementExerciseSpecs, MAIN_MOVEMENTS } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 import { createDefaultFinishWorkoutData } from './finishWorkout'
 
-export const EXPORT_FORMAT_VERSION = 9
+export const EXPORT_FORMAT_VERSION = 10
 
 const DEFAULT_EXERCISE_SPECS: Array<
   Omit<Exercise, 'id' | 'active' | 'builtIn'>
@@ -87,6 +87,7 @@ export function createSeedData(today = todayDateString()): AppData {
     settings: createDefaultSettings(),
     exercises,
     bodyweightEntries: [],
+    greaseGrooveEntries: [],
     sessions: [],
     exerciseEntries: [],
     maxTests: [],

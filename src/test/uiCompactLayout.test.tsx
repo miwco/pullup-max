@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppState } from '../app/appContext'
 import { AppShell } from '../app/App'
 import { createSeedData } from '../domain/defaults'
-import { HistoryScreen } from '../features/history/HistoryScreen'
 import { ProgressScreen } from '../features/progress/ProgressScreen'
 import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
@@ -109,6 +108,7 @@ function createMockAppState(): MockAppState {
     clearWorkoutDraft: vi.fn(async () => true),
     clearFinishWorkoutDraft: vi.fn(async () => true),
     deleteExercise: vi.fn(async () => {}),
+    deleteGreaseGrooveEntry: vi.fn(async () => true),
     dismissOnboarding: vi.fn(async () => true),
     errorMessage: null,
     exportBackup: () => '{"ok":true}',
@@ -162,8 +162,12 @@ function createMockAppState(): MockAppState {
             isMaxTest: false,
           },
         ],
-        supportVolume: 0,
+        trainingLoadPoints: 21.7,
         maxReps: 13,
+        maxRepDelta: 2,
+        maxBodyweightKgSnapshot: 82.4,
+        maxFailurePoint: 'top',
+        maxVideoUrl: 'https://example.com/max-2',
         qualityFlag: 'grindy',
       },
       {
@@ -179,19 +183,21 @@ function createMockAppState(): MockAppState {
             sets: 2,
             reps: 6,
             presetKey: 'support-base',
-            outcome: 'pass',
+            outcome: 'fail',
             presetTargetMode: 'reps',
             presetTargetSummary: '2x6',
             isMaxTest: false,
           },
         ],
-        supportVolume: 12,
+        trainingLoadPoints: 13,
         maxReps: null,
+        maxRepDelta: null,
       },
     ],
     requestPersistentStorage: vi.fn(async () => true),
     resetAllData: vi.fn(async () => {}),
     saveBodyweight: vi.fn(async () => true),
+    saveGreaseGrooveEntry: vi.fn(async () => true),
     saveSession: vi.fn(async () => true),
     saveFinishWorkout: vi.fn(async () => true),
     saveFinishWorkoutDraft: vi.fn(async () => true),
@@ -242,7 +248,7 @@ describe('compact hybrid UI refresh', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', {
-        name: /explain how weekly volume is counted/i,
+        name: /explain how weekly training load is counted/i,
       }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /log max day/i })).toBeNull()
@@ -252,8 +258,8 @@ describe('compact hybrid UI refresh', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses the header brand as the top-level Today link', () => {
-    window.location.hash = '#/settings'
+  it('uses the header brand for Today and a large settings control', () => {
+    window.location.hash = '#/program'
 
     const { container } = render(<AppShell />)
     const header = container.querySelector('.app-header') as HTMLElement | null
@@ -267,8 +273,20 @@ describe('compact hybrid UI refresh', () => {
     expect(within(header!).queryByRole('link', { name: 'Today' })).toBeNull()
     expect(within(header!).queryByRole('link', { name: 'Library' })).toBeNull()
     expect(
-      within(header!).getByRole('link', { name: 'Program' }),
+      within(header!).getByRole('link', { name: /open settings/i }),
     ).toHaveAttribute('href', '#/settings')
+    expect(within(header!).queryByRole('link', { name: 'Program' })).toBeNull()
+  })
+
+  it('redirects legacy History links into Progress', () => {
+    window.location.hash = '#/history'
+
+    render(<AppShell />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Progress' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'History' })).toBeNull()
   })
 
   it('renders four editable program workouts collapsed by default', () => {
@@ -369,7 +387,7 @@ describe('compact hybrid UI refresh', () => {
     expect(screen.getByLabelText(/hold sec/i)).toBeInTheDocument()
   })
 
-  it('keeps a real progress page with a dated max chart and recent max history', async () => {
+  it('combines progress charts with clear full-workout history cards', async () => {
     const user = userEvent.setup()
 
     render(<ProgressScreen />)
@@ -383,34 +401,30 @@ describe('compact hybrid UI refresh', () => {
     expect(screen.getByText(/cycle end/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Weight' })).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: /recent max history/i }),
+      screen.getByRole('heading', { name: /past workouts/i }),
     ).toBeInTheDocument()
     expect(screen.getByText('+2 reps')).toBeInTheDocument()
-    expect(screen.getByText('-0.7 kg')).toBeInTheDocument()
-    expect(screen.getByText('clean')).toBeInTheDocument()
+    expect(screen.getByText('hard')).toBeInTheDocument()
+    expect(screen.getByText('Passed')).toBeInTheDocument()
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.getByText('21.7 pts')).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('support workout on Apr 15, 2026'),
+    ).toHaveClass('is-hard')
 
     await user.click(screen.getByRole('button', { name: 'Weight' }))
 
     expect(screen.getAllByText('Weight').length).toBeGreaterThan(0)
   })
 
-  it('keeps History as a list-only log without charts', () => {
-    render(<HistoryScreen />)
-
-    expect(
-      screen.getByRole('heading', { name: /workout log/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/volume stayed controlled/i)).toBeInTheDocument()
-    expect(screen.getByText('hard')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('img', { name: /progress across the current cycle/i }),
-    ).toBeNull()
-    expect(screen.queryByText(/cycle snapshot/i)).toBeNull()
-  })
-
   it('supports a 3-month cycle or a competition date', async () => {
     const user = userEvent.setup()
     render(<ProfileSettingsScreen />)
+
+    expect(screen.getByRole('link', { name: /program/i })).toHaveAttribute(
+      'href',
+      '#/program',
+    )
 
     const cycleEndDateInput = screen.getByLabelText(/cycle end date/i)
     const nextWeekCompetitionDate = addDays(todayDateString(), 7)

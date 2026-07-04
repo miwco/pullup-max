@@ -20,6 +20,7 @@ import type {
   FinishWorkoutData,
   FinishWorkoutSession,
   FailurePoint,
+  GreaseGrooveEntry,
   MaxTestResult,
   PresetOutcome,
   PresetProgressionState,
@@ -33,7 +34,7 @@ import type {
   WorkoutSession,
 } from './types'
 import { createId } from '../lib/id'
-import { isIsoDateString, todayDateString } from '../lib/date'
+import { isIsoDateString, isIsoDateTime, todayDateString } from '../lib/date'
 
 const VALID_FAILURE_POINTS = new Set<FailurePoint>([
   'top',
@@ -582,6 +583,37 @@ function normalizeBodyweightEntries(value: unknown) {
   })
 }
 
+function normalizeGreaseGrooveEntries(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as GreaseGrooveEntry[]
+  }
+
+  return value.flatMap((item) => {
+    if (
+      !isRecord(item) ||
+      typeof item.id !== 'string' ||
+      typeof item.date !== 'string' ||
+      !isIsoDateString(item.date) ||
+      typeof item.reps !== 'number' ||
+      !Number.isInteger(item.reps) ||
+      item.reps <= 0 ||
+      typeof item.loggedAt !== 'string' ||
+      !isIsoDateTime(item.loggedAt)
+    ) {
+      return []
+    }
+
+    return [
+      {
+        id: item.id,
+        date: item.date,
+        reps: item.reps,
+        loggedAt: item.loggedAt,
+      } satisfies GreaseGrooveEntry,
+    ]
+  })
+}
+
 function normalizeProgramStep(
   value: unknown,
   exercises: Exercise[],
@@ -824,6 +856,9 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
     },
     exercises,
     bodyweightEntries: normalizeBodyweightEntries(value.bodyweightEntries),
+    greaseGrooveEntries: normalizeGreaseGrooveEntries(
+      value.greaseGrooveEntries,
+    ),
     sessions: normalizeSessions(value.sessions),
     exerciseEntries: normalizeEntries(value.exerciseEntries),
     maxTests: normalizeMaxTests(value.maxTests),

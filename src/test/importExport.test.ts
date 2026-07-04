@@ -27,6 +27,14 @@ describe('import/export validation', () => {
             weightKg: 79.2,
           },
         ],
+        greaseGrooveEntries: [
+          {
+            id: 'gg-1',
+            date: '2026-04-18',
+            reps: 5,
+            loggedAt: '2026-04-18T10:00:00.000Z',
+          },
+        ],
         settings: {
           ...seededBase.settings,
           cycleLengthDays: 120,
@@ -81,13 +89,14 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(9)
+      expect(parsed.value.version).toBe(10)
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
       expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
         seeded.athleteProfile.cycleEndDate,
       )
       expect(parsed.value.data.settings.cycleLengthDays).toBe(120)
       expect(parsed.value.data.bodyweightEntries[0]?.weightKg).toBe(79.2)
+      expect(parsed.value.data.greaseGrooveEntries[0]?.reps).toBe(5)
       expect(
         parsed.value.data.programTemplate.maxDay.volumeBlock.steps[0]
           ?.emomMinutes,
@@ -149,7 +158,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(9)
+      expect(parsed.value.version).toBe(10)
       expect(parsed.value.data.sessions[0]?.sessionType).toBe('support')
       expect(parsed.value.data.exercises[0]?.type).toBe('support')
       expect(parsed.value.data.maxTests[0]?.failurePoint).toBe('top')
@@ -305,6 +314,24 @@ describe('import/export validation', () => {
     }
   })
 
+  it('adds an empty GG log when importing an older backup', () => {
+    const seeded = createSeedData('2026-04-18')
+    const legacyData: Record<string, unknown> = { ...seeded }
+    delete legacyData.greaseGrooveEntries
+    const parsed = parseImportBundle(
+      JSON.stringify({
+        version: 9,
+        exportedAt: '2026-04-18T12:00:00.000Z',
+        data: legacyData,
+      }),
+    )
+
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect(parsed.value.data.greaseGrooveEntries).toEqual([])
+    }
+  })
+
   it('migrates the legacy built-in Max-day template to the new EMOM plus finisher default', () => {
     const seeded = createSeedData('2026-04-18')
     const pullUpId = seeded.exercises.find(
@@ -428,7 +455,8 @@ describe('import/export validation', () => {
 
     expect(parseImportBundle(unsupportedVersion)).toEqual({
       ok: false,
-      error: 'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, 8, or 9.',
+      error:
+        'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, 8, 9, or 10.',
     })
   })
 

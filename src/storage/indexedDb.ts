@@ -9,7 +9,7 @@ import type {
 import { todayDateString } from '../lib/date'
 
 const DATABASE_NAME = 'pullup-max-db'
-const DATABASE_VERSION = 7
+const DATABASE_VERSION = 8
 const CURRENT_WORKOUT_DRAFT_ID = 'current-workout'
 const CURRENT_FINISH_WORKOUT_DRAFT_ID = 'current-finish-workout'
 
@@ -18,6 +18,7 @@ const STORE_NAMES = {
   settings: 'settings',
   exercises: 'exercises',
   bodyweightEntries: 'bodyweightEntries',
+  greaseGrooveEntries: 'greaseGrooveEntries',
   sessions: 'sessions',
   exerciseEntries: 'exerciseEntries',
   maxTests: 'maxTests',
@@ -67,6 +68,14 @@ async function openDatabase() {
 
       if (!database.objectStoreNames.contains(STORE_NAMES.bodyweightEntries)) {
         database.createObjectStore(STORE_NAMES.bodyweightEntries, {
+          keyPath: 'id',
+        })
+      }
+
+      if (
+        !database.objectStoreNames.contains(STORE_NAMES.greaseGrooveEntries)
+      ) {
+        database.createObjectStore(STORE_NAMES.greaseGrooveEntries, {
           keyPath: 'id',
         })
       }
@@ -132,6 +141,7 @@ export async function loadStoredAppData(today = todayDateString()) {
       settings,
       exercises,
       bodyweightEntries,
+      greaseGrooveEntries,
       sessions,
       exerciseEntries,
       maxTests,
@@ -150,6 +160,9 @@ export async function loadStoredAppData(today = todayDateString()) {
       requestToPromise(transaction.objectStore(STORE_NAMES.exercises).getAll()),
       requestToPromise(
         transaction.objectStore(STORE_NAMES.bodyweightEntries).getAll(),
+      ),
+      requestToPromise(
+        transaction.objectStore(STORE_NAMES.greaseGrooveEntries).getAll(),
       ),
       requestToPromise(transaction.objectStore(STORE_NAMES.sessions).getAll()),
       requestToPromise(
@@ -173,6 +186,7 @@ export async function loadStoredAppData(today = todayDateString()) {
         settings,
         exercises,
         bodyweightEntries,
+        greaseGrooveEntries,
         sessions,
         exerciseEntries,
         maxTests,
@@ -202,6 +216,9 @@ export async function persistAppData(appData: AppData) {
   const bodyweightEntriesStore = transaction.objectStore(
     STORE_NAMES.bodyweightEntries,
   )
+  const greaseGrooveEntriesStore = transaction.objectStore(
+    STORE_NAMES.greaseGrooveEntries,
+  )
   const sessionsStore = transaction.objectStore(STORE_NAMES.sessions)
   const exerciseEntriesStore = transaction.objectStore(
     STORE_NAMES.exerciseEntries,
@@ -219,6 +236,7 @@ export async function persistAppData(appData: AppData) {
   settingsStore.clear()
   exercisesStore.clear()
   bodyweightEntriesStore.clear()
+  greaseGrooveEntriesStore.clear()
   sessionsStore.clear()
   exerciseEntriesStore.clear()
   maxTestsStore.clear()
@@ -231,6 +249,9 @@ export async function persistAppData(appData: AppData) {
   appData.exercises.forEach((exercise) => exercisesStore.put(exercise))
   appData.bodyweightEntries.forEach((entry) =>
     bodyweightEntriesStore.put(entry),
+  )
+  appData.greaseGrooveEntries.forEach((entry) =>
+    greaseGrooveEntriesStore.put(entry),
   )
   appData.sessions.forEach((session) => sessionsStore.put(session))
   appData.exerciseEntries.forEach((entry) => exerciseEntriesStore.put(entry))
@@ -320,6 +341,11 @@ export async function persistAppDataDiff(prev: AppData, next: AppData) {
     transaction.objectStore(STORE_NAMES.bodyweightEntries),
     prev.bodyweightEntries,
     next.bodyweightEntries,
+  )
+  upsertArrayDiff(
+    transaction.objectStore(STORE_NAMES.greaseGrooveEntries),
+    prev.greaseGrooveEntries,
+    next.greaseGrooveEntries,
   )
   upsertArrayDiff(
     transaction.objectStore(STORE_NAMES.sessions),

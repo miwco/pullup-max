@@ -21,7 +21,7 @@ function formatDayCount(value: number | null, emptyLabel: string) {
 
 const VOLUME_HELP_ID = 'weekly-volume-help'
 const VOLUME_HELP_TEXT =
-  'Volume uses points, not just reps. Main movement rows count reps x sets with exercise weights, hangs and holds count from seconds, and a true max test adds 1 point per rep. The weekly target starts at 48 points, rises by 2 each training week, and can temporarily brake if your max trend is falling.'
+  'Training load combines the amount of work with a small fatigue adjustment. Bodyweight pull-up reps form the base, assisted and partial work use lighter weights, and hangs use time. Failed exercises count 8% more than passed exercises. Hard and very hard max attempts count 5% and 10% more than clean attempts. Weekly targets follow your recent training and adjust for Build, Develop, and Peak.'
 
 export function TodayScreen({
   canInstall,
@@ -90,7 +90,10 @@ export function TodayScreen({
     <div className="screen-stack">
       {!data.settings.onboardingDismissed && data.sessions.length === 0 ? (
         <Section eyebrow="Getting started" title="Welcome to Pull-up Max">
-          <ol className="muted-text" style={{ paddingLeft: '1.25rem', lineHeight: 1.6 }}>
+          <ol
+            className="muted-text"
+            style={{ paddingLeft: '1.25rem', lineHeight: 1.6 }}
+          >
             <li>
               Go to <a href="#/settings">Settings</a> to confirm your main
               movement and set your cycle start date.
@@ -119,7 +122,7 @@ export function TodayScreen({
         <div className="notice">
           <span>
             Your training cycle has ended — start a new one in{' '}
-            <a href="#/settings">Settings</a> to keep phase and volume tracking
+            <a href="#/settings">Settings</a> to keep phase and load tracking
             accurate.
           </span>
         </div>
@@ -253,13 +256,13 @@ export function TodayScreen({
 
       <Section
         eyebrow="Weekly target"
-        title="Volume this week"
+        title="Training load this week"
         className="section--compact"
         action={
           <button
             type="button"
             className={`icon-button icon-button--help${showVolumeHelp ? ' is-active' : ''}`}
-            aria-label="Explain how weekly volume is counted"
+            aria-label="Explain how weekly training load is counted"
             aria-controls={VOLUME_HELP_ID}
             aria-expanded={showVolumeHelp}
             onClick={() => setShowVolumeHelp((current) => !current)}
@@ -297,7 +300,7 @@ export function TodayScreen({
             }
           />
           {weeklyVolumeSummary.brakeApplied ? (
-            <StatusPill label="Brake active" tone="warning" />
+            <StatusPill label="Load brake active" tone="warning" />
           ) : null}
         </div>
 

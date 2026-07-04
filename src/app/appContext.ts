@@ -69,6 +69,8 @@ export interface AppContextValue {
   requestPersistentStorage: () => Promise<boolean>
   resetAllData: () => Promise<void>
   saveBodyweight: (date: string, weightKg: number) => Promise<boolean>
+  saveGreaseGrooveEntry: (reps: number, date?: string) => Promise<boolean>
+  deleteGreaseGrooveEntry: (entryId: string) => Promise<boolean>
   saveSession: (input: SaveSessionInput) => Promise<boolean>
   saveFinishWorkout: (input: SaveFinishWorkoutInput) => Promise<boolean>
   saveFinishWorkoutDraft: (draft: FinishWorkoutDraft) => Promise<boolean>

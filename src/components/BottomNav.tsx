@@ -12,10 +12,9 @@ const NAV_ITEMS: Array<{
 }> = [
   { label: 'Today', route: 'today' },
   { label: 'Workout', route: 'log' },
+  { label: 'GG', route: 'gg' },
   { label: 'Finish', route: 'finish' },
-  { label: 'History', route: 'history' },
   { label: 'Progress', route: 'progress' },
-  { label: 'Settings', route: 'profile' },
 ]
 
 export function BottomNav({

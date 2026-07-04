@@ -176,7 +176,7 @@ Shift emphasis only if the same failure point repeats across 2-3 max tests.
 ## Required screens
 - Today
 - Log Workout
-- History
+- Workout history within Progress
 - Exercise Library
 - Settings / Rules
 - Cycle Summary
@@ -207,6 +207,27 @@ Include a lightweight line chart:
 - y-axis: max reps
 - default view: current 3-month cycle
 - clearly show cycle start, today, and cycle end
+
+## Training load
+Use "training load" in the UI rather than "volume points" because the score
+combines work and small fatigue adjustments.
+
+- passed exercises use a 1.00 fatigue factor
+- failed exercises use a 1.08 fatigue factor
+- clean max attempts use a 1.00 quality factor
+- hard max attempts use a 1.05 quality factor
+- very hard max attempts use a 1.10 quality factor
+- max attempts must count in both workout and weekly load totals
+- unscorable legacy entries display "Not scored", never a misleading zero
+- weekly targets follow recent completed weeks and current cycle phase
+- Build is slightly above baseline, Develop holds baseline, and Peak reduces it
+
+## Greasing the groove
+- GG is optional, very easy pull-up practice at about 40-60% of the current max
+- log each mini-set separately with reps only
+- each GG rep contributes 0.2 training-load points
+- GG contributes to weekly training load and counts as pull-up work for max-day freshness
+- GG does not count as a max or support session and does not appear as a full workout-history card
 
 ## Data and persistence
 - use IndexedDB

@@ -3,9 +3,9 @@ import { getHeaderStatusPillItems } from './headerStatusPills'
 import { BottomNav } from '../components/BottomNav'
 import { HeaderStatusPillGroup } from '../components/HeaderStatusPillGroup'
 import { NoticeBanner } from '../components/NoticeBanner'
-import { HistoryScreen } from '../features/history/HistoryScreen'
 import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
 import { FinishWorkoutScreen } from '../features/finish/FinishWorkoutScreen'
+import { GreaseGrooveScreen } from '../features/grease-groove/GreaseGrooveScreen'
 import { ProgressScreen } from '../features/progress/ProgressScreen'
 import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
@@ -61,17 +61,17 @@ function renderRouteContent(
       )
     case 'finish':
       return <FinishWorkoutScreen />
-    case 'history':
-      return <HistoryScreen />
+    case 'gg':
+      return <GreaseGrooveScreen />
     case 'progress':
       return <ProgressScreen />
-    case 'settings':
+    case 'program':
       return (
         <SettingsScreen
           initialLibraryOpen={route.params.get('library') === '1'}
         />
       )
-    case 'profile':
+    case 'settings':
       return <ProfileSettingsScreen />
     default:
       return null
@@ -151,9 +151,20 @@ export function AppShell() {
           <div className="app-header__actions">
             <a
               href={getRouteHref('settings')}
-              className="button button--ghost button--compact"
+              className={`app-header__settings-link${
+                route.path === 'settings' || route.path === 'program'
+                  ? ' is-active'
+                  : ''
+              }`}
+              aria-label="Open settings"
+              aria-current={
+                route.path === 'settings' || route.path === 'program'
+                  ? 'page'
+                  : undefined
+              }
+              title="Settings"
             >
-              Program
+              <span aria-hidden="true">⚙</span>
             </a>
           </div>
         </div>

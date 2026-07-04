@@ -195,6 +195,32 @@ describe('max quality selectors', () => {
       }),
     )
   })
+
+  it('includes max-only workouts in training load and marks empty legacy workouts unscored', () => {
+    const sessions = [
+      makeSession('max-session', '2026-04-19', { sessionType: 'max' }),
+      makeSession('legacy-session', '2026-04-18'),
+    ]
+    const maxTests = [
+      makeMaxTest('max-result', 'max-session', 10, {
+        qualityFlag: 'grindy',
+      }),
+    ]
+    const workouts = buildRecentWorkouts(sessions, [], [], maxTests)
+
+    expect(workouts[0]).toEqual(
+      expect.objectContaining({
+        id: 'max-session',
+        trainingLoadPoints: 10.5,
+      }),
+    )
+    expect(workouts[1]).toEqual(
+      expect.objectContaining({
+        id: 'legacy-session',
+        trainingLoadPoints: null,
+      }),
+    )
+  })
 })
 
 describe('buildPainTrendPoints', () => {

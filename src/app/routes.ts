@@ -3,13 +3,13 @@ import { useMemo, useSyncExternalStore } from 'react'
 export type AppRoute =
   | 'today'
   | 'log'
+  | 'gg'
   | 'finish'
-  | 'history'
   | 'progress'
   | 'library'
   | 'cycle'
   | 'settings'
-  | 'profile'
+  | 'program'
 
 export interface RouteState {
   path: AppRoute
@@ -21,13 +21,13 @@ const DEFAULT_ROUTE: AppRoute = 'today'
 const VALID_ROUTES = new Set<AppRoute>([
   'today',
   'log',
+  'gg',
   'finish',
-  'history',
   'progress',
   'library',
   'cycle',
   'settings',
-  'profile',
+  'program',
 ])
 
 function normalizeHash(hash: string): RouteState {
@@ -43,7 +43,7 @@ function normalizeHash(hash: string): RouteState {
   const [pathPart, queryString = ''] = cleaned.split('?')
   const params = new URLSearchParams(queryString)
 
-  if (pathPart === 'cycle') {
+  if (pathPart === 'cycle' || pathPart === 'history') {
     return {
       path: 'progress',
       params,
@@ -53,6 +53,13 @@ function normalizeHash(hash: string): RouteState {
   if (pathPart === 'library') {
     params.set('library', '1')
 
+    return {
+      path: 'program',
+      params,
+    }
+  }
+
+  if (pathPart === 'profile') {
     return {
       path: 'settings',
       params,

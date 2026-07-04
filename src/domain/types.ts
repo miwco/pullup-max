@@ -49,6 +49,13 @@ export interface BodyweightEntry {
   weightKg: number
 }
 
+export interface GreaseGrooveEntry {
+  id: string
+  date: string
+  reps: number
+  loggedAt: string
+}
+
 export interface Exercise {
   id: string
   name: string
@@ -239,6 +246,7 @@ export interface AppData {
   settings: AppSettings
   exercises: Exercise[]
   bodyweightEntries: BodyweightEntry[]
+  greaseGrooveEntries: GreaseGrooveEntry[]
   sessions: WorkoutSession[]
   exerciseEntries: ExerciseEntry[]
   maxTests: MaxTestResult[]
@@ -312,8 +320,12 @@ export interface MaxHistoryItem {
 
 export interface RecentWorkoutItem extends WorkoutSession {
   entries: ExerciseEntry[]
-  supportVolume: number
+  trainingLoadPoints: number | null
   maxReps: number | null
+  maxRepDelta: number | null
+  maxBodyweightKgSnapshot?: number
+  maxFailurePoint?: FailurePoint
+  maxVideoUrl?: string
   qualityFlag?: QualityFlag
 }
 

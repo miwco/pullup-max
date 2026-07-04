@@ -14,7 +14,7 @@ import {
   getCyclePhase,
   getCurrentCycleWindow as buildCurrentCycleWindow,
 } from './cycle'
-import { getEntryVolumePoints, getWeeklyVolumeSummary } from './volume'
+import { getWeeklyVolumeSummary, getWorkoutTrainingLoadPoints } from './volume'
 import type {
   AppData,
   BodyweightEntry,
@@ -24,6 +24,7 @@ import type {
   Exercise,
   ExerciseEntry,
   FailurePoint,
+  GreaseGrooveEntry,
   MaxExposure,
   MaxHistoryItem,
   MaxTestResult,
@@ -67,15 +68,29 @@ export function getSessionCounts(
     .length
 }
 
-export function getLastWorkoutDate(sessions: WorkoutSession[]) {
-  return sortSessionsByDateDesc(sessions)[0]?.date ?? null
+export function getLastWorkoutDate(
+  sessions: WorkoutSession[],
+  greaseGrooveEntries: GreaseGrooveEntry[] = [],
+) {
+  const lastSessionDate = sortSessionsByDateDesc(sessions)[0]?.date
+  const lastGreaseGrooveDate = greaseGrooveEntries.reduce<string | undefined>(
+    (latest, entry) => (!latest || entry.date > latest ? entry.date : latest),
+    undefined,
+  )
+
+  if (!lastSessionDate) return lastGreaseGrooveDate ?? null
+  if (!lastGreaseGrooveDate) return lastSessionDate
+  return lastSessionDate > lastGreaseGrooveDate
+    ? lastSessionDate
+    : lastGreaseGrooveDate
 }
 
 export function getDaysSinceLastWorkout(
   sessions: WorkoutSession[],
   today = todayDateString(),
+  greaseGrooveEntries: GreaseGrooveEntry[] = [],
 ) {
-  const lastWorkoutDate = getLastWorkoutDate(sessions)
+  const lastWorkoutDate = getLastWorkoutDate(sessions, greaseGrooveEntries)
 
   if (!lastWorkoutDate) {
     return null
@@ -286,13 +301,6 @@ export function getBestMax(
   return Math.max(...relevant.map((maxTest) => maxTest.reps))
 }
 
-export function getSupportVolumeScore(
-  entry: ExerciseEntry,
-  exerciseLookup: Map<string, Exercise>,
-) {
-  return getEntryVolumePoints(entry, exerciseLookup)
-}
-
 export function getLatestLoggedMaxReps(
   maxTests: MaxTestResult[],
   sessions: WorkoutSession[],
@@ -340,7 +348,11 @@ export function buildRecommendationInput(
       data.athleteProfile.mainMovement,
       today,
     ),
-    daysSinceLastWorkout: getDaysSinceLastWorkout(data.sessions, today),
+    daysSinceLastWorkout: getDaysSinceLastWorkout(
+      data.sessions,
+      today,
+      data.greaseGrooveEntries,
+    ),
     exercises: data.exercises,
     fatigueAverage,
     supportPainOverride:
@@ -513,6 +525,24 @@ export function buildRecentWorkouts(
   const maxTestBySessionId = new Map(
     maxTests.map((maxTest) => [maxTest.workoutSessionId, maxTest]),
   )
+  const sessionDateById = new Map(
+    sessions.map((session) => [session.id, session.date]),
+  )
+  const maxRepDeltaBySessionId = new Map<string, number | null>()
+  const datedMaxTests = maxTests
+    .flatMap((maxTest) => {
+      const date = sessionDateById.get(maxTest.workoutSessionId)
+      return date ? [{ ...maxTest, date }] : []
+    })
+    .sort((left, right) => compareDateAsc(left.date, right.date))
+
+  datedMaxTests.forEach((maxTest, index) => {
+    const previous = datedMaxTests[index - 1]
+    maxRepDeltaBySessionId.set(
+      maxTest.workoutSessionId,
+      previous ? maxTest.reps - previous.reps : null,
+    )
+  })
   const entriesBySession = entries.reduce((lookup, entry) => {
     const existing = lookup.get(entry.workoutSessionId) ?? []
     existing.push(entry)
@@ -527,11 +557,18 @@ export function buildRecentWorkouts(
     return {
       ...session,
       entries: sessionEntries,
-      supportVolume: sessionEntries.reduce(
-        (sum, entry) => sum + getSupportVolumeScore(entry, exerciseLookup),
-        0,
+      trainingLoadPoints: getWorkoutTrainingLoadPoints(
+        sessionEntries,
+        exerciseLookup,
+        maxTest,
       ),
       maxReps: maxTest?.reps ?? null,
+      maxRepDelta: maxTest
+        ? (maxRepDeltaBySessionId.get(session.id) ?? null)
+        : null,
+      maxBodyweightKgSnapshot: maxTest?.bodyweightKgSnapshot,
+      maxFailurePoint: maxTest?.failurePoint,
+      maxVideoUrl: maxTest?.videoUrl,
       qualityFlag: maxTest?.qualityFlag,
     }
   })
@@ -660,9 +697,11 @@ export function getCurrentWeekVolumeSummary(
     cycleWindow,
     exercises: data.exercises,
     exerciseEntries: data.exerciseEntries,
+    greaseGrooveEntries: data.greaseGrooveEntries,
     maxTests: data.maxTests,
     sessions: data.sessions,
     today,
+    phase: data.recommendationState.currentPhase,
     trend: data.recommendationState.trend,
   })
 }

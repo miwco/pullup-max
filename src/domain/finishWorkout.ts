@@ -21,7 +21,6 @@ export const FINISH_PREP_SECONDS = 10
 
 export function createDefaultFinishWorkoutSettings(): FinishWorkoutSettings {
   return {
-    abExerciseName: 'Crunches',
     backExtensionRestSeconds: 105,
     absRestSeconds: 105,
     betweenExerciseRestSeconds: 120,
@@ -80,13 +79,13 @@ export function getFinishTargetSummary(
   exerciseId: FinishExerciseId,
   data: FinishWorkoutData,
 ) {
-  const { progression, settings } = data
+  const { progression } = data
 
   switch (exerciseId) {
     case 'back-extension':
       return `3 x ${progression.backExtensionSeconds}s`
     case 'abs':
-      return `${settings.abExerciseName}: 3 x ${progression.absSeconds}s`
+      return `3 x ${progression.absSeconds}s`
     case 'dips':
       return resolveFinishDipSegments(progression)
         .map((segment) => `${segment.sets} x ${segment.reps}`)

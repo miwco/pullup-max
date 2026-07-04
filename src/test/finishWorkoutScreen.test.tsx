@@ -48,6 +48,14 @@ describe('FinishWorkoutScreen', () => {
     expect(saveButton).toBeDisabled()
     const sections = container.querySelectorAll('.finish-exercise')
     expect(sections).toHaveLength(4)
+    expect(
+      within(sections[1] as HTMLElement).getByRole('heading', {
+        name: '2. Ab exercise',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('textbox', { name: 'Ab exercise' }),
+    ).not.toBeInTheDocument()
 
     await user.click(
       within(sections[0] as HTMLElement).getByRole('button', { name: 'pass' }),

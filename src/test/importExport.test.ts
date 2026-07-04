@@ -248,7 +248,6 @@ describe('import/export validation', () => {
 
   it('backs up Finish settings, progression, and completed sessions', () => {
     const seeded = createSeedData('2026-04-18')
-    seeded.finishWorkout.settings.abExerciseName = 'Hollow-body rocks'
     seeded.finishWorkout.settings.betweenExerciseRestSeconds = 150
     seeded.finishWorkout.progression.backExtensionSeconds = 52
     seeded.finishWorkout.progression.dipStageOffset = 3
@@ -266,7 +265,7 @@ describe('import/export validation', () => {
           {
             exerciseId: 'abs',
             outcome: 'pass',
-            targetSummary: 'Hollow-body rocks: 3 x 45s',
+            targetSummary: '3 x 45s',
           },
           {
             exerciseId: 'dips',

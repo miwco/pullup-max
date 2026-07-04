@@ -21,7 +21,7 @@ import { clearFinishTimers } from './finishTimerStorage'
 
 const EXERCISES: Array<{ id: FinishExerciseId; label: string }> = [
   { id: 'back-extension', label: 'Back extension' },
-  { id: 'abs', label: 'Abs' },
+  { id: 'abs', label: 'Ab exercise' },
   { id: 'dips', label: 'Dips' },
   { id: 'squat-jumps', label: 'Squat jumps' },
 ]
@@ -149,24 +149,6 @@ export function FinishWorkoutScreen() {
       >
         <div className="finish-settings">
           <label className="field">
-            <span>Ab exercise</span>
-            <input
-              value={settings.abExerciseName}
-              maxLength={60}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  abExerciseName: event.target.value,
-                }))
-              }
-              onBlur={() =>
-                void updateSettings({
-                  abExerciseName: settings.abExerciseName.trim() || 'Crunches',
-                })
-              }
-            />
-          </label>
-          <label className="field">
             <span>Rest between exercises (seconds)</span>
             <input
               type="number"
@@ -193,7 +175,7 @@ export function FinishWorkoutScreen() {
       </Section>
 
       {EXERCISES.map(({ id, label }, index) => {
-        const exerciseLabel = id === 'abs' ? settings.abExerciseName : label
+        const exerciseLabel = label
         const outcome = outcomes[id]
         const target = getFinishTargetSummary(id, {
           ...finishWorkout,
@@ -301,11 +283,7 @@ export function FinishWorkoutScreen() {
                   {
                     phase: 'rest',
                     seconds: settings.betweenExerciseRestSeconds,
-                    instruction: `Next: ${
-                      EXERCISES[index + 1]?.id === 'abs'
-                        ? settings.abExerciseName
-                        : (EXERCISES[index + 1]?.label ?? '')
-                    }`,
+                    instruction: `Next: ${EXERCISES[index + 1]?.label ?? ''}`,
                   },
                 ]}
               />

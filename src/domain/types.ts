@@ -196,7 +196,6 @@ export interface AppSettings {
 }
 
 export interface FinishWorkoutSettings {
-  abExerciseName: string
   backExtensionRestSeconds: number
   absRestSeconds: number
   betweenExerciseRestSeconds: number

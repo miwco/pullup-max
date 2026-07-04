@@ -189,8 +189,8 @@ pull-up session. It is not a generic workout builder and must remain isolated
 from max-test freshness, pull-up recommendations, phases, trends, and deloads.
 
 - Back extension: 3 timed sets, starting at 45 seconds, with 105 seconds rest
-- Abs: renameable exercise label, 3 timed sets, starting at 45 seconds, with
-  105 seconds rest
+- Ab exercise: fixed label, 3 timed sets, starting at 45 seconds, with 105
+  seconds rest; the user chooses their preferred abdominal movement
 - Dips: 10-set EMOM, starting at 2 reps, progressing two higher-rep sets at a
   time; work time is max(10 seconds, reps * 3)
 - Squat jumps: starting at 10 reps, without an exercise timer

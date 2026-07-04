@@ -237,11 +237,6 @@ function normalizeFinishWorkout(value: unknown): FinishWorkoutData {
 
   return {
     settings: {
-      abExerciseName:
-        typeof settings.abExerciseName === 'string' &&
-        settings.abExerciseName.trim()
-          ? settings.abExerciseName.trim().slice(0, 60)
-          : fallback.settings.abExerciseName,
       backExtensionRestSeconds: normalizePositiveInteger(
         settings.backExtensionRestSeconds,
         fallback.settings.backExtensionRestSeconds,

@@ -1,12 +1,17 @@
 import { createSeedData } from '../domain/defaults'
 import { normalizeAppData } from '../domain/normalization'
 import { withComputedRecommendation } from '../domain/selectors'
-import type { AppData, WorkoutLogDraft } from '../domain/types'
+import type {
+  AppData,
+  FinishWorkoutDraft,
+  WorkoutLogDraft,
+} from '../domain/types'
 import { todayDateString } from '../lib/date'
 
 const DATABASE_NAME = 'pullup-max-db'
-const DATABASE_VERSION = 6
+const DATABASE_VERSION = 7
 const CURRENT_WORKOUT_DRAFT_ID = 'current-workout'
+const CURRENT_FINISH_WORKOUT_DRAFT_ID = 'current-finish-workout'
 
 const STORE_NAMES = {
   athleteProfile: 'athleteProfile',
@@ -18,6 +23,7 @@ const STORE_NAMES = {
   maxTests: 'maxTests',
   presetProgressions: 'presetProgressions',
   programTemplate: 'programTemplate',
+  finishWorkout: 'finishWorkout',
   workoutDrafts: 'workoutDrafts',
 } as const
 
@@ -93,6 +99,10 @@ async function openDatabase() {
         database.createObjectStore(STORE_NAMES.programTemplate)
       }
 
+      if (!database.objectStoreNames.contains(STORE_NAMES.finishWorkout)) {
+        database.createObjectStore(STORE_NAMES.finishWorkout)
+      }
+
       if (!database.objectStoreNames.contains(STORE_NAMES.workoutDrafts)) {
         database.createObjectStore(STORE_NAMES.workoutDrafts, {
           keyPath: 'id',
@@ -127,6 +137,7 @@ export async function loadStoredAppData(today = todayDateString()) {
       maxTests,
       presetProgressions,
       programTemplate,
+      finishWorkout,
     ] = await Promise.all([
       requestToPromise(
         transaction
@@ -151,6 +162,9 @@ export async function loadStoredAppData(today = todayDateString()) {
       requestToPromise(
         transaction.objectStore(STORE_NAMES.programTemplate).get('current'),
       ),
+      requestToPromise(
+        transaction.objectStore(STORE_NAMES.finishWorkout).get('current'),
+      ),
     ])
 
     return normalizeAppData(
@@ -164,6 +178,7 @@ export async function loadStoredAppData(today = todayDateString()) {
         maxTests,
         presetProgressions,
         programTemplate,
+        finishWorkout,
       },
       today,
     )
@@ -198,6 +213,7 @@ export async function persistAppData(appData: AppData) {
   const programTemplateStore = transaction.objectStore(
     STORE_NAMES.programTemplate,
   )
+  const finishWorkoutStore = transaction.objectStore(STORE_NAMES.finishWorkout)
 
   athleteProfileStore.clear()
   settingsStore.clear()
@@ -208,6 +224,7 @@ export async function persistAppData(appData: AppData) {
   maxTestsStore.clear()
   presetProgressionsStore.clear()
   programTemplateStore.clear()
+  finishWorkoutStore.clear()
 
   athleteProfileStore.put(appData.athleteProfile)
   settingsStore.put(appData.settings, 'current')
@@ -222,6 +239,7 @@ export async function persistAppData(appData: AppData) {
     presetProgressionsStore.put(state),
   )
   programTemplateStore.put(appData.programTemplate, 'current')
+  finishWorkoutStore.put(appData.finishWorkout, 'current')
 
   await transactionToPromise(transaction)
   database.close()
@@ -287,6 +305,11 @@ export async function persistAppDataDiff(prev: AppData, next: AppData) {
   transaction
     .objectStore(STORE_NAMES.programTemplate)
     .put(next.programTemplate, 'current')
+  if (prev.finishWorkout !== next.finishWorkout) {
+    transaction
+      .objectStore(STORE_NAMES.finishWorkout)
+      .put(next.finishWorkout, 'current')
+  }
 
   upsertArrayDiff(
     transaction.objectStore(STORE_NAMES.exercises),
@@ -392,6 +415,50 @@ export async function clearWorkoutDraft() {
     .objectStore(STORE_NAMES.workoutDrafts)
     .delete(CURRENT_WORKOUT_DRAFT_ID)
 
+  await transactionToPromise(transaction)
+  database.close()
+}
+
+export async function loadFinishWorkoutDraft() {
+  const database = await openDatabase()
+  const transaction = database.transaction(
+    STORE_NAMES.workoutDrafts,
+    'readonly',
+  )
+
+  try {
+    return ((await requestToPromise(
+      transaction
+        .objectStore(STORE_NAMES.workoutDrafts)
+        .get(CURRENT_FINISH_WORKOUT_DRAFT_ID),
+    )) ?? null) as FinishWorkoutDraft | null
+  } finally {
+    database.close()
+  }
+}
+
+export async function persistFinishWorkoutDraft(draft: FinishWorkoutDraft) {
+  const database = await openDatabase()
+  const transaction = database.transaction(
+    STORE_NAMES.workoutDrafts,
+    'readwrite',
+  )
+
+  transaction.objectStore(STORE_NAMES.workoutDrafts).put(draft)
+  await transactionToPromise(transaction)
+  database.close()
+}
+
+export async function clearFinishWorkoutDraft() {
+  const database = await openDatabase()
+  const transaction = database.transaction(
+    STORE_NAMES.workoutDrafts,
+    'readwrite',
+  )
+
+  transaction
+    .objectStore(STORE_NAMES.workoutDrafts)
+    .delete(CURRENT_FINISH_WORKOUT_DRAFT_ID)
   await transactionToPromise(transaction)
   database.close()
 }

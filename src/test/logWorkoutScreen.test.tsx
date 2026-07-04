@@ -6,9 +6,14 @@ import { useAppState } from '../app/appContext'
 import { createSeedData } from '../domain/defaults'
 import type { ProgramEntryDraft, SessionType } from '../domain/types'
 import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
+import { playTone } from '../lib/timerSound'
 
 vi.mock('../app/appContext', () => ({
   useAppState: vi.fn(),
+}))
+
+vi.mock('../lib/timerSound', () => ({
+  playTone: vi.fn(),
 }))
 
 type MockAppState = ReturnType<typeof useAppState>
@@ -119,6 +124,7 @@ function createMockAppState(): MockAppState {
     daysSinceLastMax: null,
     daysSinceLastWorkout: null,
     clearWorkoutDraft: vi.fn(async () => true),
+    clearFinishWorkoutDraft: vi.fn(async () => true),
     deleteExercise: vi.fn(async () => {}),
     dismissOnboarding: vi.fn(async () => true),
     errorMessage: null,
@@ -126,6 +132,7 @@ function createMockAppState(): MockAppState {
     getProgramPrefill: vi.fn((type: SessionType) => prefills[type]),
     importBackup: vi.fn(async () => true),
     isReady: true,
+    finishWorkoutDraft: null,
     latestBodyweightEntry: null,
     maxHistory: [],
     notice: null,
@@ -135,6 +142,9 @@ function createMockAppState(): MockAppState {
     resetAllData: vi.fn(async () => {}),
     saveBodyweight: vi.fn(async () => true),
     saveSession: vi.fn(async () => true),
+    saveFinishWorkout: vi.fn(async () => true),
+    saveFinishWorkoutDraft: vi.fn(async () => true),
+    saveFinishWorkoutSettings: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
     saveWorkoutDraft: vi.fn(async () => true),
     setNotice: vi.fn(),
@@ -163,6 +173,7 @@ describe('LogWorkoutScreen preset rows', () => {
     window.localStorage.clear()
     mockedUseAppState.mockReturnValue(createMockAppState())
     vi.restoreAllMocks()
+    vi.mocked(playTone).mockClear()
   })
 
   afterEach(() => {
@@ -342,6 +353,39 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(emomRow).not.toHaveTextContent('Get to the bar')
   })
 
+  it('uses the prep countdown only before the first top hold', () => {
+    vi.useFakeTimers()
+    const { container } = render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+    const topHoldRow = container
+      .querySelector('[aria-label="Outcome for Top hold"]')
+      ?.closest('.entry-row') as HTMLElement
+
+    fireEvent.click(topHoldRow.querySelector('.timer-panel .button--primary')!)
+
+    expect(topHoldRow).toHaveTextContent('Get to the bar')
+    expect(topHoldRow).toHaveTextContent('Set 1 / 2')
+
+    act(() => {
+      vi.advanceTimersByTime(10000)
+    })
+    expect(topHoldRow).toHaveTextContent('Hold now')
+
+    act(() => {
+      vi.advanceTimersByTime(20000)
+    })
+    expect(topHoldRow).toHaveTextContent('Rest before next hold')
+
+    act(() => {
+      vi.advanceTimersByTime(120000)
+    })
+
+    expect(topHoldRow).toHaveTextContent('Hold now')
+    expect(topHoldRow).toHaveTextContent('Set 2 / 2')
+    expect(topHoldRow).not.toHaveTextContent('Get to the bar')
+  })
+
   it('adds a timer for duration-based preset rows', () => {
     const customState = createMockAppState()
     vi.mocked(customState.getProgramPrefill).mockReturnValue([
@@ -448,6 +492,70 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(
       screen.getByRole('button', { name: /pause rest/i }),
     ).toBeInTheDocument()
+  })
+
+  it('highlights rest and plays start, five-second, and completion cues', () => {
+    vi.useFakeTimers()
+    const { container } = render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+    const emomOutcome = container.querySelector(
+      '[aria-label="Outcome for EMOM pull-up block"]',
+    )
+    const emomRow = emomOutcome?.closest('.entry-row')
+
+    fireEvent.click(
+      emomOutcome?.querySelector('button[aria-pressed="false"]') as HTMLElement,
+    )
+
+    const restPanel = emomRow?.querySelector('.timer-panel--rest')
+    expect(restPanel).toHaveClass('is-active')
+    expect(restPanel).toHaveTextContent('Resting')
+    expect(playTone).toHaveBeenCalledWith(expect.any(Object), 'start')
+
+    vi.mocked(playTone).mockClear()
+
+    act(() => {
+      vi.advanceTimersByTime(295000)
+    })
+    for (let second = 0; second < 4; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000)
+      })
+    }
+
+    expect(
+      vi.mocked(playTone).mock.calls.filter(([, kind]) => kind === 'ending'),
+    ).toHaveLength(5)
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(playTone).toHaveBeenCalledWith(expect.any(Object), 'alarm')
+    expect(restPanel).not.toHaveClass('is-active')
+  })
+
+  it('does not show or start a rest timer after the last exercise', () => {
+    const { container } = render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+    const topHoldOutcome = container.querySelector(
+      '[aria-label="Outcome for Top hold"]',
+    )
+    const topHoldRow = topHoldOutcome?.closest('.entry-row')
+
+    expect(topHoldRow?.querySelector('.timer-panel--rest')).toBeNull()
+    vi.mocked(playTone).mockClear()
+
+    fireEvent.click(
+      topHoldOutcome?.querySelector(
+        'button[aria-pressed="false"]',
+      ) as HTMLElement,
+    )
+
+    expect(playTone).not.toHaveBeenCalledWith(expect.any(Object), 'start')
+    expect(topHoldRow?.querySelector('.timer-panel--rest')).toBeNull()
   })
 
   it('saves the max test step as an in-progress draft before workout rows', async () => {

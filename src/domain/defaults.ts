@@ -11,8 +11,9 @@ import { createId } from '../lib/id'
 import { todayDateString } from '../lib/date'
 import { createMovementExerciseSpecs, MAIN_MOVEMENTS } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
+import { createDefaultFinishWorkoutData } from './finishWorkout'
 
-export const EXPORT_FORMAT_VERSION = 8
+export const EXPORT_FORMAT_VERSION = 9
 
 const DEFAULT_EXERCISE_SPECS: Array<
   Omit<Exercise, 'id' | 'active' | 'builtIn'>
@@ -91,6 +92,7 @@ export function createSeedData(today = todayDateString()): AppData {
     maxTests: [],
     presetProgressions: [],
     programTemplate,
+    finishWorkout: createDefaultFinishWorkoutData(),
     recommendationState: createDefaultRecommendationState(),
   }
 }

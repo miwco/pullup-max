@@ -11,5 +11,9 @@ describe('BottomNav', () => {
       'href',
       '#/log?prefill=1&type=support',
     )
+    expect(screen.getByRole('link', { name: 'Finish' })).toHaveAttribute(
+      'href',
+      '#/finish',
+    )
   })
 })

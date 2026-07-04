@@ -107,6 +107,7 @@ function createMockAppState(): MockAppState {
     daysSinceLastMax: 8,
     daysSinceLastWorkout: 3,
     clearWorkoutDraft: vi.fn(async () => true),
+    clearFinishWorkoutDraft: vi.fn(async () => true),
     deleteExercise: vi.fn(async () => {}),
     dismissOnboarding: vi.fn(async () => true),
     errorMessage: null,
@@ -114,6 +115,7 @@ function createMockAppState(): MockAppState {
     getProgramPrefill: vi.fn(() => []),
     importBackup: vi.fn(async () => true),
     isReady: true,
+    finishWorkoutDraft: null,
     latestBodyweightEntry: data.bodyweightEntries[1] ?? null,
     maxHistory: [
       {
@@ -191,6 +193,9 @@ function createMockAppState(): MockAppState {
     resetAllData: vi.fn(async () => {}),
     saveBodyweight: vi.fn(async () => true),
     saveSession: vi.fn(async () => true),
+    saveFinishWorkout: vi.fn(async () => true),
+    saveFinishWorkoutDraft: vi.fn(async () => true),
+    saveFinishWorkoutSettings: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
     saveWorkoutDraft: vi.fn(async () => true),
     setNotice: vi.fn(),

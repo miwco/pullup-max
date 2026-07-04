@@ -5,6 +5,7 @@ import { HeaderStatusPillGroup } from '../components/HeaderStatusPillGroup'
 import { NoticeBanner } from '../components/NoticeBanner'
 import { HistoryScreen } from '../features/history/HistoryScreen'
 import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
+import { FinishWorkoutScreen } from '../features/finish/FinishWorkoutScreen'
 import { ProgressScreen } from '../features/progress/ProgressScreen'
 import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
@@ -58,6 +59,8 @@ function renderRouteContent(
           onSaved={() => navigateTo('today')}
         />
       )
+    case 'finish':
+      return <FinishWorkoutScreen />
     case 'history':
       return <HistoryScreen />
     case 'progress':

@@ -183,6 +183,24 @@ Shift emphasis only if the same failure point repeats across 2-3 max tests.
 
 Do not add major sections unless clearly needed.
 
+## Optional Finish workout
+The Finish tab is a fixed optional full-body accessory workout after the core
+pull-up session. It is not a generic workout builder and must remain isolated
+from max-test freshness, pull-up recommendations, phases, trends, and deloads.
+
+- Back extension: 3 timed sets, starting at 45 seconds, with 105 seconds rest
+- Abs: renameable exercise label, 3 timed sets, starting at 45 seconds, with
+  105 seconds rest
+- Dips: 10-set EMOM, starting at 2 reps, progressing two higher-rep sets at a
+  time; work time is max(10 seconds, reps * 3)
+- Squat jumps: starting at 10 reps, without an exercise timer
+- Default rest between exercises: 120 seconds
+- Timed exercises use a 10-second prep only before their first set
+- There is no rest timer after the final exercise
+- Rest defaults are user-editable and persisted
+- Each exercise progresses independently after a pass; a fail preserves that
+  exercise's next target
+
 ## Graph
 Include a lightweight line chart:
 - x-axis: date

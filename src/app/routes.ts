@@ -3,6 +3,7 @@ import { useMemo, useSyncExternalStore } from 'react'
 export type AppRoute =
   | 'today'
   | 'log'
+  | 'finish'
   | 'history'
   | 'progress'
   | 'library'
@@ -20,6 +21,7 @@ const DEFAULT_ROUTE: AppRoute = 'today'
 const VALID_ROUTES = new Set<AppRoute>([
   'today',
   'log',
+  'finish',
   'history',
   'progress',
   'library',

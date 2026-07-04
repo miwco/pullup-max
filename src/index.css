@@ -788,8 +788,7 @@ textarea:disabled {
   font-family: var(--mono);
 }
 
-.timer-panel__readout span,
-.timer-panel--rest strong {
+.timer-panel__readout span {
   font-size: 1.45rem;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1092,7 +1091,69 @@ textarea:disabled {
   font-size: 0.78rem;
 }
 
+.finish-workout {
+  padding-bottom: 8px;
+}
+
+.finish-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finish-exercise.is-complete {
+  border-color: rgba(45, 107, 79, 0.28);
+}
+
+.finish-rest-field {
+  max-width: 240px;
+}
+
+.finish-outcome {
+  max-width: 320px;
+}
+
+.finish-rep-target {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.finish-rep-target strong {
+  font-family: var(--mono);
+  font-size: clamp(2.35rem, 14vw, 4.6rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.finish-rep-target span {
+  color: var(--muted-strong);
+}
+
+.finish-save {
+  width: 100%;
+  min-height: 48px;
+}
+
 @media (max-width: 560px) {
+  .bottom-nav {
+    gap: 2px;
+    padding: 5px;
+  }
+
+  .bottom-nav__item {
+    min-height: 44px;
+    border-radius: 10px;
+  }
+
+  .bottom-nav__label {
+    font-size: 0.68rem;
+  }
+
+  .finish-settings {
+    grid-template-columns: 1fr;
+  }
+
   .header-status-pill__popover {
     width: min(300px, calc(100vw - 36px));
   }

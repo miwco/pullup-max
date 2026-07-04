@@ -81,7 +81,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(8)
+      expect(parsed.value.version).toBe(9)
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
       expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
         seeded.athleteProfile.cycleEndDate,
@@ -149,7 +149,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(8)
+      expect(parsed.value.version).toBe(9)
       expect(parsed.value.data.sessions[0]?.sessionType).toBe('support')
       expect(parsed.value.data.exercises[0]?.type).toBe('support')
       expect(parsed.value.data.maxTests[0]?.failurePoint).toBe('top')
@@ -234,6 +234,74 @@ describe('import/export validation', () => {
     if (parsed.ok) {
       expect(parsed.value.data.programTemplate.maxDay.warmup.steps).toEqual([])
       expect(parsed.value.data.programTemplate.maxDay.mainSet.steps).toEqual([])
+    }
+  })
+
+  it('backs up Finish settings, progression, and completed sessions', () => {
+    const seeded = createSeedData('2026-04-18')
+    seeded.finishWorkout.settings.abExerciseName = 'Hollow-body rocks'
+    seeded.finishWorkout.settings.betweenExerciseRestSeconds = 150
+    seeded.finishWorkout.progression.backExtensionSeconds = 52
+    seeded.finishWorkout.progression.dipStageOffset = 3
+    seeded.finishWorkout.sessions = [
+      {
+        id: 'finish-1',
+        date: '2026-04-18',
+        completedAt: '2026-04-18T12:00:00.000Z',
+        entries: [
+          {
+            exerciseId: 'back-extension',
+            outcome: 'pass',
+            targetSummary: '3 x 51s',
+          },
+          {
+            exerciseId: 'abs',
+            outcome: 'pass',
+            targetSummary: 'Hollow-body rocks: 3 x 45s',
+          },
+          {
+            exerciseId: 'dips',
+            outcome: 'fail',
+            targetSummary: '4 x 3 + 6 x 2',
+          },
+          {
+            exerciseId: 'squat-jumps',
+            outcome: 'pass',
+            targetSummary: '10 reps',
+          },
+        ],
+      },
+    ]
+
+    const parsed = parseImportBundle(serializeExportBundle(seeded))
+
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect(parsed.value.data.finishWorkout).toEqual(seeded.finishWorkout)
+    }
+  })
+
+  it('adds default Finish data when importing an older backup', () => {
+    const seeded = createSeedData('2026-04-18')
+    const legacyData: Record<string, unknown> = { ...seeded }
+    delete legacyData.finishWorkout
+    const parsed = parseImportBundle(
+      JSON.stringify({
+        version: 8,
+        exportedAt: '2026-04-18T12:00:00.000Z',
+        data: legacyData,
+      }),
+    )
+
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect(parsed.value.data.finishWorkout.progression).toMatchObject({
+        backExtensionSeconds: 45,
+        absSeconds: 45,
+        dipBaseReps: 2,
+        dipStageOffset: 0,
+        squatJumpReps: 10,
+      })
     }
   })
 
@@ -360,7 +428,7 @@ describe('import/export validation', () => {
 
     expect(parseImportBundle(unsupportedVersion)).toEqual({
       ok: false,
-      error: 'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, or 8.',
+      error: 'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, 8, or 9.',
     })
   })
 

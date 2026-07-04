@@ -14,6 +14,7 @@ export type PresetTargetMode =
   | 'hold-seconds'
   | 'duration-seconds'
 export type TimerSoundId = 'soft' | 'bright' | 'low'
+export type FinishExerciseId = 'back-extension' | 'abs' | 'dips' | 'squat-jumps'
 export type FailurePoint =
   | 'top'
   | 'middle'
@@ -187,6 +188,52 @@ export interface AppSettings {
   timerVolume: number
 }
 
+export interface FinishWorkoutSettings {
+  abExerciseName: string
+  backExtensionRestSeconds: number
+  absRestSeconds: number
+  betweenExerciseRestSeconds: number
+}
+
+export interface FinishWorkoutProgression {
+  backExtensionSeconds: number
+  absSeconds: number
+  dipBaseReps: number
+  dipStageOffset: number
+  squatJumpReps: number
+}
+
+export interface FinishWorkoutEntry {
+  exerciseId: FinishExerciseId
+  outcome: PresetOutcome
+  targetSummary: string
+}
+
+export interface FinishWorkoutSession {
+  id: string
+  date: string
+  completedAt: string
+  entries: FinishWorkoutEntry[]
+}
+
+export interface FinishWorkoutData {
+  settings: FinishWorkoutSettings
+  progression: FinishWorkoutProgression
+  sessions: FinishWorkoutSession[]
+}
+
+export interface FinishWorkoutDraft {
+  id: 'current-finish-workout'
+  date: string
+  outcomes: Partial<Record<FinishExerciseId, PresetOutcome>>
+  updatedAt: string
+}
+
+export interface SaveFinishWorkoutInput {
+  date: string
+  outcomes: Record<FinishExerciseId, PresetOutcome>
+}
+
 export interface AppData {
   athleteProfile: AthleteProfile
   settings: AppSettings
@@ -197,6 +244,7 @@ export interface AppData {
   maxTests: MaxTestResult[]
   presetProgressions: PresetProgressionState[]
   programTemplate: ProgramTemplate
+  finishWorkout: FinishWorkoutData
   recommendationState: RecommendationState
 }
 

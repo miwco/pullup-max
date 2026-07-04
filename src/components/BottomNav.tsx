@@ -12,6 +12,7 @@ const NAV_ITEMS: Array<{
 }> = [
   { label: 'Today', route: 'today' },
   { label: 'Workout', route: 'log' },
+  { label: 'Finish', route: 'finish' },
   { label: 'History', route: 'history' },
   { label: 'Progress', route: 'progress' },
   { label: 'Settings', route: 'profile' },

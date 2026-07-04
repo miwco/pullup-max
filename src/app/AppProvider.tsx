@@ -17,6 +17,10 @@ import {
   serializeExportBundle,
 } from '../domain/importExport'
 import { applyPresetOutcomes } from '../domain/presetProgression'
+import {
+  applyFinishProgression,
+  buildFinishWorkoutEntries,
+} from '../domain/finishWorkout'
 import { getAllProgramSteps } from '../domain/programTemplate'
 import {
   buildBodyweightPoints,
@@ -43,8 +47,11 @@ import type {
   AppSettings,
   AthleteProfile,
   Exercise,
+  FinishWorkoutDraft,
+  FinishWorkoutSettings,
   ProgramTemplate,
   SaveSessionInput,
+  SaveFinishWorkoutInput,
   SessionType,
   SupportFocus,
   WorkoutLogDraft,
@@ -53,10 +60,13 @@ import { todayDateString } from '../lib/date'
 import { createId } from '../lib/id'
 import {
   clearWorkoutDraft as deleteStoredWorkoutDraft,
+  clearFinishWorkoutDraft as deleteStoredFinishWorkoutDraft,
+  loadFinishWorkoutDraft,
   loadWorkoutDraft,
   loadOrSeedAppData,
   persistAppDataDiff,
   persistWorkoutDraft,
+  persistFinishWorkoutDraft,
   replaceAppData,
   resetAppData,
 } from '../storage/indexedDb'
@@ -89,6 +99,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [notice, setNotice] = useState<AppNotice | null>(null)
   const [workoutDraft, setWorkoutDraft] = useState<WorkoutLogDraft | null>(null)
+  const [finishWorkoutDraft, setFinishWorkoutDraft] =
+    useState<FinishWorkoutDraft | null>(null)
   const [storageDurability, setStorageDurability] = useState<
     AppContextValue['storageDurability']
   >({
@@ -107,18 +119,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const today = todayDateString()
         let timeoutId: ReturnType<typeof setTimeout> | null = null
-        const [stored, storedWorkoutDraft] = await Promise.race([
-          Promise.all([loadOrSeedAppData(today), loadWorkoutDraft()]),
-          new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(() => {
-              reject(
-                new Error(
-                  'Local storage took too long to respond. Try reloading the app or using a standard browser mode with storage enabled.',
-                ),
-              )
-            }, LOAD_TIMEOUT_MS)
-          }),
-        ])
+        const [stored, storedWorkoutDraft, storedFinishWorkoutDraft] =
+          await Promise.race([
+            Promise.all([
+              loadOrSeedAppData(today),
+              loadWorkoutDraft(),
+              loadFinishWorkoutDraft(),
+            ]),
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(
+                  new Error(
+                    'Local storage took too long to respond. Try reloading the app or using a standard browser mode with storage enabled.',
+                  ),
+                )
+              }, LOAD_TIMEOUT_MS)
+            }),
+          ])
         if (timeoutId) {
           clearTimeout(timeoutId)
         }
@@ -130,6 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         startTransition(() => {
           setData(stored)
           setWorkoutDraft(storedWorkoutDraft)
+          setFinishWorkoutDraft(storedFinishWorkoutDraft)
           setIsReady(true)
         })
       } catch (error) {
@@ -361,6 +379,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saveNextData(nextData, 'Workout saved.')
   }
 
+  async function saveFinishWorkout(input: SaveFinishWorkoutInput) {
+    const finishWorkout = data.finishWorkout
+    const session = {
+      id: createId('finish-session'),
+      date: input.date,
+      completedAt: new Date().toISOString(),
+      entries: buildFinishWorkoutEntries(finishWorkout, input.outcomes),
+    }
+    const saved = await saveNextData(
+      {
+        ...data,
+        finishWorkout: {
+          ...finishWorkout,
+          progression: applyFinishProgression(
+            finishWorkout.progression,
+            input.outcomes,
+          ),
+          sessions: [...finishWorkout.sessions, session],
+        },
+      },
+      'Finish workout saved.',
+    )
+
+    if (saved) {
+      await clearCurrentFinishWorkoutDraft()
+    }
+
+    return saved
+  }
+
+  async function saveFinishWorkoutSettings(settings: FinishWorkoutSettings) {
+    return saveNextData({
+      ...data,
+      finishWorkout: {
+        ...data.finishWorkout,
+        settings,
+      },
+    })
+  }
+
   async function updateExercise(input: Omit<Exercise, 'id'> & { id?: string }) {
     const nextExercise: Exercise = input.id
       ? {
@@ -501,6 +559,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const saveCurrentFinishWorkoutDraft = useCallback(
+    async (draft: FinishWorkoutDraft) => {
+      try {
+        await persistFinishWorkoutDraft(draft)
+        setFinishWorkoutDraft(draft)
+        return true
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Unable to save Finish workout draft.',
+        })
+        return false
+      }
+    },
+    [],
+  )
+
+  const clearCurrentFinishWorkoutDraft = useCallback(async () => {
+    try {
+      await deleteStoredFinishWorkoutDraft()
+      setFinishWorkoutDraft(null)
+      return true
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to clear Finish workout draft.',
+      })
+      return false
+    }
+  }, [])
+
   async function importBackup(rawText: string) {
     const parsed = parseImportBundle(rawText)
 
@@ -518,6 +613,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         todayDateString(),
       )
       await clearCurrentWorkoutDraft()
+      await clearCurrentFinishWorkoutDraft()
       startTransition(() => {
         setData(imported)
       })
@@ -565,6 +661,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function resetAllData() {
     const reset = await resetAppData(todayDateString())
     await clearCurrentWorkoutDraft()
+    await clearCurrentFinishWorkoutDraft()
     startTransition(() => {
       setData(reset)
     })
@@ -586,6 +683,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     daysSinceLastMax,
     daysSinceLastWorkout,
     clearWorkoutDraft: clearCurrentWorkoutDraft,
+    clearFinishWorkoutDraft: clearCurrentFinishWorkoutDraft,
     deleteExercise,
     dismissOnboarding,
     errorMessage,
@@ -593,6 +691,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getProgramPrefill,
     importBackup,
     isReady,
+    finishWorkoutDraft,
     latestBodyweightEntry,
     maxHistory,
     notice,
@@ -601,6 +700,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     resetAllData,
     saveBodyweight,
     saveSession,
+    saveFinishWorkout,
+    saveFinishWorkoutDraft: saveCurrentFinishWorkoutDraft,
+    saveFinishWorkoutSettings,
     saveSettingsAndProgram,
     saveWorkoutDraft: saveCurrentWorkoutDraft,
     setNotice,

@@ -13,9 +13,12 @@ import type {
   AthleteProfile,
   BodyweightEntry,
   Exercise,
+  FinishWorkoutDraft,
+  FinishWorkoutSettings,
   ProgramEntryDraft,
   ProgramTemplate,
   SaveSessionInput,
+  SaveFinishWorkoutInput,
   SessionType,
   SupportFocus,
   WorkoutLogDraft,
@@ -51,6 +54,7 @@ export interface AppContextValue {
   errorMessage: string | null
   exportBackup: () => string
   clearWorkoutDraft: () => Promise<boolean>
+  clearFinishWorkoutDraft: () => Promise<boolean>
   getProgramPrefill: (
     sessionType: SessionType,
     supportFocus?: SupportFocus,
@@ -66,6 +70,11 @@ export interface AppContextValue {
   resetAllData: () => Promise<void>
   saveBodyweight: (date: string, weightKg: number) => Promise<boolean>
   saveSession: (input: SaveSessionInput) => Promise<boolean>
+  saveFinishWorkout: (input: SaveFinishWorkoutInput) => Promise<boolean>
+  saveFinishWorkoutDraft: (draft: FinishWorkoutDraft) => Promise<boolean>
+  saveFinishWorkoutSettings: (
+    settings: FinishWorkoutSettings,
+  ) => Promise<boolean>
   saveSettingsAndProgram: (
     profileUpdates: Partial<AthleteProfile>,
     settingsUpdates: Partial<AppSettings> | undefined,
@@ -75,6 +84,7 @@ export interface AppContextValue {
   storageDurability: StorageDurabilityState
   weeklyVolumeSummary: ReturnType<typeof getCurrentWeekVolumeSummary>
   workoutDraft: WorkoutLogDraft | null
+  finishWorkoutDraft: FinishWorkoutDraft | null
   saveWorkoutDraft: (draft: WorkoutLogDraft) => Promise<boolean>
   updateExercise: (
     input: Omit<Exercise, 'id'> & { id?: string },

@@ -5,6 +5,10 @@ import {
 } from './defaults'
 import { clampCycleLengthDays, getCycleEndDateForLength } from './cycle'
 import { createDefaultProgramTemplate } from './programTemplate'
+import {
+  createDefaultFinishWorkoutData,
+  FINISH_EXERCISE_IDS,
+} from './finishWorkout'
 import type {
   AppData,
   AppSettings,
@@ -12,6 +16,9 @@ import type {
   BodyweightEntry,
   Exercise,
   ExerciseEntry,
+  FinishExerciseId,
+  FinishWorkoutData,
+  FinishWorkoutSession,
   FailurePoint,
   MaxTestResult,
   PresetOutcome,
@@ -55,6 +62,7 @@ const LEGACY_QUALITY_FLAGS = new Map<string, QualityFlag>([
   ['grindy', 'grindy'],
   ['partial', 'partial'],
 ])
+const VALID_FINISH_EXERCISE_IDS = new Set<FinishExerciseId>(FINISH_EXERCISE_IDS)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -159,6 +167,118 @@ function normalizeSettings(value: unknown): AppSettings | null {
       Number.isFinite(value.timerVolume)
         ? Math.min(1, Math.max(0, value.timerVolume))
         : 0.7,
+  }
+}
+
+function normalizePositiveInteger(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : fallback
+}
+
+function normalizeFinishWorkout(value: unknown): FinishWorkoutData {
+  const fallback = createDefaultFinishWorkoutData()
+
+  if (!isRecord(value)) {
+    return fallback
+  }
+
+  const settings = isRecord(value.settings) ? value.settings : {}
+  const progression = isRecord(value.progression) ? value.progression : {}
+  const sessions = Array.isArray(value.sessions)
+    ? value.sessions.flatMap((item): FinishWorkoutSession[] => {
+        if (
+          !isRecord(item) ||
+          typeof item.id !== 'string' ||
+          typeof item.date !== 'string' ||
+          !isIsoDateString(item.date) ||
+          typeof item.completedAt !== 'string' ||
+          !Array.isArray(item.entries)
+        ) {
+          return []
+        }
+
+        const entries = item.entries.flatMap((entry) => {
+          if (
+            !isRecord(entry) ||
+            typeof entry.exerciseId !== 'string' ||
+            !VALID_FINISH_EXERCISE_IDS.has(
+              entry.exerciseId as FinishExerciseId,
+            ) ||
+            typeof entry.outcome !== 'string' ||
+            !VALID_PRESET_OUTCOMES.has(entry.outcome as PresetOutcome) ||
+            typeof entry.targetSummary !== 'string'
+          ) {
+            return []
+          }
+
+          return [
+            {
+              exerciseId: entry.exerciseId as FinishExerciseId,
+              outcome: entry.outcome as PresetOutcome,
+              targetSummary: entry.targetSummary,
+            },
+          ]
+        })
+
+        return entries.length === FINISH_EXERCISE_IDS.length
+          ? [
+              {
+                id: item.id,
+                date: item.date,
+                completedAt: item.completedAt,
+                entries,
+              },
+            ]
+          : []
+      })
+    : []
+
+  return {
+    settings: {
+      abExerciseName:
+        typeof settings.abExerciseName === 'string' &&
+        settings.abExerciseName.trim()
+          ? settings.abExerciseName.trim().slice(0, 60)
+          : fallback.settings.abExerciseName,
+      backExtensionRestSeconds: normalizePositiveInteger(
+        settings.backExtensionRestSeconds,
+        fallback.settings.backExtensionRestSeconds,
+      ),
+      absRestSeconds: normalizePositiveInteger(
+        settings.absRestSeconds,
+        fallback.settings.absRestSeconds,
+      ),
+      betweenExerciseRestSeconds: normalizePositiveInteger(
+        settings.betweenExerciseRestSeconds,
+        fallback.settings.betweenExerciseRestSeconds,
+      ),
+    },
+    progression: {
+      backExtensionSeconds: normalizePositiveInteger(
+        progression.backExtensionSeconds,
+        fallback.progression.backExtensionSeconds,
+      ),
+      absSeconds: normalizePositiveInteger(
+        progression.absSeconds,
+        fallback.progression.absSeconds,
+      ),
+      dipBaseReps: normalizePositiveInteger(
+        progression.dipBaseReps,
+        fallback.progression.dipBaseReps,
+      ),
+      dipStageOffset:
+        typeof progression.dipStageOffset === 'number' &&
+        Number.isFinite(progression.dipStageOffset) &&
+        progression.dipStageOffset >= 0
+          ? Math.round(progression.dipStageOffset)
+          : fallback.progression.dipStageOffset,
+      squatJumpReps: normalizePositiveInteger(
+        progression.squatJumpReps,
+        fallback.progression.squatJumpReps,
+      ),
+    },
+    sessions,
   }
 }
 
@@ -709,6 +829,7 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
     maxTests: normalizeMaxTests(value.maxTests),
     presetProgressions: normalizePresetProgressions(value.presetProgressions),
     programTemplate: normalizeProgramTemplate(value.programTemplate, exercises),
+    finishWorkout: normalizeFinishWorkout(value.finishWorkout),
     recommendationState: createDefaultRecommendationState(),
   } satisfies AppData
 }

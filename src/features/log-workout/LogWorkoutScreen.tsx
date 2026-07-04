@@ -634,9 +634,9 @@ function HoldTimer({
           return {
             ...current,
             currentSet: current.currentSet + 1,
-            phase: 'prep',
+            phase: 'work',
             previousPhase: 'rest',
-            secondsRemaining: PREP_SECONDS,
+            secondsRemaining: holdSeconds,
           }
         }
 
@@ -696,8 +696,8 @@ function HoldTimer({
         <p className="metric-label">Hold timer</p>
         <strong>{phaseLabel}</strong>
         <p className="muted-text">
-          {PREP_SECONDS}s prep - {setCount} holds - {holdSeconds}s work - rest{' '}
-          {formatTimer(timer.restSeconds)}
+          {PREP_SECONDS}s prep before hold 1 - {setCount} holds - {holdSeconds}s
+          work - rest {formatTimer(timer.restSeconds)}
         </p>
       </div>
 
@@ -982,6 +982,8 @@ function RestTimer({
   storageKey: string
 }) {
   const hasRunRef = useRef(autoStartKey > 0)
+  const lastWarningSecondRef = useRef<number | null>(null)
+  const completionCuePlayedRef = useRef(false)
   const [timer, setTimer] = useState(() => {
     const initialTimer = {
       isRunning: autoStartKey > 0,
@@ -1055,15 +1057,30 @@ function RestTimer({
   }, [timer.isRunning])
 
   useEffect(() => {
-    if (
+    const isWarningSecond =
       timer.isRunning &&
       timer.secondsRemaining > 0 &&
-      timer.secondsRemaining <= ENDING_BEEP_SECONDS
+      timer.secondsRemaining <= EMOM_REST_WARNING_SECONDS
+
+    if (
+      isWarningSecond &&
+      lastWarningSecondRef.current !== timer.secondsRemaining
     ) {
+      lastWarningSecondRef.current = timer.secondsRemaining
       playTone(soundSettings, 'ending')
     }
 
-    if (hasRunRef.current && !timer.isRunning && timer.secondsRemaining === 0) {
+    if (timer.secondsRemaining > EMOM_REST_WARNING_SECONDS) {
+      lastWarningSecondRef.current = null
+    }
+
+    if (
+      hasRunRef.current &&
+      !timer.isRunning &&
+      timer.secondsRemaining === 0 &&
+      !completionCuePlayedRef.current
+    ) {
+      completionCuePlayedRef.current = true
       playTone(soundSettings, 'alarm')
     }
   }, [soundSettings, timer.isRunning, timer.secondsRemaining])
@@ -1088,10 +1105,15 @@ function RestTimer({
   }
 
   return (
-    <div className="timer-panel timer-panel--rest">
+    <div
+      className={`timer-panel timer-panel--rest${timer.isRunning ? ' is-active' : ''}`}
+    >
       <div>
         <p className="metric-label">{label}</p>
-        <strong>{formatTimer(timer.secondsRemaining)}</strong>
+        <div className="timer-panel__readout">
+          <span>{formatTimer(timer.secondsRemaining)}</span>
+          <small>{timer.isRunning ? 'Resting' : 'Ready'}</small>
+        </div>
       </div>
 
       <label className="field timer-panel__input">
@@ -1112,6 +1134,13 @@ function RestTimer({
           onClick={() => {
             onInteract?.()
             hasRunRef.current = true
+            completionCuePlayedRef.current = false
+            lastWarningSecondRef.current = null
+
+            if (!timer.isRunning) {
+              playTone(soundSettings, 'start')
+            }
+
             setTimer((current) => ({
               ...current,
               isRunning: !current.isRunning,
@@ -1127,6 +1156,8 @@ function RestTimer({
           onClick={() => {
             onInteract?.()
             clearStoredTimer(storageKey)
+            completionCuePlayedRef.current = false
+            lastWarningSecondRef.current = null
             setTimer((current) => ({
               ...current,
               isRunning: false,
@@ -1337,6 +1368,15 @@ export function LogWorkoutScreen({
     outcome: WorkoutLogEntryDraft['outcome'],
   ) {
     updateEntry(localId, { outcome })
+
+    const entryIndex = entries.findIndex((entry) => entry.localId === localId)
+    const hasNextExercise = entryIndex >= 0 && entryIndex < entries.length - 1
+
+    if (!hasNextExercise) {
+      return
+    }
+
+    playTone(timerSoundSettings, 'start')
     setRestAutoStartByEntryId((current) => ({
       ...current,
       [localId]: (current[localId] ?? 0) + 1,
@@ -1430,6 +1470,7 @@ export function LogWorkoutScreen({
     setFormError(null)
     setMaxTestSaved(true)
     setShowMaxDetail(false)
+    playTone(timerSoundSettings, 'start')
     setMaxRestAutoStartKey((current) => current + 1)
 
     window.setTimeout(() => {
@@ -1749,7 +1790,7 @@ export function LogWorkoutScreen({
                 </p>
               ) : null}
 
-              {entries.map((entry) => (
+              {entries.map((entry, entryIndex) => (
                 <div key={entry.localId} className="entry-row preset-row">
                   <div className="preset-row__copy">
                     <p className="metric-label">{entry.exerciseName}</p>
@@ -1800,13 +1841,15 @@ export function LogWorkoutScreen({
                     ))}
                   </div>
 
-                  <RestTimer
-                    key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
-                    autoStartKey={restAutoStartByEntryId[entry.localId] ?? 0}
-                    onInteract={markInteracted}
-                    soundSettings={timerSoundSettings}
-                    storageKey={`rest:${date}:${entry.presetKey}:${entry.localId}`}
-                  />
+                  {entryIndex < entries.length - 1 ? (
+                    <RestTimer
+                      key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
+                      autoStartKey={restAutoStartByEntryId[entry.localId] ?? 0}
+                      onInteract={markInteracted}
+                      soundSettings={timerSoundSettings}
+                      storageKey={`rest:${date}:${entry.presetKey}:${entry.localId}`}
+                    />
+                  ) : null}
                 </div>
               ))}
             </div>

@@ -48,6 +48,7 @@ import type {
   AthleteProfile,
   Exercise,
   FinishWorkoutDraft,
+  FinishWorkoutProgression,
   FinishWorkoutSettings,
   ProgramTemplate,
   SaveSessionInput,
@@ -465,6 +466,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  async function saveFinishWorkoutProgression(
+    progression: FinishWorkoutProgression,
+  ) {
+    return saveNextData(
+      {
+        ...data,
+        finishWorkout: {
+          ...data.finishWorkout,
+          progression,
+        },
+      },
+      'Finish target updated.',
+    )
+  }
+
   async function updateExercise(input: Omit<Exercise, 'id'> & { id?: string }) {
     const nextExercise: Exercise = input.id
       ? {
@@ -751,6 +767,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveFinishWorkout,
     saveFinishWorkoutDraft: saveCurrentFinishWorkoutDraft,
     saveFinishWorkoutSettings,
+    saveFinishWorkoutProgression,
     saveSettingsAndProgram,
     saveWorkoutDraft: saveCurrentWorkoutDraft,
     setNotice,

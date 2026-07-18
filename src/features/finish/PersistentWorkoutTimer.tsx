@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
 import type { WorkoutTimerStep } from './finishTimerPlan'
 import { FINISH_TIMER_STORAGE_PREFIX } from './finishTimerStorage'
+import { useScreenWakeLock } from '../../lib/useScreenWakeLock'
+import { subscribeToTimerStop } from '../../lib/timerEvents'
 
 interface StoredTimer {
   isRunning: boolean
@@ -43,6 +45,7 @@ function writeTimer(key: string, timer: StoredTimer) {
 export function PersistentWorkoutTimer({
   autoStart = false,
   label,
+  onStart,
   soundSettings,
   storageKey,
   steps,
@@ -50,6 +53,7 @@ export function PersistentWorkoutTimer({
 }: {
   autoStart?: boolean
   label: string
+  onStart?: () => void
   soundSettings: TimerSoundSettings
   storageKey: string
   steps: WorkoutTimerStep[]
@@ -157,9 +161,22 @@ export function PersistentWorkoutTimer({
   const currentStep = steps[timer.stepIndex]
   const isComplete = timer.stepIndex >= steps.length
   const phase = isComplete ? 'complete' : (currentStep?.phase ?? 'ready')
+  useScreenWakeLock(timer.isRunning)
+
+  useEffect(() => {
+    return subscribeToTimerStop(storageKey, () => {
+      setTimer((current) => ({
+        ...current,
+        isRunning: false,
+        lastUpdatedAt: null,
+      }))
+    })
+  }, [storageKey])
 
   const startTimer = useCallback(
     (playStartCue: boolean) => {
+      onStart?.()
+
       if (playStartCue) {
         playTone(soundSettings, 'start')
       }
@@ -181,7 +198,7 @@ export function PersistentWorkoutTimer({
         }
       })
     },
-    [soundSettings, steps],
+    [onStart, soundSettings, steps],
   )
 
   useEffect(() => {
@@ -246,8 +263,25 @@ export function PersistentWorkoutTimer({
       return
     }
 
+    if (phase === 'complete') {
+      playTone(soundSettings, steps.length === 1 ? 'alarm' : 'complete')
+      return
+    }
+
+    if (phase === 'rest' && timer.previousPhase === 'work') {
+      const previousStep = steps[timer.stepIndex - 1]
+      const nextStep = steps[timer.stepIndex + 1]
+      const isDipPrescriptionChange =
+        previousStep?.instruction.includes('dips') &&
+        nextStep?.instruction.includes('dips') &&
+        previousStep.instruction !== nextStep.instruction
+
+      playTone(soundSettings, isDipPrescriptionChange ? 'rep-change' : 'alarm')
+      return
+    }
+
     playTone(soundSettings, 'alarm')
-  }, [phase, soundSettings, timer.previousPhase])
+  }, [phase, soundSettings, steps, timer.previousPhase, timer.stepIndex])
 
   function pauseTimer() {
     setTimer((current) => ({

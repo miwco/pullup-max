@@ -18,7 +18,13 @@ function getAudioContext() {
   return audioContext
 }
 
-type TimerToneKind = 'alarm' | 'countdown' | 'ending' | 'start'
+export type TimerToneKind =
+  | 'alarm'
+  | 'countdown'
+  | 'ending'
+  | 'start'
+  | 'rep-change'
+  | 'complete'
 
 function getToneFrequency(
   soundId: TimerSoundId,
@@ -38,6 +44,14 @@ function getToneFrequency(
     return baseBySound[soundId] - 80
   }
 
+  if (kind === 'rep-change') {
+    return baseBySound[soundId] + 220
+  }
+
+  if (kind === 'complete') {
+    return baseBySound[soundId] + 360
+  }
+
   return baseBySound[soundId]
 }
 
@@ -53,7 +67,14 @@ export function playTone(settings: TimerSoundSettings, kind: TimerToneKind) {
     }
 
     const now = context.currentTime
-    const beepCount = kind === 'alarm' ? 3 : 1
+    const beepCount =
+      kind === 'complete'
+        ? 5
+        : kind === 'rep-change'
+          ? 2
+          : kind === 'alarm'
+            ? 3
+            : 1
     const frequency =
       kind === 'alarm'
         ? getToneFrequency(settings.soundId, 'ending')
@@ -64,11 +85,24 @@ export function playTone(settings: TimerSoundSettings, kind: TimerToneKind) {
       const gain = context.createGain()
       const start = now + index * 0.18
       const stop =
-        start + (kind === 'alarm' ? 0.16 : kind === 'start' ? 0.09 : 0.12)
+        start +
+        (kind === 'complete'
+          ? 0.18
+          : kind === 'alarm'
+            ? 0.16
+            : kind === 'start'
+              ? 0.09
+              : 0.12)
       const audibleVolume = Math.min(
         1,
         settings.volume *
-          (kind === 'alarm' ? 0.8 : kind === 'start' ? 0.5 : 0.62),
+          (kind === 'complete'
+            ? 0.9
+            : kind === 'alarm'
+              ? 0.8
+              : kind === 'start'
+                ? 0.5
+                : 0.62),
       )
 
       oscillator.type = settings.soundId === 'bright' ? 'square' : 'sine'

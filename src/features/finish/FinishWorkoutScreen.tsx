@@ -10,11 +10,13 @@ import {
 } from '../../domain/finishWorkout'
 import type {
   FinishExerciseId,
+  FinishWorkoutProgression,
   FinishWorkoutSettings,
   PresetOutcome,
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
-import type { TimerSoundSettings } from '../../lib/timerSound'
+import { requestTimerStop } from '../../lib/timerEvents'
+import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
 import { PersistentWorkoutTimer } from './PersistentWorkoutTimer'
 import { createDipSteps, createTimedSetSteps } from './finishTimerPlan'
 import { clearFinishTimers } from './finishTimerStorage'
@@ -57,6 +59,7 @@ export function FinishWorkoutScreen() {
     finishWorkoutDraft,
     saveFinishWorkout,
     saveFinishWorkoutDraft,
+    saveFinishWorkoutProgression,
     saveFinishWorkoutSettings,
   } = useAppState()
   const today = todayDateString()
@@ -70,6 +73,11 @@ export function FinishWorkoutScreen() {
     finishWorkout.settings,
   )
   const [saving, setSaving] = useState(false)
+  const [editingExercise, setEditingExercise] =
+    useState<FinishExerciseId | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [editError, setEditError] = useState('')
+  const [editingSaving, setEditingSaving] = useState(false)
   const [restStartedFor, setRestStartedFor] = useState<
     Partial<Record<FinishExerciseId, number>>
   >({})
@@ -113,6 +121,76 @@ export function FinishWorkoutScreen() {
     await saveFinishWorkoutSettings(next)
   }
 
+  function openExerciseEditor(exerciseId: FinishExerciseId) {
+    setEditingExercise(exerciseId)
+    setEditError('')
+
+    if (exerciseId === 'back-extension') {
+      setEditValue(String(finishWorkout.progression.backExtensionSeconds))
+    } else if (exerciseId === 'abs') {
+      setEditValue(String(finishWorkout.progression.absSeconds))
+    } else if (exerciseId === 'dips') {
+      setEditValue(String(finishWorkout.progression.dipBaseReps))
+    } else {
+      setEditValue('')
+    }
+  }
+
+  function closeExerciseEditor() {
+    setEditingExercise(null)
+    setEditValue('')
+    setEditError('')
+  }
+
+  async function saveExerciseEdit() {
+    if (!editingExercise) {
+      return
+    }
+
+    if (editingExercise === 'squat-jumps') {
+      closeExerciseEditor()
+      return
+    }
+
+    const parsedValue = Number(editValue)
+    const minimum = editingExercise === 'dips' ? 1 : 5
+    const maximum = editingExercise === 'dips' ? 20 : 600
+
+    if (
+      !Number.isInteger(parsedValue) ||
+      parsedValue < minimum ||
+      parsedValue > maximum
+    ) {
+      setEditError(
+        editingExercise === 'dips'
+          ? 'Enter a whole number from 1 to 20 reps.'
+          : 'Enter a whole number from 5 to 600 seconds.',
+      )
+      return
+    }
+
+    const progression: FinishWorkoutProgression = {
+      ...finishWorkout.progression,
+    }
+
+    if (editingExercise === 'back-extension') {
+      progression.backExtensionSeconds = parsedValue
+    } else if (editingExercise === 'abs') {
+      progression.absSeconds = parsedValue
+    } else {
+      progression.dipBaseReps = parsedValue
+      progression.dipStageOffset = 0
+    }
+
+    setEditingSaving(true)
+    const saved = await saveFinishWorkoutProgression(progression)
+    setEditingSaving(false)
+
+    if (saved) {
+      closeExerciseEditor()
+    }
+  }
+
   function normalizeRestSeconds(value: number, fallback: number) {
     return Math.min(1800, Math.max(15, Math.round(value || fallback)))
   }
@@ -130,6 +208,7 @@ export function FinishWorkoutScreen() {
     setSaving(false)
 
     if (saved) {
+      playTone(soundSettings, 'complete')
       setOutcomes({})
       setRestStartedFor({})
       clearFinishTimers()
@@ -197,6 +276,22 @@ export function FinishWorkoutScreen() {
               : id === 'dips'
                 ? createDipSteps(dipPlan)
                 : null
+        const timerKey = `${today}:${id}:${
+          id === 'back-extension'
+            ? finishWorkout.progression.backExtensionSeconds
+            : id === 'abs'
+              ? finishWorkout.progression.absSeconds
+              : id === 'dips'
+                ? dipPlan.join(',')
+                : 'fixed'
+        }`
+        const stopPreviousRestTimer = () => {
+          const previousExercise = EXERCISES[index - 1]
+
+          if (previousExercise) {
+            requestTimerStop(`${today}:transition:${previousExercise.id}`)
+          }
+        }
 
         return (
           <Section
@@ -207,12 +302,34 @@ export function FinishWorkoutScreen() {
             title={`${index + 1}. ${exerciseLabel}`}
             eyebrow={target}
             action={
-              outcome ? (
-                <StatusPill
-                  tone={outcome === 'pass' ? 'success' : 'danger'}
-                  label={outcome}
-                />
-              ) : undefined
+              <div className="finish-exercise__actions">
+                <button
+                  type="button"
+                  className="icon-button finish-edit-button"
+                  aria-expanded={editingExercise === id}
+                  aria-label={
+                    id === 'squat-jumps'
+                      ? 'About Squat jumps target'
+                      : `Edit ${label}`
+                  }
+                  title={
+                    id === 'squat-jumps'
+                      ? 'About Squat jumps target'
+                      : `Edit ${label}`
+                  }
+                  onClick={() => openExerciseEditor(id)}
+                >
+                  <span aria-hidden="true">
+                    {id === 'squat-jumps' ? 'i' : '✎'}
+                  </span>
+                </button>
+                {outcome ? (
+                  <StatusPill
+                    tone={outcome === 'pass' ? 'success' : 'danger'}
+                    label={outcome}
+                  />
+                ) : null}
+              </div>
             }
           >
             {id === 'back-extension' || id === 'abs' ? (
@@ -249,9 +366,81 @@ export function FinishWorkoutScreen() {
               </label>
             ) : null}
 
+            {editingExercise === id ? (
+              <form
+                className="finish-edit-panel"
+                noValidate
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void saveExerciseEdit()
+                }}
+              >
+                {id === 'squat-jumps' ? (
+                  <p className="muted-text">
+                    Squat jumps increase automatically after a passed workout.
+                  </p>
+                ) : (
+                  <label className="field">
+                    <span>
+                      {id === 'dips' ? 'Reps per set' : 'Work seconds'}
+                    </span>
+                    <input
+                      type="number"
+                      min={id === 'dips' ? 1 : 5}
+                      max={id === 'dips' ? 20 : 600}
+                      step="1"
+                      value={editValue}
+                      aria-describedby={
+                        editError ? `finish-edit-error-${id}` : undefined
+                      }
+                      aria-invalid={editError ? 'true' : undefined}
+                      onChange={(event) => {
+                        setEditValue(event.target.value)
+                        setEditError('')
+                      }}
+                    />
+                  </label>
+                )}
+                {editError ? (
+                  <p
+                    className="field-error"
+                    id={`finish-edit-error-${id}`}
+                    role="alert"
+                  >
+                    {editError}
+                  </p>
+                ) : null}
+                <div className="button-row">
+                  <button
+                    type="submit"
+                    className="button button--primary button--compact"
+                    disabled={editingSaving}
+                  >
+                    {id === 'squat-jumps'
+                      ? 'Done'
+                      : editingSaving
+                        ? 'Saving...'
+                        : 'Save'}
+                  </button>
+                  {id !== 'squat-jumps' ? (
+                    <button
+                      type="button"
+                      className="button button--ghost button--compact"
+                      disabled={editingSaving}
+                      onClick={closeExerciseEditor}
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+            ) : null}
+
             {timerSteps ? (
               <PersistentWorkoutTimer
+                key={timerKey}
                 label={id === 'dips' ? 'Dip EMOM' : exerciseLabel}
+                onStart={stopPreviousRestTimer}
                 soundSettings={soundSettings}
                 storageKey={`${today}:${id}`}
                 steps={timerSteps}

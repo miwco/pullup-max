@@ -201,6 +201,7 @@ function createMockAppState(): MockAppState {
     saveSession: vi.fn(async () => true),
     saveFinishWorkout: vi.fn(async () => true),
     saveFinishWorkoutDraft: vi.fn(async () => true),
+    saveFinishWorkoutProgression: vi.fn(async () => true),
     saveFinishWorkoutSettings: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
     saveWorkoutDraft: vi.fn(async () => true),
@@ -409,7 +410,7 @@ describe('compact hybrid UI refresh', () => {
     expect(screen.getByText('Failed')).toBeInTheDocument()
     expect(screen.getByText('21.7 pts')).toBeInTheDocument()
     expect(
-      screen.getByLabelText('support workout on Apr 15, 2026'),
+      screen.getByRole('article', { name: /support workout on/i }),
     ).toHaveClass('is-hard')
 
     await user.click(screen.getByRole('button', { name: 'Weight' }))

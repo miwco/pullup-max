@@ -14,6 +14,7 @@ import type {
   BodyweightEntry,
   Exercise,
   FinishWorkoutDraft,
+  FinishWorkoutProgression,
   FinishWorkoutSettings,
   ProgramEntryDraft,
   ProgramTemplate,
@@ -76,6 +77,9 @@ export interface AppContextValue {
   saveFinishWorkoutDraft: (draft: FinishWorkoutDraft) => Promise<boolean>
   saveFinishWorkoutSettings: (
     settings: FinishWorkoutSettings,
+  ) => Promise<boolean>
+  saveFinishWorkoutProgression: (
+    progression: FinishWorkoutProgression,
   ) => Promise<boolean>
   saveSettingsAndProgram: (
     profileUpdates: Partial<AthleteProfile>,

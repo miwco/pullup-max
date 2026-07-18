@@ -5,16 +5,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppContext, type AppContextValue } from '../app/appContext'
 import { createSeedData } from '../domain/defaults'
 import { GreaseGrooveScreen } from '../features/grease-groove/GreaseGrooveScreen'
+import { todayDateString } from '../lib/date'
 
 function renderScreen() {
-  const data = createSeedData('2026-07-04')
+  const today = todayDateString()
+  const data = createSeedData(today)
   data.recommendationState.baselineMax = 10
   data.greaseGrooveEntries = [
     {
       id: 'gg-existing',
-      date: '2026-07-04',
+      date: today,
       reps: 4,
-      loggedAt: '2026-07-04T09:30:00.000Z',
+      loggedAt: `${today}T09:30:00.000Z`,
     },
   ]
   const saveGreaseGrooveEntry = vi.fn(async () => true)

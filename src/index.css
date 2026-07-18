@@ -1351,6 +1351,38 @@ textarea:disabled {
   border-color: rgba(45, 107, 79, 0.28);
 }
 
+.finish-exercise__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finish-edit-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--muted-strong);
+}
+
+.finish-edit-button span {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.finish-edit-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.finish-edit-panel .field {
+  max-width: 240px;
+}
+
 .finish-rest-field {
   max-width: 240px;
 }
@@ -1494,6 +1526,17 @@ textarea:disabled {
 
   .finish-settings {
     grid-template-columns: 1fr;
+  }
+
+  .finish-workout .button--compact,
+  .finish-workout .segment-row__item,
+  .finish-edit-button {
+    min-height: 44px;
+  }
+
+  .finish-edit-button {
+    width: 44px;
+    height: 44px;
   }
 
   .gg-form {

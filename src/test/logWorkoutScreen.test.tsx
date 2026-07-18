@@ -146,6 +146,7 @@ function createMockAppState(): MockAppState {
     saveSession: vi.fn(async () => true),
     saveFinishWorkout: vi.fn(async () => true),
     saveFinishWorkoutDraft: vi.fn(async () => true),
+    saveFinishWorkoutProgression: vi.fn(async () => true),
     saveFinishWorkoutSettings: vi.fn(async () => true),
     saveSettingsAndProgram: vi.fn(async () => true),
     saveWorkoutDraft: vi.fn(async () => true),
@@ -229,6 +230,34 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(
       screen.queryByRole('button', { name: /add row/i }),
     ).not.toBeInTheDocument()
+  })
+
+  it('prefills the true max reps field with the latest max attempt', () => {
+    const state = createMockAppState()
+    state.data.sessions = [
+      {
+        id: 'max-session',
+        date: '2026-04-12',
+        sessionType: 'max',
+        notes: '',
+      },
+    ]
+    state.data.maxTests = [
+      {
+        id: 'max-test',
+        workoutSessionId: 'max-session',
+        reps: 11,
+        movement: 'Pull-up',
+        trendClassification: 'stable',
+      },
+    ]
+    mockedUseAppState.mockReturnValue(state)
+
+    render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+
+    expect(screen.getByLabelText(/true max reps/i)).toHaveValue('11')
   })
 
   it('lets support workouts switch between top, middle, and low presets', async () => {
@@ -355,6 +384,51 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(emomRow).not.toHaveTextContent('Get to the bar')
   })
 
+  it('uses distinct cues for EMOM rep changes and block completion', () => {
+    vi.useFakeTimers()
+    const customState = createMockAppState()
+    vi.mocked(customState.getProgramPrefill).mockReturnValue([
+      createPrefillRow({
+        templateStepId: 'emom-row',
+        presetKey: 'emom-row',
+        label: 'EMOM pull-up block',
+        target: {
+          mode: 'emom',
+          summary: '4m EMOM: 2x3 + 2x4',
+          entrySets: 1,
+          entryReps: 14,
+          emomMinutes: 4,
+          emomSegments: [
+            { sets: 2, reps: 3 },
+            { sets: 2, reps: 4 },
+          ],
+        },
+      }),
+    ])
+    mockedUseAppState.mockReturnValue(customState)
+
+    const { container } = render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+    const emomRow = container.querySelector('.entry-row') as HTMLElement
+    fireEvent.click(
+      emomRow.querySelector('.timer-panel--emom .button--primary')!,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(10000 + 15000 + 60000 + 15000)
+    })
+
+    expect(playTone).toHaveBeenCalledWith(expect.any(Object), 'rep-change')
+
+    vi.mocked(playTone).mockClear()
+    act(() => {
+      vi.advanceTimersByTime(60000 + 20000 + 60000 + 20000)
+    })
+
+    expect(playTone).toHaveBeenCalledWith(expect.any(Object), 'complete')
+  })
+
   it('uses the prep countdown only before the first top hold', () => {
     vi.useFakeTimers()
     const { container } = render(
@@ -386,6 +460,25 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(topHoldRow).toHaveTextContent('Hold now')
     expect(topHoldRow).toHaveTextContent('Set 2 / 2')
     expect(topHoldRow).not.toHaveTextContent('Get to the bar')
+  })
+
+  it('uses the completion cue when a timed hold block finishes', () => {
+    vi.useFakeTimers()
+    const { container } = render(
+      <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
+    )
+    const topHoldRow = container
+      .querySelector('[aria-label="Outcome for Top hold"]')
+      ?.closest('.entry-row') as HTMLElement
+
+    fireEvent.click(topHoldRow.querySelector('.timer-panel .button--primary')!)
+    vi.mocked(playTone).mockClear()
+
+    act(() => {
+      vi.advanceTimersByTime(170000)
+    })
+
+    expect(playTone).toHaveBeenCalledWith(expect.any(Object), 'complete')
   })
 
   it('adds a timer for duration-based preset rows', () => {

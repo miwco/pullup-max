@@ -25,6 +25,9 @@ import { createId } from '../../lib/id'
 import { formatQualityFlag, getQualityTone } from '../../lib/qualityFlag'
 import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
+import { getLatestLoggedMaxReps } from '../../domain/selectors'
+import { useScreenWakeLock } from '../../lib/useScreenWakeLock'
+import { requestTimerStop, subscribeToTimerStop } from '../../lib/timerEvents'
 
 interface LogWorkoutScreenProps {
   prefill: boolean
@@ -224,7 +227,9 @@ function useTimerBeeps({
       return
     }
 
-    if (phase === 'work' || phase === 'rest' || phase === 'complete') {
+    if (phase === 'complete') {
+      playTone(soundSettings, 'complete')
+    } else if (phase === 'work' || phase === 'rest') {
       playTone(soundSettings, 'alarm')
     }
   }, [phase, previousPhase, soundSettings])
@@ -233,11 +238,13 @@ function useTimerBeeps({
 function EmomTimer({
   entry,
   onInteract,
+  onStart,
   soundSettings,
   timerKey,
 }: {
   entry: WorkoutLogEntryDraft
   onInteract: () => void
+  onStart?: () => void
   soundSettings: TimerSoundSettings
   timerKey: string
 }) {
@@ -363,6 +370,7 @@ function EmomTimer({
 
     return initialTimer
   })
+  useScreenWakeLock(timer.isRunning)
 
   useEffect(() => {
     writeStoredTimer(timerKey, timer)
@@ -432,17 +440,33 @@ function EmomTimer({
       return
     }
 
-    if (
-      timer.phase === 'work' ||
-      timer.phase === 'rest' ||
-      timer.phase === 'complete'
-    ) {
+    if (timer.phase === 'complete') {
+      playTone(soundSettings, 'complete')
+    } else if (timer.phase === 'rest') {
+      const currentReps = roundPlan[timer.currentRound - 1]
+      const nextReps = roundPlan[timer.currentRound]
+      playTone(
+        soundSettings,
+        currentReps !== undefined &&
+          nextReps !== undefined &&
+          currentReps !== nextReps
+          ? 'rep-change'
+          : 'alarm',
+      )
+    } else if (timer.phase === 'work') {
       playTone(soundSettings, 'alarm')
     }
-  }, [soundSettings, timer.phase, timer.previousPhase])
+  }, [
+    roundPlan,
+    soundSettings,
+    timer.currentRound,
+    timer.phase,
+    timer.previousPhase,
+  ])
 
   function startTimer() {
     onInteract()
+    onStart?.()
     setTimer((current) => {
       const shouldRestart = current.phase === 'complete'
       const currentRound = shouldRestart ? 1 : current.currentRound
@@ -556,9 +580,11 @@ function EmomTimer({
 
 function HoldTimer({
   entry,
+  onStart,
   soundSettings,
 }: {
   entry: WorkoutLogEntryDraft
+  onStart?: () => void
   soundSettings: TimerSoundSettings
 }) {
   const holdSeconds = entry.target.entryDurationSeconds ?? 0
@@ -571,6 +597,7 @@ function HoldTimer({
     restSeconds: DEFAULT_HOLD_REST_SECONDS,
     secondsRemaining: holdSeconds,
   }))
+  useScreenWakeLock(timer.isRunning)
 
   useTimerBeeps({
     isRunning: timer.isRunning,
@@ -648,6 +675,7 @@ function HoldTimer({
   }, [holdSeconds, setCount, timer.isRunning, timer.phase])
 
   function startTimer() {
+    onStart?.()
     setTimer((current) => ({
       ...current,
       currentSet: current.phase === 'complete' ? 1 : current.currentSet,
@@ -762,9 +790,11 @@ function HoldTimer({
 
 function DurationTimer({
   entry,
+  onStart,
   soundSettings,
 }: {
   entry: WorkoutLogEntryDraft
+  onStart?: () => void
   soundSettings: TimerSoundSettings
 }) {
   const workSeconds = entry.target.entryDurationSeconds ?? 0
@@ -777,6 +807,7 @@ function DurationTimer({
     restSeconds: DEFAULT_HOLD_REST_SECONDS,
     secondsRemaining: workSeconds,
   }))
+  useScreenWakeLock(timer.isRunning)
 
   useTimerBeeps({
     isRunning: timer.isRunning,
@@ -854,6 +885,7 @@ function DurationTimer({
   }, [setCount, timer.isRunning, timer.phase, workSeconds])
 
   function startTimer() {
+    onStart?.()
     setTimer((current) => ({
       ...current,
       currentSet: current.phase === 'complete' ? 1 : current.currentSet,
@@ -1016,6 +1048,16 @@ function RestTimer({
       secondsRemaining: nextSeconds,
     }
   })
+  useEffect(() => {
+    return subscribeToTimerStop(storageKey, () => {
+      setTimer((current) => ({
+        ...current,
+        isRunning: false,
+        lastUpdatedAt: null,
+      }))
+    })
+  }, [storageKey])
+  useScreenWakeLock(timer.isRunning)
 
   useEffect(() => {
     writeStoredTimer(storageKey, timer)
@@ -1191,6 +1233,11 @@ export function LogWorkoutScreen({
   const initialSupportFocus = normalizeSupportWorkoutFocus(
     workoutDraft?.supportFocus ?? data.recommendationState.defaultSupportFocus,
   )
+  const latestMaxReps = getLatestLoggedMaxReps(
+    data.maxTests,
+    data.sessions,
+    data.athleteProfile.mainMovement,
+  )
   const [sessionType, setSessionType] =
     useState<SessionType>(initialSessionType)
   const [supportFocus, setSupportFocus] =
@@ -1198,7 +1245,10 @@ export function LogWorkoutScreen({
   const [date, setDate] = useState(
     () => workoutDraft?.date ?? todayDateString(),
   )
-  const [maxReps, setMaxReps] = useState(workoutDraft?.maxReps ?? '')
+  const [maxReps, setMaxReps] = useState(
+    workoutDraft?.maxReps ||
+      (latestMaxReps === null ? '' : String(latestMaxReps)),
+  )
   const [videoLink, setVideoLink] = useState(workoutDraft?.videoLink ?? '')
   const [failurePoint, setFailurePoint] = useState<FailurePoint | ''>(
     workoutDraft?.failurePoint ?? '',
@@ -1790,68 +1840,88 @@ export function LogWorkoutScreen({
                 </p>
               ) : null}
 
-              {entries.map((entry, entryIndex) => (
-                <div key={entry.localId} className="entry-row preset-row">
-                  <div className="preset-row__copy">
-                    <p className="metric-label">{entry.exerciseName}</p>
-                    <strong>{entry.label}</strong>
-                    <p className="preset-row__target">{entry.target.summary}</p>
+              {entries.map((entry, entryIndex) => {
+                const previousEntry = entries[entryIndex - 1]
+                const stopPreviousRestTimer = () => {
+                  if (previousEntry) {
+                    requestTimerStop(
+                      `rest:${date}:${previousEntry.presetKey}:${previousEntry.localId}`,
+                    )
+                  }
+                }
+
+                return (
+                  <div key={entry.localId} className="entry-row preset-row">
+                    <div className="preset-row__copy">
+                      <p className="metric-label">{entry.exerciseName}</p>
+                      <strong>{entry.label}</strong>
+                      <p className="preset-row__target">
+                        {entry.target.summary}
+                      </p>
+                    </div>
+
+                    {entry.target.mode === 'emom' ? (
+                      <EmomTimer
+                        entry={entry}
+                        onInteract={markInteracted}
+                        onStart={stopPreviousRestTimer}
+                        soundSettings={timerSoundSettings}
+                        timerKey={`emom:${date}:${entry.presetKey}:${entry.target.summary}`}
+                      />
+                    ) : null}
+
+                    {entry.target.mode === 'hold-seconds' &&
+                    typeof entry.target.entryDurationSeconds === 'number' ? (
+                      <HoldTimer
+                        entry={entry}
+                        onStart={stopPreviousRestTimer}
+                        soundSettings={timerSoundSettings}
+                      />
+                    ) : null}
+
+                    {entry.target.mode === 'duration-seconds' &&
+                    typeof entry.target.entryDurationSeconds === 'number' ? (
+                      <DurationTimer
+                        entry={entry}
+                        onStart={stopPreviousRestTimer}
+                        soundSettings={timerSoundSettings}
+                      />
+                    ) : null}
+
+                    <div
+                      className="segment-row preset-row__actions"
+                      role="radiogroup"
+                      aria-label={`Outcome for ${entry.label}`}
+                    >
+                      {(['pass', 'fail'] as const).map((outcome) => (
+                        <button
+                          key={outcome}
+                          type="button"
+                          className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
+                          aria-pressed={entry.outcome === outcome}
+                          onClick={() =>
+                            markEntryOutcome(entry.localId, outcome)
+                          }
+                        >
+                          {outcome}
+                        </button>
+                      ))}
+                    </div>
+
+                    {entryIndex < entries.length - 1 ? (
+                      <RestTimer
+                        key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
+                        autoStartKey={
+                          restAutoStartByEntryId[entry.localId] ?? 0
+                        }
+                        onInteract={markInteracted}
+                        soundSettings={timerSoundSettings}
+                        storageKey={`rest:${date}:${entry.presetKey}:${entry.localId}`}
+                      />
+                    ) : null}
                   </div>
-
-                  {entry.target.mode === 'emom' ? (
-                    <EmomTimer
-                      entry={entry}
-                      onInteract={markInteracted}
-                      soundSettings={timerSoundSettings}
-                      timerKey={`emom:${date}:${entry.presetKey}:${entry.target.summary}`}
-                    />
-                  ) : null}
-
-                  {entry.target.mode === 'hold-seconds' &&
-                  typeof entry.target.entryDurationSeconds === 'number' ? (
-                    <HoldTimer
-                      entry={entry}
-                      soundSettings={timerSoundSettings}
-                    />
-                  ) : null}
-
-                  {entry.target.mode === 'duration-seconds' &&
-                  typeof entry.target.entryDurationSeconds === 'number' ? (
-                    <DurationTimer
-                      entry={entry}
-                      soundSettings={timerSoundSettings}
-                    />
-                  ) : null}
-
-                  <div
-                    className="segment-row preset-row__actions"
-                    role="radiogroup"
-                    aria-label={`Outcome for ${entry.label}`}
-                  >
-                    {(['pass', 'fail'] as const).map((outcome) => (
-                      <button
-                        key={outcome}
-                        type="button"
-                        className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
-                        aria-pressed={entry.outcome === outcome}
-                        onClick={() => markEntryOutcome(entry.localId, outcome)}
-                      >
-                        {outcome}
-                      </button>
-                    ))}
-                  </div>
-
-                  {entryIndex < entries.length - 1 ? (
-                    <RestTimer
-                      key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
-                      autoStartKey={restAutoStartByEntryId[entry.localId] ?? 0}
-                      onInteract={markInteracted}
-                      soundSettings={timerSoundSettings}
-                      storageKey={`rest:${date}:${entry.presetKey}:${entry.localId}`}
-                    />
-                  ) : null}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </Section>
         </div>

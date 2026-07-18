@@ -20,16 +20,22 @@ function createFinishAppState() {
   const data = createSeedData('2026-07-04')
   const saveFinishWorkout = vi.fn(async () => true)
   const saveFinishWorkoutDraft = vi.fn(async () => true)
+  const saveFinishWorkoutProgression = vi.fn(async () => true)
 
   mockedUseAppState.mockReturnValue({
     data,
     finishWorkoutDraft: null,
     saveFinishWorkout,
     saveFinishWorkoutDraft,
+    saveFinishWorkoutProgression,
     saveFinishWorkoutSettings: vi.fn(async () => true),
   } as unknown as AppContextValue)
 
-  return { saveFinishWorkout, saveFinishWorkoutDraft }
+  return {
+    saveFinishWorkout,
+    saveFinishWorkoutDraft,
+    saveFinishWorkoutProgression,
+  }
 }
 
 describe('FinishWorkoutScreen', () => {
@@ -98,5 +104,85 @@ describe('FinishWorkoutScreen', () => {
         },
       }),
     )
+  })
+
+  it('edits timed targets and dip reps through the exercise pencils', async () => {
+    const user = userEvent.setup()
+    const { saveFinishWorkoutProgression } = createFinishAppState()
+    const { container } = render(<FinishWorkoutScreen />)
+    const sections = container.querySelectorAll('.finish-exercise')
+
+    expect(
+      screen.getByRole('button', { name: 'Edit Back extension' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Edit Ab exercise' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Edit Dips' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'About Squat jumps target' }),
+    ).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Edit Back extension' }),
+    )
+    await user.clear(screen.getByLabelText('Work seconds'))
+    await user.type(screen.getByLabelText('Work seconds'), '4')
+    await user.click(
+      within(sections[0] as HTMLElement).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(
+      screen.getByText('Enter a whole number from 5 to 600 seconds.'),
+    ).toBeInTheDocument()
+    expect(saveFinishWorkoutProgression).not.toHaveBeenCalled()
+
+    await user.clear(screen.getByLabelText('Work seconds'))
+    await user.type(screen.getByLabelText('Work seconds'), '60')
+    await user.click(
+      within(sections[0] as HTMLElement).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(saveFinishWorkoutProgression).toHaveBeenCalledWith(
+      expect.objectContaining({ backExtensionSeconds: 60 }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Edit Dips' }))
+    await user.clear(screen.getByLabelText('Reps per set'))
+    await user.type(screen.getByLabelText('Reps per set'), '4')
+    await user.click(
+      within(sections[2] as HTMLElement).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(saveFinishWorkoutProgression).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dipBaseReps: 4, dipStageOffset: 0 }),
+    )
+  })
+
+  it('stops the previous rest timer when the next exercise starts', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<FinishWorkoutScreen />)
+    const sections = container.querySelectorAll('.finish-exercise')
+
+    await user.click(
+      within(sections[0] as HTMLElement).getByRole('button', { name: 'pass' }),
+    )
+    expect(
+      within(sections[0] as HTMLElement).getByRole('button', {
+        name: 'Pause',
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(sections[1] as HTMLElement).getByRole('button', { name: 'Start' }),
+    )
+
+    expect(
+      within(sections[0] as HTMLElement).queryByRole('button', {
+        name: 'Pause',
+      }),
+    ).not.toBeInTheDocument()
   })
 })

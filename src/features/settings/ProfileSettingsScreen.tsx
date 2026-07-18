@@ -10,6 +10,12 @@ import {
 import { serializeMaxTestsCsv } from '../../domain/importExport'
 import type { TimerSoundId } from '../../domain/types'
 import { addDays, todayDateString } from '../../lib/date'
+import {
+  BACKUP_STALE_AFTER_DAYS,
+  getBackupFreshness,
+  readLastBackupAt,
+  recordBackupCreated,
+} from '../../lib/backupStatus'
 import { playTone, TIMER_SOUND_OPTIONS } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
@@ -87,6 +93,8 @@ export function ProfileSettingsScreen() {
   const [timerVolume, setTimerVolume] = useState(data.settings.timerVolume)
   const [notes, setNotes] = useState(data.athleteProfile.notes)
   const [isSaving, setIsSaving] = useState(false)
+  const [lastBackupAt, setLastBackupAt] = useState(readLastBackupAt)
+  const backupFreshness = getBackupFreshness(lastBackupAt)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const hasChanges =
@@ -202,13 +210,41 @@ export function ProfileSettingsScreen() {
   }
 
   function handleExport() {
-    const blob = new Blob([exportBackup()], { type: 'application/json' })
+    const backup = exportBackup()
+    const blob = new Blob([backup], { type: 'application/json' })
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = href
     link.download = `pullup-max-backup-${todayDateString()}.json`
     link.click()
     URL.revokeObjectURL(href)
+    setLastBackupAt(recordBackupCreated())
+  }
+
+  async function handleShareBackup() {
+    const file = new File(
+      [exportBackup()],
+      `pullup-max-backup-${todayDateString()}.json`,
+      { type: 'application/json' },
+    )
+
+    if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
+      handleExport()
+      return
+    }
+
+    try {
+      await navigator.share({
+        title: 'Pull-up Max backup',
+        text: 'Local Pull-up Max training backup',
+        files: [file],
+      })
+      setLastBackupAt(recordBackupCreated())
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        handleExport()
+      }
+    }
   }
 
   function handleExportCsv() {
@@ -431,6 +467,16 @@ export function ProfileSettingsScreen() {
           </p>
         </div>
 
+        {backupFreshness.isDue ? (
+          <div className="inline-note inline-note--warning">
+            <p className="muted-text">
+              {backupFreshness.ageDays === null
+                ? 'Create your first JSON backup so this device is not the only copy of your training history.'
+                : `This backup is ${backupFreshness.ageDays} days old. Create a fresh copy at least every ${BACKUP_STALE_AFTER_DAYS} days.`}
+            </p>
+          </div>
+        ) : null}
+
         <div className="mini-stat-grid">
           <div className="mini-stat">
             <span className="metric-label">Storage protection</span>
@@ -445,6 +491,18 @@ export function ProfileSettingsScreen() {
           <div className="mini-stat">
             <span className="metric-label">Backup format</span>
             <strong>Version {data.settings.exportFormatVersion}</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Last backup</span>
+            <strong>
+              {lastBackupAt
+                ? new Intl.DateTimeFormat(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  }).format(new Date(lastBackupAt))
+                : 'Never on this device'}
+            </strong>
+            <span className="muted-text">{backupFreshness.label}</span>
           </div>
         </div>
 
@@ -465,6 +523,15 @@ export function ProfileSettingsScreen() {
           >
             Export JSON backup
           </button>
+          {'share' in navigator ? (
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => void handleShareBackup()}
+            >
+              Share JSON backup
+            </button>
+          ) : null}
           <button
             type="button"
             className="button button--ghost"

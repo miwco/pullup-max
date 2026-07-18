@@ -11,6 +11,7 @@ import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScree
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
 import type { SessionType } from '../domain/types'
+import { applyPwaUpdate, subscribeToPwaUpdate } from '../lib/pwaUpdate'
 import { AppProvider } from './AppProvider'
 import { useAppState } from './appContext'
 import { getRouteHref, navigateTo, useRouteState } from './routes'
@@ -83,12 +84,15 @@ export function AppShell() {
   const { data, errorMessage, isReady, notice, setNotice } = useAppState()
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null)
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false)
 
   useEffect(() => {
     if (!window.location.hash) {
       navigateTo('today')
     }
   }, [])
+
+  useEffect(() => subscribeToPwaUpdate(() => setPwaUpdateAvailable(true)), [])
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event: Event) {
@@ -178,9 +182,30 @@ export function AppShell() {
       {notice ? (
         <div className="app-notice">
           <NoticeBanner
+            actionLabel={notice.actionLabel}
             message={notice.message}
+            onAction={
+              notice.action
+                ? () => {
+                    void notice.action?.()
+                  }
+                : undefined
+            }
             tone={notice.tone}
             onDismiss={() => setNotice(null)}
+          />
+        </div>
+      ) : null}
+      {pwaUpdateAvailable ? (
+        <div className="app-notice">
+          <NoticeBanner
+            actionLabel="Update now"
+            message="A new Pull-up Max version is ready."
+            onAction={() => {
+              void applyPwaUpdate()
+            }}
+            onDismiss={() => setPwaUpdateAvailable(false)}
+            tone="info"
           />
         </div>
       ) : null}

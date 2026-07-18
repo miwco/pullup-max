@@ -135,6 +135,17 @@ a {
   gap: 10px;
 }
 
+.notice__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notice__action,
+.notice__dismiss {
+  min-height: 32px;
+}
+
 .app-header__brand,
 .section__header,
 .workout-list__header {
@@ -1149,6 +1160,45 @@ textarea:disabled {
   text-align: right;
 }
 
+.workout-card__header-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.workout-edit {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.workout-edit__outcomes {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.workout-edit__outcomes legend {
+  padding-inline: 4px;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workout-edit__outcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.7fr);
+  align-items: center;
+  gap: 10px;
+}
+
 .workout-card__max {
   align-items: stretch;
   padding: 10px 0;
@@ -1284,10 +1334,22 @@ textarea:disabled {
   border-color: rgba(161, 69, 61, 0.28);
 }
 
+.notice--warning,
+.inline-note--warning {
+  border-color: rgba(168, 112, 35, 0.36);
+  background: rgba(168, 112, 35, 0.07);
+}
+
+.notice__action,
 .notice__dismiss {
   border: 0;
   background: transparent;
   color: var(--muted-strong);
+}
+
+.notice__action {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .loading-state {
@@ -1496,6 +1558,78 @@ textarea:disabled {
   padding-top: 2px;
 }
 
+.gg-history-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gg-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-tint);
+}
+
+.gg-history-row__summary {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.gg-history-row__summary span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.gg-history-row__actions,
+.gg-history-edit__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.gg-history-edit {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(140px, 1fr) minmax(90px, 0.55fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.gg-history-edit .field-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.recommendation-reasons {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-tint);
+}
+
+.recommendation-reasons > strong {
+  font-size: 0.88rem;
+}
+
+.recommendation-reasons ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--muted-strong);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 560px) {
   .workout-card__max {
     align-items: flex-start;
@@ -1506,8 +1640,58 @@ textarea:disabled {
     margin-left: auto;
   }
 
+  .workout-card__header {
+    flex-wrap: wrap;
+  }
+
+  .workout-card__header-actions {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .workout-card__header-actions .button {
+    min-height: 44px;
+  }
+
+  .workout-edit .button,
+  .workout-edit .segment-row__item {
+    min-height: 44px;
+  }
+
+  .workout-edit__outcome {
+    grid-template-columns: 1fr;
+  }
+
   .workout-exercise {
     align-items: flex-start;
+  }
+
+  .gg-history-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .gg-history-row__actions {
+    width: 100%;
+  }
+
+  .gg-history-row__actions .button {
+    min-height: 44px;
+    flex: 1;
+  }
+
+  .gg-history-edit {
+    grid-template-columns: minmax(0, 1fr) minmax(86px, 0.55fr);
+  }
+
+  .gg-history-edit__actions {
+    grid-column: 1 / -1;
+  }
+
+  .gg-history-edit .button {
+    min-height: 44px;
+    flex: 1;
   }
 
   .bottom-nav {

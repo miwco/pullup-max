@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -21,7 +22,12 @@ import {
   applyFinishProgression,
   buildFinishWorkoutEntries,
 } from '../domain/finishWorkout'
+import { getCycleEndDateForLength } from '../domain/cycle'
 import { getAllProgramSteps } from '../domain/programTemplate'
+import {
+  applyWorkoutCorrection,
+  removeWorkoutSession,
+} from '../domain/workoutCorrections'
 import {
   buildBodyweightPoints,
   buildMaxHistory,
@@ -55,9 +61,10 @@ import type {
   SaveFinishWorkoutInput,
   SessionType,
   SupportFocus,
+  WorkoutCorrectionInput,
   WorkoutLogDraft,
 } from '../domain/types'
-import { todayDateString } from '../lib/date'
+import { isIsoDateString, todayDateString } from '../lib/date'
 import { createId } from '../lib/id'
 import {
   clearWorkoutDraft as deleteStoredWorkoutDraft,
@@ -102,6 +109,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [workoutDraft, setWorkoutDraft] = useState<WorkoutLogDraft | null>(null)
   const [finishWorkoutDraft, setFinishWorkoutDraft] =
     useState<FinishWorkoutDraft | null>(null)
+  const dataRef = useRef<AppData>(EMPTY_APP_DATA)
+  const dataWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const [storageDurability, setStorageDurability] = useState<
     AppContextValue['storageDurability']
   >({
@@ -146,6 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         startTransition(() => {
+          dataRef.current = stored
           setData(stored)
           setWorkoutDraft(storedWorkoutDraft)
           setFinishWorkoutDraft(storedFinishWorkoutDraft)
@@ -268,29 +278,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [data])
 
-  async function saveNextData(nextData: AppData, successMessage?: string) {
-    try {
-      await persistAppDataDiff(data, nextData)
+  function saveNextData(
+    update: AppData | ((current: AppData) => AppData),
+    successNotice?: string | AppNotice,
+  ) {
+    const operation = dataWriteQueueRef.current.then(async () => {
+      const previousData = dataRef.current
+      const nextData =
+        typeof update === 'function' ? update(previousData) : update
+      await persistAppDataDiff(previousData, nextData)
+      dataRef.current = nextData
       startTransition(() => {
         setData(nextData)
       })
 
-      if (successMessage) {
-        setNotice({
-          tone: 'success',
-          message: successMessage,
-        })
+      if (successNotice) {
+        setNotice(
+          typeof successNotice === 'string'
+            ? { tone: 'success', message: successNotice }
+            : successNotice,
+        )
       }
+    })
 
-      return true
-    } catch (error) {
-      setNotice({
-        tone: 'error',
-        message:
-          error instanceof Error ? error.message : 'Unable to save local data.',
-      })
-      return false
-    }
+    dataWriteQueueRef.current = operation.catch(() => undefined)
+
+    return operation.then(
+      () => true,
+      (error) => {
+        setNotice({
+          tone: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Unable to save local data.',
+        })
+        return false
+      },
+    )
   }
 
   function getProgramPrefill(
@@ -307,17 +332,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function saveBodyweight(date: string, weightKg: number) {
     return saveNextData(
-      withComputedRecommendation(
-        {
-          ...data,
-          bodyweightEntries: upsertBodyweightEntry(
-            data.bodyweightEntries,
-            date,
-            weightKg,
-          ),
-        },
-        todayDateString(),
-      ),
+      (current) =>
+        withComputedRecommendation(
+          {
+            ...current,
+            bodyweightEntries: upsertBodyweightEntry(
+              current.bodyweightEntries,
+              date,
+              weightKg,
+            ),
+          },
+          todayDateString(),
+        ),
       'Bodyweight saved.',
     )
   }
@@ -330,51 +356,78 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     return saveNextData(
-      withComputedRecommendation(
-        {
-          ...data,
-          greaseGrooveEntries: [
-            ...data.greaseGrooveEntries,
-            {
-              id: createId('gg'),
-              date,
-              reps: normalizedReps,
-              loggedAt: new Date().toISOString(),
-            },
-          ],
-        },
-        todayDateString(),
-      ),
+      (current) =>
+        withComputedRecommendation(
+          {
+            ...current,
+            greaseGrooveEntries: [
+              ...current.greaseGrooveEntries,
+              {
+                id: createId('gg'),
+                date,
+                reps: normalizedReps,
+                loggedAt: new Date().toISOString(),
+              },
+            ],
+          },
+          todayDateString(),
+        ),
       'GG set added.',
     )
   }
 
   async function deleteGreaseGrooveEntry(entryId: string) {
     return saveNextData(
-      withComputedRecommendation(
-        {
-          ...data,
-          greaseGrooveEntries: data.greaseGrooveEntries.filter(
-            (entry) => entry.id !== entryId,
-          ),
-        },
-        todayDateString(),
-      ),
+      (current) =>
+        withComputedRecommendation(
+          {
+            ...current,
+            greaseGrooveEntries: current.greaseGrooveEntries.filter(
+              (entry) => entry.id !== entryId,
+            ),
+          },
+          todayDateString(),
+        ),
       'GG set removed.',
     )
   }
 
+  async function updateGreaseGrooveEntry(
+    entryId: string,
+    reps: number,
+    date: string,
+  ) {
+    const normalizedReps = Math.round(reps)
+
+    if (
+      !Number.isFinite(normalizedReps) ||
+      normalizedReps <= 0 ||
+      !isIsoDateString(date)
+    ) {
+      return false
+    }
+
+    return saveNextData((current) => {
+      if (!current.greaseGrooveEntries.some((entry) => entry.id === entryId)) {
+        throw new Error('That GG set no longer exists.')
+      }
+
+      return withComputedRecommendation(
+        {
+          ...current,
+          greaseGrooveEntries: current.greaseGrooveEntries.map((entry) =>
+            entry.id === entryId
+              ? { ...entry, date, reps: normalizedReps }
+              : entry,
+          ),
+        },
+        todayDateString(),
+      )
+    }, 'GG set corrected. Freshness and training load recalculated.')
+  }
+
   async function saveSession(input: SaveSessionInput) {
     const sessionId = createId('session')
-    const existingMaxExposures = getMaxExposures(
-      data.maxTests,
-      data.sessions,
-      data.athleteProfile.mainMovement,
-    )
-    const maxBodyweightSnapshot = getBodyweightSnapshotValue(
-      data.bodyweightEntries,
-      data.settings.bodyweightTrackingEnabled,
-    )
     const session = {
       id: sessionId,
       ...input.session,
@@ -386,57 +439,104 @@ export function AppProvider({ children }: { children: ReactNode }) {
       workoutSessionId: sessionId,
       notes: entry.notes ?? undefined,
     }))
-    const stepLookup = new Map(
-      getAllProgramSteps(data.programTemplate).map((step) => [step.id, step]),
-    )
-    const maxTest = input.maxTest
-      ? {
-          id: createId('max'),
-          workoutSessionId: sessionId,
-          reps: input.maxTest.reps,
-          movement: data.athleteProfile.mainMovement,
-          videoUrl: input.maxTest.videoUrl,
-          bodyweightKgSnapshot: maxBodyweightSnapshot,
-          failurePoint: input.maxTest.failurePoint,
-          qualityFlag: input.maxTest.qualityFlag,
-          trendClassification: getMaxTrendClassificationForNewResult(
-            existingMaxExposures,
-            input.maxTest.reps,
-            input.session.date,
-          ),
-        }
-      : null
+    const maxTestId = input.maxTest ? createId('max') : null
 
-    const nextData = withComputedRecommendation(
-      {
-        ...data,
-        sessions: [...data.sessions, session],
-        exerciseEntries: [...data.exerciseEntries, ...entries],
-        maxTests: maxTest ? [...data.maxTests, maxTest] : data.maxTests,
-        presetProgressions: applyPresetOutcomes(
-          data.presetProgressions,
-          entries,
-          stepLookup,
-          latestLoggedMaxReps,
-        ),
+    return saveNextData(
+      (current) => {
+        const existingMaxExposures = getMaxExposures(
+          current.maxTests,
+          current.sessions,
+          current.athleteProfile.mainMovement,
+        )
+        const maxBodyweightSnapshot = getBodyweightSnapshotValue(
+          current.bodyweightEntries,
+          current.settings.bodyweightTrackingEnabled,
+        )
+        const stepLookup = new Map(
+          getAllProgramSteps(current.programTemplate).map((step) => [
+            step.id,
+            step,
+          ]),
+        )
+        const currentLatestMaxReps = getLatestLoggedMaxReps(
+          current.maxTests,
+          current.sessions,
+          current.athleteProfile.mainMovement,
+        )
+        const maxTest =
+          input.maxTest && maxTestId
+            ? {
+                id: maxTestId,
+                workoutSessionId: sessionId,
+                reps: input.maxTest.reps,
+                movement: current.athleteProfile.mainMovement,
+                videoUrl: input.maxTest.videoUrl,
+                bodyweightKgSnapshot: maxBodyweightSnapshot,
+                failurePoint: input.maxTest.failurePoint,
+                qualityFlag: input.maxTest.qualityFlag,
+                trendClassification: getMaxTrendClassificationForNewResult(
+                  existingMaxExposures,
+                  input.maxTest.reps,
+                  input.session.date,
+                ),
+              }
+            : null
+
+        return withComputedRecommendation(
+          {
+            ...current,
+            sessions: [...current.sessions, session],
+            exerciseEntries: [...current.exerciseEntries, ...entries],
+            maxTests: maxTest
+              ? [...current.maxTests, maxTest]
+              : current.maxTests,
+            presetProgressions: applyPresetOutcomes(
+              current.presetProgressions,
+              entries,
+              stepLookup,
+              currentLatestMaxReps,
+            ),
+          },
+          todayDateString(),
+        )
       },
-      todayDateString(),
+      {
+        tone: 'success',
+        message: 'Workout saved.',
+        actionLabel: 'Undo',
+        action: () => deleteWorkout(sessionId),
+      },
     )
+  }
 
-    return saveNextData(nextData, 'Workout saved.')
+  async function deleteWorkout(sessionId: string) {
+    return saveNextData(
+      (current) => removeWorkoutSession(current, sessionId, todayDateString()),
+      'Workout removed and training state recalculated.',
+    )
+  }
+
+  async function updateWorkout(input: WorkoutCorrectionInput) {
+    return saveNextData(
+      (current) => applyWorkoutCorrection(current, input, todayDateString()),
+      'Workout corrected and training state recalculated.',
+    )
   }
 
   async function saveFinishWorkout(input: SaveFinishWorkoutInput) {
-    const finishWorkout = data.finishWorkout
-    const session = {
-      id: createId('finish-session'),
-      date: input.date,
-      completedAt: new Date().toISOString(),
-      entries: buildFinishWorkoutEntries(finishWorkout, input.outcomes),
-    }
-    const saved = await saveNextData(
-      {
-        ...data,
+    const sessionId = createId('finish-session')
+    const completedAt = new Date().toISOString()
+    const saved = await saveNextData((current) => {
+      const finishWorkout = current.finishWorkout
+      const session = {
+        id: sessionId,
+        date: input.date,
+        completedAt,
+        entries: buildFinishWorkoutEntries(finishWorkout, input.outcomes),
+      }
+
+      return {
+        ...current,
         finishWorkout: {
           ...finishWorkout,
           progression: applyFinishProgression(
@@ -445,9 +545,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
           sessions: [...finishWorkout.sessions, session],
         },
-      },
-      'Finish workout saved.',
-    )
+      }
+    }, 'Finish workout saved.')
 
     if (saved) {
       await clearCurrentFinishWorkoutDraft()
@@ -457,26 +556,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function saveFinishWorkoutSettings(settings: FinishWorkoutSettings) {
-    return saveNextData({
-      ...data,
+    return saveNextData((current) => ({
+      ...current,
       finishWorkout: {
-        ...data.finishWorkout,
+        ...current.finishWorkout,
         settings,
       },
-    })
+    }))
   }
 
   async function saveFinishWorkoutProgression(
     progression: FinishWorkoutProgression,
   ) {
     return saveNextData(
-      {
-        ...data,
+      (current) => ({
+        ...current,
         finishWorkout: {
-          ...data.finishWorkout,
+          ...current.finishWorkout,
           progression,
         },
-      },
+      }),
       'Finish target updated.',
     )
   }
@@ -492,58 +591,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
           id: createId('exercise'),
         }
 
-    const nextExercises = input.id
-      ? data.exercises.map((exercise) =>
-          exercise.id === input.id ? nextExercise : exercise,
-        )
-      : [...data.exercises, nextExercise]
-
     await saveNextData(
-      withComputedRecommendation(
-        {
-          ...data,
-          exercises: nextExercises,
-        },
-        todayDateString(),
-      ),
+      (current) => {
+        const nextExercises = input.id
+          ? current.exercises.map((exercise) =>
+              exercise.id === input.id ? nextExercise : exercise,
+            )
+          : [...current.exercises, nextExercise]
+
+        return withComputedRecommendation(
+          {
+            ...current,
+            exercises: nextExercises,
+          },
+          todayDateString(),
+        )
+      },
       input.id ? 'Exercise updated.' : 'Exercise added.',
     )
   }
 
   async function deleteExercise(exerciseId: string) {
-    const isReferenced = data.exerciseEntries.some(
-      (entry) => entry.exerciseId === exerciseId,
-    )
+    await saveNextData(
+      (current) => {
+        const isReferenced = current.exerciseEntries.some(
+          (entry) => entry.exerciseId === exerciseId,
+        )
+        const exercises = isReferenced
+          ? current.exercises.map((exercise) =>
+              exercise.id === exerciseId
+                ? { ...exercise, active: false }
+                : exercise,
+            )
+          : current.exercises.filter((exercise) => exercise.id !== exerciseId)
 
-    if (isReferenced) {
-      const archived = data.exercises.map((exercise) =>
-        exercise.id === exerciseId ? { ...exercise, active: false } : exercise,
-      )
-
-      await saveNextData(
-        withComputedRecommendation(
+        return withComputedRecommendation(
           {
-            ...data,
-            exercises: archived,
+            ...current,
+            exercises,
           },
           todayDateString(),
-        ),
-        'Exercise archived because it is already referenced in history.',
-      )
-      return
-    }
-
-    await saveNextData(
-      withComputedRecommendation(
-        {
-          ...data,
-          exercises: data.exercises.filter(
-            (exercise) => exercise.id !== exerciseId,
-          ),
-        },
-        todayDateString(),
-      ),
-      'Exercise deleted.',
+        )
+      },
+      {
+        tone: 'success',
+        message: dataRef.current.exerciseEntries.some(
+          (entry) => entry.exerciseId === exerciseId,
+        )
+          ? 'Exercise archived because it is already referenced in history.'
+          : 'Exercise deleted.',
+      },
     )
   }
 
@@ -553,34 +650,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     nextTemplate: ProgramTemplate,
   ) {
     return saveNextData(
-      withComputedRecommendation(
-        {
-          ...data,
-          athleteProfile: {
-            ...data.athleteProfile,
-            ...profileUpdates,
+      (current) =>
+        withComputedRecommendation(
+          {
+            ...current,
+            athleteProfile: {
+              ...current.athleteProfile,
+              ...profileUpdates,
+            },
+            settings: {
+              ...current.settings,
+              ...settingsUpdates,
+            },
+            programTemplate: nextTemplate,
           },
-          settings: {
-            ...data.settings,
-            ...settingsUpdates,
-          },
-          programTemplate: nextTemplate,
-        },
-        todayDateString(),
-      ),
+          todayDateString(),
+        ),
       'Settings and program updated.',
     )
   }
 
   async function dismissOnboarding() {
-    return saveNextData(
+    return saveNextData((current) =>
       withComputedRecommendation(
         {
-          ...data,
-          settings: { ...data.settings, onboardingDismissed: true },
+          ...current,
+          settings: { ...current.settings, onboardingDismissed: true },
         },
         todayDateString(),
       ),
+    )
+  }
+
+  async function startNextCycle() {
+    const startDate = todayDateString()
+
+    return saveNextData(
+      (current) =>
+        withComputedRecommendation(
+          {
+            ...current,
+            athleteProfile: {
+              ...current.athleteProfile,
+              cycleStartDate: startDate,
+              cycleEndDate: getCycleEndDateForLength(
+                startDate,
+                current.settings.cycleLengthDays,
+              ),
+            },
+          },
+          startDate,
+        ),
+      'New cycle started. Previous workouts remain in all-time history.',
     )
   }
 
@@ -669,13 +790,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false
     }
 
-    try {
+    const operation = dataWriteQueueRef.current.then(async () => {
       const imported = await replaceAppData(
         parsed.value.data,
         todayDateString(),
       )
       await clearCurrentWorkoutDraft()
       await clearCurrentFinishWorkoutDraft()
+      dataRef.current = imported
       startTransition(() => {
         setData(imported)
       })
@@ -683,17 +805,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tone: 'success',
         message: 'Backup imported.',
       })
-      return true
-    } catch (error) {
-      setNotice({
-        tone: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to import that backup.',
-      })
-      return false
-    }
+    })
+    dataWriteQueueRef.current = operation.catch(() => undefined)
+
+    return operation.then(
+      () => true,
+      (error) => {
+        setNotice({
+          tone: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Unable to import that backup.',
+        })
+        return false
+      },
+    )
   }
 
   async function requestPersistentStorage() {
@@ -721,16 +848,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function resetAllData() {
-    const reset = await resetAppData(todayDateString())
-    await clearCurrentWorkoutDraft()
-    await clearCurrentFinishWorkoutDraft()
-    startTransition(() => {
-      setData(reset)
+    const operation = dataWriteQueueRef.current.then(async () => {
+      const reset = await resetAppData(todayDateString())
+      await clearCurrentWorkoutDraft()
+      await clearCurrentFinishWorkoutDraft()
+      dataRef.current = reset
+      startTransition(() => {
+        setData(reset)
+      })
+      setNotice({
+        tone: 'success',
+        message: 'App data reset.',
+      })
     })
-    setNotice({
-      tone: 'success',
-      message: 'App data reset.',
-    })
+    dataWriteQueueRef.current = operation.catch(() => undefined)
+    await operation
   }
 
   const contextValue: AppContextValue = {
@@ -748,6 +880,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearFinishWorkoutDraft: clearCurrentFinishWorkoutDraft,
     deleteExercise,
     deleteGreaseGrooveEntry,
+    deleteWorkout,
     dismissOnboarding,
     errorMessage,
     exportBackup: () => serializeExportBundle(data),
@@ -772,9 +905,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveWorkoutDraft: saveCurrentWorkoutDraft,
     setNotice,
     storageDurability,
+    startNextCycle,
     weeklyVolumeSummary,
     workoutDraft,
     updateExercise,
+    updateGreaseGrooveEntry,
+    updateWorkout,
   }
 
   return <AppContext value={contextValue}>{children}</AppContext>

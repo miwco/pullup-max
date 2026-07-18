@@ -294,6 +294,23 @@ export interface SaveSessionInput {
   >
 }
 
+export interface WorkoutCorrectionInput {
+  sessionId: string
+  date: string
+  fatigueBefore?: number
+  fatigueAfter?: number
+  elbowPain?: number
+  shoulderPain?: number
+  notes: string
+  entryOutcomes: Record<string, PresetOutcome>
+  maxTest?: {
+    reps: number
+    videoUrl?: string
+    failurePoint?: FailurePoint
+    qualityFlag?: QualityFlag
+  }
+}
+
 export interface CycleWindow {
   start: string
   end: string
@@ -331,14 +348,17 @@ export interface RecentWorkoutItem extends WorkoutSession {
 export interface CycleSummaryData {
   baselineMax: number | null
   cycleBestMax: number | null
+  cycleBestDelta: number | null
   currentPhase: CyclePhase
   cycleWindow: CycleWindow
   daysElapsed: number
   daysRemaining: number
+  greaseGrooveSets: number
   maxSessions: number
   progressPercent: number
   supportSessions: number
   summary: string
+  trainingLoadPoints: number
   totalSessions: number
 }
 

@@ -459,6 +459,130 @@ describe('import/export validation', () => {
     })
   })
 
+  it('rehearses a realistic export and restore without losing training history', () => {
+    const seeded = createSeedData('2026-07-18')
+    const pullUpExerciseId = seeded.exercises.find(
+      (exercise) => exercise.name === 'Pull-up',
+    )!.id
+    const realisticData = withComputedRecommendation(
+      {
+        ...seeded,
+        settings: {
+          ...seeded.settings,
+          timerSoundId: 'low',
+          timerVolume: 0.35,
+        },
+        bodyweightEntries: [
+          {
+            id: 'weight-recovery',
+            date: '2026-07-17',
+            weightKg: 81.6,
+          },
+        ],
+        greaseGrooveEntries: [
+          {
+            id: 'gg-recovery',
+            date: '2026-07-16',
+            reps: 5,
+            loggedAt: '2026-07-16T09:00:00.000Z',
+          },
+        ],
+        sessions: [
+          {
+            id: 'session-recovery',
+            date: '2026-07-17',
+            sessionType: 'max',
+            fatigueBefore: 2,
+            fatigueAfter: 4,
+            notes: 'Recovery rehearsal max.',
+          },
+        ],
+        exerciseEntries: [
+          {
+            id: 'entry-recovery',
+            workoutSessionId: 'session-recovery',
+            exerciseId: pullUpExerciseId,
+            reps: 12,
+            outcome: 'pass',
+            isMaxTest: true,
+          },
+        ],
+        maxTests: [
+          {
+            id: 'max-recovery',
+            workoutSessionId: 'session-recovery',
+            reps: 12,
+            movement: 'Pull-up',
+            failurePoint: 'top',
+            qualityFlag: 'clean',
+            trendClassification: 'stable',
+          },
+        ],
+        finishWorkout: {
+          ...seeded.finishWorkout,
+          progression: {
+            ...seeded.finishWorkout.progression,
+            backExtensionSeconds: 50,
+            dipStageOffset: 2,
+          },
+          sessions: [
+            {
+              id: 'finish-recovery',
+              date: '2026-07-17',
+              completedAt: '2026-07-17T18:00:00.000Z',
+              entries: [
+                {
+                  exerciseId: 'back-extension',
+                  outcome: 'pass',
+                  targetSummary: '3 x 45s',
+                },
+                {
+                  exerciseId: 'abs',
+                  outcome: 'fail',
+                  targetSummary: '3 x 45s',
+                },
+                {
+                  exerciseId: 'dips',
+                  outcome: 'pass',
+                  targetSummary: '10 x 2',
+                },
+                {
+                  exerciseId: 'squat-jumps',
+                  outcome: 'pass',
+                  targetSummary: '10 reps',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      '2026-07-18',
+    )
+
+    const firstRestore = parseImportBundle(serializeExportBundle(realisticData))
+    expect(firstRestore.ok).toBe(true)
+    if (!firstRestore.ok) return
+
+    const secondRestore = parseImportBundle(
+      serializeExportBundle(firstRestore.value.data),
+    )
+    expect(secondRestore.ok).toBe(true)
+    if (!secondRestore.ok) return
+
+    expect(secondRestore.value.data).toMatchObject({
+      settings: {
+        timerSoundId: 'low',
+        timerVolume: 0.35,
+      },
+      bodyweightEntries: realisticData.bodyweightEntries,
+      greaseGrooveEntries: realisticData.greaseGrooveEntries,
+      sessions: realisticData.sessions,
+      exerciseEntries: realisticData.exerciseEntries,
+      maxTests: realisticData.maxTests,
+      finishWorkout: realisticData.finishWorkout,
+    })
+  })
+
   it('rejects structurally invalid backup data', () => {
     const invalidBundle = JSON.stringify({
       version: 8,

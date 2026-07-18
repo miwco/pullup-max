@@ -2,8 +2,16 @@ import { useState } from 'react'
 import { Section } from '../../components/Section'
 import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
-import { getRecentSignalAverages } from '../../domain/selectors'
+import {
+  getRecentSignalAverages,
+  getRecommendationReasons,
+} from '../../domain/selectors'
 import { formatLongDate, todayDateString } from '../../lib/date'
+import {
+  BACKUP_STALE_AFTER_DAYS,
+  getBackupFreshness,
+  readLastBackupAt,
+} from '../../lib/backupStatus'
 
 interface TodayScreenProps {
   canInstall: boolean
@@ -39,6 +47,12 @@ export function TodayScreen({
     weeklyVolumeSummary,
   } = useAppState()
   const recommendation = data.recommendationState
+  const recommendationReasons = getRecommendationReasons(data)
+  const backupFreshness = getBackupFreshness(readLastBackupAt())
+  const hasTrainingData =
+    data.sessions.length > 0 ||
+    data.greaseGrooveEntries.length > 0 ||
+    data.finishWorkout.sessions.length > 0
   const today = todayDateString()
   const signalAverages = getRecentSignalAverages(data.sessions)
   const painSignalActive =
@@ -127,6 +141,17 @@ export function TodayScreen({
           </span>
         </div>
       ) : null}
+      {hasTrainingData && backupFreshness.isDue ? (
+        <div className="notice notice--warning">
+          <span>
+            {backupFreshness.ageDays === null
+              ? 'Your local training data has not been backed up yet.'
+              : `Your last backup was ${backupFreshness.ageDays} days ago.`}{' '}
+            <a href="#/profile">Create a JSON backup</a> at least every{' '}
+            {BACKUP_STALE_AFTER_DAYS} days.
+          </span>
+        </div>
+      ) : null}
       <Section
         variant="summary"
         className="today-summary"
@@ -162,6 +187,14 @@ export function TodayScreen({
         </div>
 
         <p className="summary-copy">{recommendation.explanation}</p>
+        <div className="recommendation-reasons">
+          <strong>Why this recommendation</strong>
+          <ul>
+            {recommendationReasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
 
         {canInstall ? (
           <div className="button-row">

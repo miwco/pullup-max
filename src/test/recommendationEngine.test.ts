@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultExercises, createSeedData } from '../domain/defaults'
 import {
+  buildRecommendationReasons,
   classifyTrend,
   createRecommendation,
   getAdjustedProgramSteps,
@@ -102,6 +103,22 @@ describe('recommendation engine', () => {
     expect(isMaxReady(3, 7)).toBe(true)
     expect(isMaxReady(3, 14)).toBe(true)
     expect(isMaxReady(3, null)).toBe(true)
+  })
+
+  it('explains the concrete freshness, phase, trend, and pain inputs', () => {
+    const { input } = createScenario({
+      currentPhase: 'peak',
+      daysSinceLastMax: 5,
+      daysSinceLastWorkout: 2,
+      supportPainOverride: true,
+    })
+
+    expect(buildRecommendationReasons(input)).toEqual([
+      'The last max test was 5 days ago; 7 days are required.',
+      '1 full rest day since the last workout or GG set; 2 are required for a Max day.',
+      'peak phase and a rising max trend set the current workload.',
+      'Recent joint-pain data is keeping Support work easier.',
+    ])
   })
 
   it('recommends Max only when the readiness rule is satisfied', () => {

@@ -10,6 +10,7 @@ import {
   todayDateString,
 } from '../../lib/date'
 import { WorkoutHistory } from './WorkoutHistory'
+import { GreaseGrooveHistory } from './GreaseGrooveHistory'
 
 export function ProgressScreen() {
   const {
@@ -18,9 +19,14 @@ export function ProgressScreen() {
     cycleMaxTrendPoints,
     cycleSummary,
     data,
+    deleteGreaseGrooveEntry,
+    deleteWorkout,
     maxHistory,
     painTrendPoints,
     recentWorkouts,
+    startNextCycle,
+    updateWorkout,
+    updateGreaseGrooveEntry,
   } = useAppState()
   const [chartMode, setChartMode] = useState<'cycle' | 'all-time'>('cycle')
   const [painOpen, setPainOpen] = useState(false)
@@ -150,7 +156,48 @@ export function ProgressScreen() {
             <span className="metric-label">Cycle best</span>
             <strong>{cycleSummary.cycleBestMax ?? 'No max yet'}</strong>
           </div>
+          <div className="mini-stat">
+            <span className="metric-label">Best change</span>
+            <strong>
+              {cycleSummary.cycleBestDelta === null
+                ? 'Not available'
+                : `${cycleSummary.cycleBestDelta >= 0 ? '+' : ''}${cycleSummary.cycleBestDelta} reps`}
+            </strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Sessions</span>
+            <strong>
+              {cycleSummary.maxSessions} max / {cycleSummary.supportSessions}{' '}
+              support
+            </strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">Training load</span>
+            <strong>{cycleSummary.trainingLoadPoints} pts</strong>
+          </div>
+          <div className="mini-stat">
+            <span className="metric-label">GG sets</span>
+            <strong>{cycleSummary.greaseGrooveSets}</strong>
+          </div>
         </div>
+        <p className="muted-text">{cycleSummary.summary}</p>
+        {cycleSummary.daysRemaining === 0 ? (
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Start a new cycle today? All workout history will be preserved.',
+                )
+              ) {
+                void startNextCycle()
+              }
+            }}
+          >
+            Start next cycle
+          </button>
+        ) : null}
       </Section>
 
       {hasPainData ? (
@@ -211,7 +258,14 @@ export function ProgressScreen() {
         bodyweightEntries={data.bodyweightEntries}
         bodyweightTrackingEnabled={data.settings.bodyweightTrackingEnabled}
         exercises={data.exercises}
+        onDeleteWorkout={deleteWorkout}
+        onUpdateWorkout={updateWorkout}
         workouts={recentWorkouts}
+      />
+      <GreaseGrooveHistory
+        entries={data.greaseGrooveEntries}
+        onDelete={deleteGreaseGrooveEntry}
+        onUpdate={updateGreaseGrooveEntry}
       />
     </div>
   )

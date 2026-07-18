@@ -1,4 +1,5 @@
 import {
+  buildRecommendationReasons,
   classifyTrend,
   createRecommendation,
   getAdjustedProgramSteps,
@@ -14,7 +15,11 @@ import {
   getCyclePhase,
   getCurrentCycleWindow as buildCurrentCycleWindow,
 } from './cycle'
-import { getWeeklyVolumeSummary, getWorkoutTrainingLoadPoints } from './volume'
+import {
+  getGreaseGrooveTrainingLoadPoints,
+  getWeeklyVolumeSummary,
+  getWorkoutTrainingLoadPoints,
+} from './volume'
 import type {
   AppData,
   BodyweightEntry,
@@ -383,6 +388,13 @@ export function withComputedRecommendation(
   }
 }
 
+export function getRecommendationReasons(
+  data: AppData,
+  today = todayDateString(),
+) {
+  return buildRecommendationReasons(buildRecommendationInput(data, today))
+}
+
 export function getCycleSummaryData(
   data: AppData,
   today = todayDateString(),
@@ -401,6 +413,40 @@ export function getCycleSummaryData(
     cycleWindow,
   )
   const cycleLengthDays = data.settings.cycleLengthDays
+  const exerciseLookup = new Map(
+    data.exercises.map((exercise) => [exercise.id, exercise]),
+  )
+  const entriesBySessionId = new Map<string, ExerciseEntry[]>()
+  const maxTestBySessionId = new Map(
+    data.maxTests.map((maxTest) => [maxTest.workoutSessionId, maxTest]),
+  )
+  data.exerciseEntries.forEach((entry) => {
+    const entries = entriesBySessionId.get(entry.workoutSessionId) ?? []
+    entries.push(entry)
+    entriesBySessionId.set(entry.workoutSessionId, entries)
+  })
+  const greaseGrooveEntries = data.greaseGrooveEntries.filter(
+    (entry) => entry.date >= cycleWindow.start && entry.date <= cycleWindow.end,
+  )
+  const trainingLoadPoints =
+    Math.round(
+      (cycleSessions.reduce(
+        (total, session) =>
+          total +
+          (getWorkoutTrainingLoadPoints(
+            entriesBySessionId.get(session.id) ?? [],
+            exerciseLookup,
+            maxTestBySessionId.get(session.id),
+          ) ?? 0),
+        0,
+      ) +
+        greaseGrooveEntries.reduce(
+          (total, entry) =>
+            total + getGreaseGrooveTrainingLoadPoints(entry.reps),
+          0,
+        )) *
+        10,
+    ) / 10
   const currentDate =
     compareDateAsc(today, cycleWindow.end) > 0 ? cycleWindow.end : today
   const cycleHasStarted = compareDateAsc(today, cycleWindow.start) >= 0
@@ -431,10 +477,15 @@ export function getCycleSummaryData(
   return {
     baselineMax: data.recommendationState.baselineMax,
     cycleBestMax,
+    cycleBestDelta:
+      cycleBestMax !== null && data.recommendationState.baselineMax !== null
+        ? cycleBestMax - data.recommendationState.baselineMax
+        : null,
     currentPhase: getCurrentCyclePhase(cycleWindow, cycleLengthDays, today),
     cycleWindow,
     daysElapsed,
     daysRemaining,
+    greaseGrooveSets: greaseGrooveEntries.length,
     maxSessions: counts.maxSessions,
     progressPercent,
     supportSessions: counts.supportSessions,
@@ -442,6 +493,7 @@ export function getCycleSummaryData(
       cycleBestMax === null
         ? 'No max sessions are logged in this cycle yet.'
         : `${getCurrentCyclePhase(cycleWindow, cycleLengthDays, today)} phase is active. Cycle best is ${cycleBestMax} reps. Baseline is ${data.recommendationState.baselineMax ?? cycleBestMax} reps with ${counts.maxSessions} Max day(s) and ${counts.supportSessions} Support day(s) logged.`,
+    trainingLoadPoints,
     totalSessions: counts.totalSessions,
   }
 }

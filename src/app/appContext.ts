@@ -22,12 +22,15 @@ import type {
   SaveFinishWorkoutInput,
   SessionType,
   SupportFocus,
+  WorkoutCorrectionInput,
   WorkoutLogDraft,
 } from '../domain/types'
 
 type NoticeTone = 'info' | 'error' | 'success'
 
 export interface AppNotice {
+  action?: () => void | Promise<unknown>
+  actionLabel?: string
   tone: NoticeTone
   message: string
 }
@@ -72,6 +75,12 @@ export interface AppContextValue {
   saveBodyweight: (date: string, weightKg: number) => Promise<boolean>
   saveGreaseGrooveEntry: (reps: number, date?: string) => Promise<boolean>
   deleteGreaseGrooveEntry: (entryId: string) => Promise<boolean>
+  updateGreaseGrooveEntry: (
+    entryId: string,
+    reps: number,
+    date: string,
+  ) => Promise<boolean>
+  deleteWorkout: (sessionId: string) => Promise<boolean>
   saveSession: (input: SaveSessionInput) => Promise<boolean>
   saveFinishWorkout: (input: SaveFinishWorkoutInput) => Promise<boolean>
   saveFinishWorkoutDraft: (draft: FinishWorkoutDraft) => Promise<boolean>
@@ -86,6 +95,7 @@ export interface AppContextValue {
     settingsUpdates: Partial<AppSettings> | undefined,
     nextTemplate: ProgramTemplate,
   ) => Promise<boolean>
+  startNextCycle: () => Promise<boolean>
   setNotice: (notice: AppNotice | null) => void
   storageDurability: StorageDurabilityState
   weeklyVolumeSummary: ReturnType<typeof getCurrentWeekVolumeSummary>
@@ -95,6 +105,7 @@ export interface AppContextValue {
   updateExercise: (
     input: Omit<Exercise, 'id'> & { id?: string },
   ) => Promise<void>
+  updateWorkout: (input: WorkoutCorrectionInput) => Promise<boolean>
 }
 
 export const AppContext = createContext<AppContextValue | null>(null)

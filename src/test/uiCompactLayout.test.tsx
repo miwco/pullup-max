@@ -89,6 +89,7 @@ function createMockAppState(): MockAppState {
     cycleSummary: {
       baselineMax: 12,
       cycleBestMax: 13,
+      cycleBestDelta: 1,
       currentPhase: 'build',
       cycleWindow: {
         start: data.athleteProfile.cycleStartDate,
@@ -96,10 +97,12 @@ function createMockAppState(): MockAppState {
       },
       daysElapsed: 18,
       daysRemaining: 52,
+      greaseGrooveSets: 0,
       maxSessions: 2,
       progressPercent: 26,
       supportSessions: 4,
       summary: 'Progress is steady and freshness is being preserved well.',
+      trainingLoadPoints: 42,
       totalSessions: 6,
     },
     data,
@@ -109,6 +112,7 @@ function createMockAppState(): MockAppState {
     clearFinishWorkoutDraft: vi.fn(async () => true),
     deleteExercise: vi.fn(async () => {}),
     deleteGreaseGrooveEntry: vi.fn(async () => true),
+    deleteWorkout: vi.fn(async () => true),
     dismissOnboarding: vi.fn(async () => true),
     errorMessage: null,
     exportBackup: () => '{"ok":true}',
@@ -210,6 +214,7 @@ function createMockAppState(): MockAppState {
       isPersisted: false,
       isSupported: true,
     },
+    startNextCycle: vi.fn(async () => true),
     weeklyVolumeSummary: {
       brakeApplied: false,
       completedPoints: 28,
@@ -223,6 +228,8 @@ function createMockAppState(): MockAppState {
     },
     workoutDraft: null,
     updateExercise: vi.fn(async () => {}),
+    updateGreaseGrooveEntry: vi.fn(async () => true),
+    updateWorkout: vi.fn(async () => true),
   }
 }
 
@@ -416,6 +423,61 @@ describe('compact hybrid UI refresh', () => {
     await user.click(screen.getByRole('button', { name: 'Weight' }))
 
     expect(screen.getAllByText('Weight').length).toBeGreaterThan(0)
+  })
+
+  it('edits and deletes logged workouts from history', async () => {
+    const user = userEvent.setup()
+    const state = createMockAppState()
+    mockedUseAppState.mockReturnValue(state)
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<ProgressScreen />)
+
+    const supportCard = screen.getByRole('article', {
+      name: /support workout on/i,
+    })
+    await user.click(within(supportCard).getByRole('button', { name: 'Edit' }))
+    await user.clear(within(supportCard).getByLabelText('Notes'))
+    await user.type(
+      within(supportCard).getByLabelText('Notes'),
+      'Corrected support notes',
+    )
+    await user.click(
+      within(supportCard).getByRole('button', {
+        name: 'Save correction',
+      }),
+    )
+
+    expect(state.updateWorkout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        notes: 'Corrected support notes',
+      }),
+    )
+
+    await user.click(
+      within(supportCard).getByRole('button', { name: 'Delete' }),
+    )
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(state.deleteWorkout).toHaveBeenCalledWith('session-1')
+  })
+
+  it('starts a new cycle from the completed cycle summary', async () => {
+    const user = userEvent.setup()
+    const state = createMockAppState()
+    state.cycleSummary = {
+      ...state.cycleSummary,
+      daysRemaining: 0,
+      progressPercent: 100,
+    }
+    mockedUseAppState.mockReturnValue(state)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<ProgressScreen />)
+
+    await user.click(screen.getByRole('button', { name: 'Start next cycle' }))
+
+    expect(state.startNextCycle).toHaveBeenCalledOnce()
   })
 
   it('supports a 3-month cycle or a competition date', async () => {

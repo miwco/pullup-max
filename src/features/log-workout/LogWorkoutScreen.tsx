@@ -28,6 +28,7 @@ import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 import { getLatestLoggedMaxReps } from '../../domain/selectors'
 import { useScreenWakeLock } from '../../lib/useScreenWakeLock'
 import { requestTimerStop, subscribeToTimerStop } from '../../lib/timerEvents'
+import { useSetIntervalTimer } from './useSetIntervalTimer'
 
 interface LogWorkoutScreenProps {
   prefill: boolean
@@ -67,7 +68,6 @@ const DEFAULT_HOLD_REST_SECONDS = 2 * 60
 const DEFAULT_MAX_TO_BLOCK_REST_SECONDS = 7 * 60
 const EMOM_REST_SECONDS = 60
 const COUNTDOWN_BEEP_SECONDS = 5
-const ENDING_BEEP_SECONDS = 3
 const EMOM_REST_WARNING_SECONDS = 5
 const TIMER_STORAGE_PREFIX = 'pullup-max:timer'
 
@@ -184,55 +184,6 @@ function clearStoredTimer(key: string) {
   } catch {
     // Ignore storage cleanup failures.
   }
-}
-
-function useTimerBeeps({
-  isRunning,
-  phase,
-  previousPhase,
-  secondsRemaining,
-  soundSettings,
-}: {
-  isRunning: boolean
-  phase: TimerPhase
-  previousPhase: TimerPhase | null
-  secondsRemaining: number
-  soundSettings: TimerSoundSettings
-}) {
-  useEffect(() => {
-    if (!isRunning) {
-      return
-    }
-
-    if (
-      phase === 'prep' &&
-      secondsRemaining > 0 &&
-      secondsRemaining <= COUNTDOWN_BEEP_SECONDS
-    ) {
-      playTone(soundSettings, 'countdown')
-      return
-    }
-
-    if (
-      (phase === 'work' || phase === 'rest') &&
-      secondsRemaining > 0 &&
-      secondsRemaining <= ENDING_BEEP_SECONDS
-    ) {
-      playTone(soundSettings, 'ending')
-    }
-  }, [isRunning, phase, secondsRemaining, soundSettings])
-
-  useEffect(() => {
-    if (!previousPhase || previousPhase === phase) {
-      return
-    }
-
-    if (phase === 'complete') {
-      playTone(soundSettings, 'complete')
-    } else if (phase === 'work' || phase === 'rest') {
-      playTone(soundSettings, 'alarm')
-    }
-  }, [phase, previousPhase, soundSettings])
 }
 
 function EmomTimer({
@@ -589,123 +540,17 @@ function HoldTimer({
 }) {
   const holdSeconds = entry.target.entryDurationSeconds ?? 0
   const setCount = entry.target.entrySets
-  const [timer, setTimer] = useState(() => ({
-    currentSet: 1,
-    isRunning: false,
-    phase: 'ready' as TimerPhase,
-    previousPhase: null as TimerPhase | null,
-    restSeconds: DEFAULT_HOLD_REST_SECONDS,
-    secondsRemaining: holdSeconds,
-  }))
-  useScreenWakeLock(timer.isRunning)
-
-  useTimerBeeps({
-    isRunning: timer.isRunning,
-    phase: timer.phase,
-    previousPhase: timer.previousPhase,
-    secondsRemaining: timer.secondsRemaining,
-    soundSettings,
-  })
-
-  useEffect(() => {
-    if (
-      !timer.isRunning ||
-      timer.phase === 'ready' ||
-      timer.phase === 'complete'
-    ) {
-      return
-    }
-
-    const intervalId = window.setInterval(() => {
-      setTimer((current) => {
-        if (!current.isRunning) {
-          return current
-        }
-
-        if (current.secondsRemaining > 1) {
-          return {
-            ...current,
-            secondsRemaining: current.secondsRemaining - 1,
-          }
-        }
-
-        if (current.phase === 'prep') {
-          return {
-            ...current,
-            phase: 'work',
-            previousPhase: 'prep',
-            secondsRemaining: holdSeconds,
-          }
-        }
-
-        if (current.phase === 'work') {
-          if (current.currentSet >= setCount) {
-            return {
-              ...current,
-              isRunning: false,
-              phase: 'complete',
-              previousPhase: 'work',
-              secondsRemaining: 0,
-            }
-          }
-
-          return {
-            ...current,
-            phase: 'rest',
-            previousPhase: 'work',
-            secondsRemaining: current.restSeconds,
-          }
-        }
-
-        if (current.phase === 'rest') {
-          return {
-            ...current,
-            currentSet: current.currentSet + 1,
-            phase: 'work',
-            previousPhase: 'rest',
-            secondsRemaining: holdSeconds,
-          }
-        }
-
-        return current
-      })
-    }, 1000)
-
-    return () => window.clearInterval(intervalId)
-  }, [holdSeconds, setCount, timer.isRunning, timer.phase])
-
-  function startTimer() {
-    onStart?.()
-    setTimer((current) => ({
-      ...current,
-      currentSet: current.phase === 'complete' ? 1 : current.currentSet,
-      isRunning: true,
-      phase: current.phase === 'rest' ? 'rest' : 'prep',
-      previousPhase: current.phase,
-      secondsRemaining:
-        current.phase === 'ready' || current.phase === 'complete'
-          ? PREP_SECONDS
-          : current.secondsRemaining,
-    }))
-  }
-
-  function updateRestMinutes(value: string) {
-    const minutes = Number(value)
-
-    if (!Number.isFinite(minutes) || minutes <= 0) {
-      return
-    }
-
-    const nextRestSeconds = Math.round(minutes * 60)
-    setTimer((current) => ({
-      ...current,
-      restSeconds: nextRestSeconds,
-      secondsRemaining:
-        current.phase === 'rest' && !current.isRunning
-          ? nextRestSeconds
-          : current.secondsRemaining,
-    }))
-  }
+  const { pause, reset, start, timer, updateRestMinutes } = useSetIntervalTimer(
+    {
+      onStart,
+      prepBetweenSets: false,
+      prepSeconds: PREP_SECONDS,
+      restSeconds: DEFAULT_HOLD_REST_SECONDS,
+      setCount,
+      soundSettings,
+      workSeconds: holdSeconds,
+    },
+  )
 
   const phaseLabel =
     timer.phase === 'complete'
@@ -751,15 +596,7 @@ function HoldTimer({
         <button
           type="button"
           className="button button--primary button--compact"
-          onClick={
-            timer.isRunning
-              ? () =>
-                  setTimer((current) => ({
-                    ...current,
-                    isRunning: false,
-                  }))
-              : startTimer
-          }
+          onClick={timer.isRunning ? pause : start}
         >
           {timer.isRunning
             ? 'Pause'
@@ -770,16 +607,7 @@ function HoldTimer({
         <button
           type="button"
           className="button button--ghost button--compact"
-          onClick={() =>
-            setTimer({
-              currentSet: 1,
-              isRunning: false,
-              phase: 'ready',
-              previousPhase: null,
-              restSeconds: timer.restSeconds,
-              secondsRemaining: holdSeconds,
-            })
-          }
+          onClick={reset}
         >
           Reset
         </button>
@@ -799,123 +627,17 @@ function DurationTimer({
 }) {
   const workSeconds = entry.target.entryDurationSeconds ?? 0
   const setCount = entry.target.entrySets
-  const [timer, setTimer] = useState(() => ({
-    currentSet: 1,
-    isRunning: false,
-    phase: 'ready' as TimerPhase,
-    previousPhase: null as TimerPhase | null,
-    restSeconds: DEFAULT_HOLD_REST_SECONDS,
-    secondsRemaining: workSeconds,
-  }))
-  useScreenWakeLock(timer.isRunning)
-
-  useTimerBeeps({
-    isRunning: timer.isRunning,
-    phase: timer.phase,
-    previousPhase: timer.previousPhase,
-    secondsRemaining: timer.secondsRemaining,
-    soundSettings,
-  })
-
-  useEffect(() => {
-    if (
-      !timer.isRunning ||
-      timer.phase === 'ready' ||
-      timer.phase === 'complete'
-    ) {
-      return
-    }
-
-    const intervalId = window.setInterval(() => {
-      setTimer((current) => {
-        if (!current.isRunning) {
-          return current
-        }
-
-        if (current.secondsRemaining > 1) {
-          return {
-            ...current,
-            secondsRemaining: current.secondsRemaining - 1,
-          }
-        }
-
-        if (current.phase === 'prep') {
-          return {
-            ...current,
-            phase: 'work',
-            previousPhase: 'prep',
-            secondsRemaining: workSeconds,
-          }
-        }
-
-        if (current.phase === 'work') {
-          if (current.currentSet >= setCount) {
-            return {
-              ...current,
-              isRunning: false,
-              phase: 'complete',
-              previousPhase: 'work',
-              secondsRemaining: 0,
-            }
-          }
-
-          return {
-            ...current,
-            phase: 'rest',
-            previousPhase: 'work',
-            secondsRemaining: current.restSeconds,
-          }
-        }
-
-        if (current.phase === 'rest') {
-          return {
-            ...current,
-            currentSet: current.currentSet + 1,
-            phase: 'prep',
-            previousPhase: 'rest',
-            secondsRemaining: PREP_SECONDS,
-          }
-        }
-
-        return current
-      })
-    }, 1000)
-
-    return () => window.clearInterval(intervalId)
-  }, [setCount, timer.isRunning, timer.phase, workSeconds])
-
-  function startTimer() {
-    onStart?.()
-    setTimer((current) => ({
-      ...current,
-      currentSet: current.phase === 'complete' ? 1 : current.currentSet,
-      isRunning: true,
-      phase: current.phase === 'rest' ? 'rest' : 'prep',
-      previousPhase: current.phase,
-      secondsRemaining:
-        current.phase === 'ready' || current.phase === 'complete'
-          ? PREP_SECONDS
-          : current.secondsRemaining,
-    }))
-  }
-
-  function updateRestMinutes(value: string) {
-    const minutes = Number(value)
-
-    if (!Number.isFinite(minutes) || minutes <= 0) {
-      return
-    }
-
-    const nextRestSeconds = Math.round(minutes * 60)
-    setTimer((current) => ({
-      ...current,
-      restSeconds: nextRestSeconds,
-      secondsRemaining:
-        current.phase === 'rest' && !current.isRunning
-          ? nextRestSeconds
-          : current.secondsRemaining,
-    }))
-  }
+  const { pause, reset, start, timer, updateRestMinutes } = useSetIntervalTimer(
+    {
+      onStart,
+      prepBetweenSets: true,
+      prepSeconds: PREP_SECONDS,
+      restSeconds: DEFAULT_HOLD_REST_SECONDS,
+      setCount,
+      soundSettings,
+      workSeconds,
+    },
+  )
 
   const phaseLabel =
     timer.phase === 'complete'
@@ -961,15 +683,7 @@ function DurationTimer({
         <button
           type="button"
           className="button button--primary button--compact"
-          onClick={
-            timer.isRunning
-              ? () =>
-                  setTimer((current) => ({
-                    ...current,
-                    isRunning: false,
-                  }))
-              : startTimer
-          }
+          onClick={timer.isRunning ? pause : start}
         >
           {timer.isRunning
             ? 'Pause'
@@ -980,16 +694,7 @@ function DurationTimer({
         <button
           type="button"
           className="button button--ghost button--compact"
-          onClick={() =>
-            setTimer({
-              currentSet: 1,
-              isRunning: false,
-              phase: 'ready',
-              previousPhase: null,
-              restSeconds: timer.restSeconds,
-              secondsRemaining: workSeconds,
-            })
-          }
+          onClick={reset}
         >
           Reset
         </button>

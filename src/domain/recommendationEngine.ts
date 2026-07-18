@@ -226,6 +226,59 @@ function buildExplanation(
   return 'You are ready for a Max day. Continue the current two-session structure.'
 }
 
+export function buildRecommendationReasons(input: RecommendationInput) {
+  const reasons: string[] = []
+
+  if (input.daysSinceLastMax === null) {
+    reasons.push('No max test is logged in the current history.')
+  } else if (input.daysSinceLastMax >= 7) {
+    reasons.push(
+      `The last max test was ${input.daysSinceLastMax} days ago, meeting the 7-day minimum.`,
+    )
+  } else {
+    reasons.push(
+      `The last max test was ${input.daysSinceLastMax} days ago; 7 days are required.`,
+    )
+  }
+
+  if (input.daysSinceLastWorkout === null) {
+    reasons.push('No recent workout or GG set is limiting freshness.')
+  } else {
+    const fullRestDays = Math.max(0, input.daysSinceLastWorkout - 1)
+    reasons.push(
+      `${fullRestDays} full rest day${fullRestDays === 1 ? '' : 's'} since the last workout or GG set; 2 are required for a Max day.`,
+    )
+  }
+
+  const trend = classifyTrend(input.cycleMaxResults)
+  reasons.push(
+    `${input.currentPhase} phase and a ${trend} max trend set the current workload.`,
+  )
+
+  if (input.supportPainOverride) {
+    reasons.push('Recent joint-pain data is keeping Support work easier.')
+  } else if (input.fatigueAverage !== null && input.fatigueAverage >= 4) {
+    reasons.push(
+      `Recent average fatigue is ${input.fatigueAverage}/5, so Support work is reduced.`,
+    )
+  } else if (input.sessionsLast7 >= 4) {
+    reasons.push(
+      `${input.sessionsLast7} workouts were logged in the last 7 days, so Support stress is reduced.`,
+    )
+  } else {
+    const failureFocus = getSupportFocusFromFailurePoint(
+      input.latestFailurePoint,
+    )
+    if (failureFocus !== 'generic') {
+      reasons.push(
+        `The latest max failed at ${input.latestFailurePoint}, which selects the ${failureFocus} support focus.`,
+      )
+    }
+  }
+
+  return reasons
+}
+
 export function createRecommendation(
   input: RecommendationInput,
   exercises: Exercise[],

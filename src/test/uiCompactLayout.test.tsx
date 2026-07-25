@@ -9,7 +9,7 @@ import { ProgressScreen } from '../features/progress/ProgressScreen'
 import { ProfileSettingsScreen } from '../features/settings/ProfileSettingsScreen'
 import { SettingsScreen } from '../features/settings/SettingsScreen'
 import { TodayScreen } from '../features/today/TodayScreen'
-import { addDays, todayDateString } from '../lib/date'
+import { addDays, addMonths, todayDateString } from '../lib/date'
 
 vi.mock('../app/appContext', () => ({
   useAppState: vi.fn(),
@@ -176,7 +176,7 @@ function createMockAppState(): MockAppState {
       },
       {
         id: 'session-1',
-        date: '2026-04-15',
+        date: '2026-04-19',
         sessionType: 'support',
         notes: 'Volume stayed controlled.',
         entries: [
@@ -264,6 +264,41 @@ describe('compact hybrid UI refresh', () => {
     expect(
       screen.getByRole('button', { name: /install pwa/i }),
     ).toBeInTheDocument()
+  })
+
+  it('offers immediate repeat and alternate plan actions after a cycle ends', async () => {
+    const user = userEvent.setup()
+    const state = createMockAppState()
+    state.cycleSummary = {
+      ...state.cycleSummary,
+      cycleWindow: {
+        ...state.cycleSummary.cycleWindow,
+        end: addDays(todayDateString(), -1),
+      },
+      daysRemaining: 0,
+      progressPercent: 100,
+    }
+    mockedUseAppState.mockReturnValue(state)
+
+    render(
+      <TodayScreen
+        canInstall={false}
+        onInstall={vi.fn()}
+        onQuickLog={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Your training cycle has ended.',
+    )
+    expect(screen.getByRole('link', { name: 'Choose cycle' })).toHaveAttribute(
+      'href',
+      '#/settings',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Repeat cycle' }))
+
+    expect(state.startNextCycle).toHaveBeenCalledOnce()
   })
 
   it('uses the header brand for Today and a large settings control', () => {
@@ -403,7 +438,7 @@ describe('compact hybrid UI refresh', () => {
     expect(
       screen.getByRole('img', { name: /progress across the current cycle/i }),
     ).toBeInTheDocument()
-    expect(screen.getByText('11')).toBeInTheDocument()
+    expect(screen.getAllByText('11').length).toBeGreaterThan(0)
     expect(screen.getAllByText('13').length).toBeGreaterThan(0)
     expect(screen.getByText(/cycle start/i)).toBeInTheDocument()
     expect(screen.getByText(/cycle end/i)).toBeInTheDocument()
@@ -411,7 +446,7 @@ describe('compact hybrid UI refresh', () => {
     expect(
       screen.getByRole('heading', { name: /past workouts/i }),
     ).toBeInTheDocument()
-    expect(screen.getByText('+2 reps')).toBeInTheDocument()
+    expect(screen.getAllByText('+2 reps').length).toBeGreaterThan(0)
     expect(screen.getByText('hard')).toBeInTheDocument()
     expect(screen.getByText('Passed')).toBeInTheDocument()
     expect(screen.getByText('Failed')).toBeInTheDocument()
@@ -423,6 +458,16 @@ describe('compact hybrid UI refresh', () => {
     await user.click(screen.getByRole('button', { name: 'Weight' }))
 
     expect(screen.getAllByText('Weight').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Lifetime' }))
+
+    expect(
+      screen.getByRole('img', { name: /progress across all time/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'All workouts' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Cycle to view')).toBeNull()
   })
 
   it('edits and deletes logged workouts from history', async () => {
@@ -480,7 +525,7 @@ describe('compact hybrid UI refresh', () => {
     expect(state.startNextCycle).toHaveBeenCalledOnce()
   })
 
-  it('supports a 3-month cycle or a competition date', async () => {
+  it('supports 30, 60, 90, and 120-day cycles or a competition date', async () => {
     const user = userEvent.setup()
     render(<ProfileSettingsScreen />)
 
@@ -492,25 +537,37 @@ describe('compact hybrid UI refresh', () => {
     const cycleEndDateInput = screen.getByLabelText(/cycle end date/i)
     const nextWeekCompetitionDate = addDays(todayDateString(), 7)
     const standardCycleEndDateFromToday = addDays(todayDateString(), 89)
+    const cycleLengthMetric = screen
+      .getByText('Cycle length')
+      .closest('.mini-stat') as HTMLElement
 
     expect(cycleEndDateInput).toHaveValue('2026-07-17')
-    expect(screen.getByText('90 days')).toBeInTheDocument()
+    expect(within(cycleLengthMetric).getByText('90 days')).toBeInTheDocument()
+    for (const lengthDays of [30, 60, 90, 120]) {
+      expect(
+        screen.getByRole('button', { name: `${lengthDays} days` }),
+      ).toBeInTheDocument()
+    }
 
     await user.click(screen.getByRole('button', { name: /competition date/i }))
+    expect(screen.getByLabelText(/competition date/i)).toHaveValue(
+      addMonths(todayDateString(), 2),
+    )
+
     fireEvent.change(screen.getByLabelText(/competition date/i), {
       target: {
         value: nextWeekCompetitionDate,
       },
     })
 
-    expect(screen.getByText('8 days')).toBeInTheDocument()
+    expect(within(cycleLengthMetric).getByText('8 days')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /3 months/i }))
+    await user.click(screen.getByRole('button', { name: '90 days' }))
 
     expect(screen.getByLabelText(/cycle end date/i)).toHaveValue(
       standardCycleEndDateFromToday,
     )
-    expect(screen.getByText('90 days')).toBeInTheDocument()
+    expect(within(cycleLengthMetric).getByText('90 days')).toBeInTheDocument()
   })
 
   it('saves competition cycles from today instead of the old cycle start', async () => {
@@ -589,6 +646,7 @@ describe('compact hybrid UI refresh', () => {
     expect(screen.getByText('Not locked')).toBeInTheDocument()
     expect(screen.getByLabelText(/timer sound/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/timer volume/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/bands available/i)).toBeNull()
     expect(
       screen.getByRole('button', { name: /test sound/i }),
     ).toBeInTheDocument()
@@ -632,6 +690,13 @@ describe('compact hybrid UI refresh', () => {
       expect.objectContaining({
         timerSoundId: 'low',
         timerVolume: 0.3,
+      }),
+      expect.any(Object),
+    )
+    expect(saveSettingsAndProgram).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.not.objectContaining({
+        bandsAvailable: expect.anything(),
       }),
       expect.any(Object),
     )

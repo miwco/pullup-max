@@ -504,15 +504,21 @@ export function WorkoutHistory({
   bodyweightEntries,
   bodyweightTrackingEnabled,
   exercises,
+  eyebrow = 'Training record',
+  emptyMessage = 'Your completed workouts will appear here after the first session is saved.',
   onDeleteWorkout,
   onUpdateWorkout,
+  title = 'Past workouts',
   workouts,
 }: {
   bodyweightEntries: BodyweightEntry[]
   bodyweightTrackingEnabled: boolean
   exercises: Exercise[]
+  eyebrow?: string
+  emptyMessage?: string
   onDeleteWorkout: (sessionId: string) => Promise<boolean>
   onUpdateWorkout: (input: WorkoutCorrectionInput) => Promise<boolean>
+  title?: string
   workouts: RecentWorkoutItem[]
 }) {
   const [visibleWorkouts, setVisibleWorkouts] = useState(PAGE_SIZE)
@@ -527,12 +533,9 @@ export function WorkoutHistory({
 
   return (
     <>
-      <Section eyebrow="Training record" title="Past workouts">
+      <Section eyebrow={eyebrow} title={title}>
         {workouts.length === 0 ? (
-          <p className="muted-text">
-            Your completed workouts will appear here after the first session is
-            saved.
-          </p>
+          <p className="muted-text">{emptyMessage}</p>
         ) : (
           <>
             <div className="workout-card-list">

@@ -1,4 +1,4 @@
-import type { CycleWindow, ProgressPoint } from '../domain/types'
+import type { CycleWindow, ProgressPoint, SessionType } from '../domain/types'
 import { diffInDays, formatShortDate } from '../lib/date'
 
 interface CycleLineChartProps {
@@ -10,6 +10,8 @@ interface CycleLineChartProps {
   showWeight: boolean
   today: string
   weightPoints: ProgressPoint[]
+  workoutPoints?: Array<{ date: string; sessionType: SessionType }>
+  rangeKind?: 'cycle' | 'lifetime'
 }
 
 interface BarChartProps {
@@ -53,6 +55,8 @@ export function CycleLineChart({
   showWeight,
   today,
   weightPoints,
+  workoutPoints = [],
+  rangeKind = 'cycle',
 }: CycleLineChartProps) {
   const width = 320
   const height = 180
@@ -64,8 +68,11 @@ export function CycleLineChart({
   }
   const innerWidth = width - padding.left - padding.right
   const innerHeight = height - padding.top - padding.bottom
-  const todayX =
-    padding.left + getHorizontalPosition(today, cycleWindow, innerWidth)
+  const showTodayReference =
+    today >= cycleWindow.start && today <= cycleWindow.end
+  const todayX = showTodayReference
+    ? padding.left + getHorizontalPosition(today, cycleWindow, innerWidth)
+    : null
 
   const maxBounds = getChartBounds(maxPoints, 1)
   const weightBounds = getChartBounds(weightPoints, 1)
@@ -99,6 +106,11 @@ export function CycleLineChart({
     (showMax && maxCoordinates.length > 0) ||
     (showWeight && weightCoordinates.length > 0)
   const phaseLabels = ['Build', 'Develop', 'Peak']
+  const workoutCoordinates = workoutPoints.map((point) => ({
+    ...point,
+    x:
+      padding.left + getHorizontalPosition(point.date, cycleWindow, innerWidth),
+  }))
 
   return (
     <div className="chart-shell">
@@ -163,13 +175,15 @@ export function CycleLineChart({
           y2={padding.top + innerHeight}
           className="chart-reference-line"
         />
-        <line
-          x1={todayX}
-          y1={padding.top}
-          x2={todayX}
-          y2={padding.top + innerHeight}
-          className="chart-reference-line chart-reference-line--today"
-        />
+        {todayX !== null ? (
+          <line
+            x1={todayX}
+            y1={padding.top}
+            x2={todayX}
+            y2={padding.top + innerHeight}
+            className="chart-reference-line chart-reference-line--today"
+          />
+        ) : null}
         <line
           x1={padding.left + innerWidth}
           y1={padding.top}
@@ -226,7 +240,29 @@ export function CycleLineChart({
           </>
         ) : null}
 
-        {showMax ? (
+        {workoutCoordinates.map((point, index) =>
+          point.sessionType === 'max' ? (
+            <circle
+              key={`workout-${point.date}-${index}`}
+              cx={point.x}
+              cy={padding.top + innerHeight - 5}
+              r="2.5"
+              className="chart-workout-marker chart-workout-marker--max"
+            />
+          ) : (
+            <rect
+              key={`workout-${point.date}-${index}`}
+              x={point.x - 2}
+              y={padding.top + innerHeight - 7}
+              width="4"
+              height="4"
+              rx="1"
+              className="chart-workout-marker chart-workout-marker--support"
+            />
+          ),
+        )}
+
+        {showMax && maxCoordinates.length > 0 ? (
           <g>
             <text
               x={padding.left}
@@ -239,7 +275,7 @@ export function CycleLineChart({
           </g>
         ) : null}
 
-        {showWeight ? (
+        {showWeight && weightCoordinates.length > 0 ? (
           <g>
             <text
               x={padding.left + innerWidth}
@@ -254,14 +290,41 @@ export function CycleLineChart({
       </svg>
 
       <div className="chart-axis chart-axis--cycle">
-        <span>Cycle start {formatShortDate(cycleWindow.start)}</span>
-        <span>Today {formatShortDate(today)}</span>
-        <span>Cycle end {formatShortDate(cycleWindow.end)}</span>
+        <span>
+          <small>
+            {rangeKind === 'lifetime' ? 'First record' : 'Cycle start'}
+          </small>
+          <strong>{formatShortDate(cycleWindow.start)}</strong>
+        </span>
+        <span>
+          {showTodayReference && rangeKind === 'cycle' ? (
+            <>
+              <small>Today</small>
+              <strong>{formatShortDate(today)}</strong>
+            </>
+          ) : null}
+        </span>
+        <span>
+          <small>{rangeKind === 'lifetime' ? 'Latest' : 'Cycle end'}</small>
+          <strong>{formatShortDate(cycleWindow.end)}</strong>
+        </span>
       </div>
 
       <div className="chip-row">
         {showMax ? <span className="chip">Max reps</span> : null}
         {showWeight ? <span className="chip">Weight</span> : null}
+        {workoutPoints.some((point) => point.sessionType === 'max') ? (
+          <span className="chip">
+            <i className="chart-legend-dot chart-legend-dot--max" />
+            Max workout
+          </span>
+        ) : null}
+        {workoutPoints.some((point) => point.sessionType === 'support') ? (
+          <span className="chip">
+            <i className="chart-legend-dot chart-legend-dot--support" />
+            Support workout
+          </span>
+        ) : null}
       </div>
 
       {!hasSelectedSeries ? (
@@ -273,7 +336,7 @@ export function CycleLineChart({
       showMax &&
       maxCoordinates.length === 0 ? (
         <div className="chart-empty">
-          No max tests are logged in this cycle yet.
+          No max tests are logged in this range yet.
         </div>
       ) : null}
 
@@ -282,7 +345,7 @@ export function CycleLineChart({
       showWeight &&
       weightCoordinates.length === 0 ? (
         <div className="chart-empty">
-          No bodyweight entries are logged in this cycle yet.
+          No bodyweight entries are logged in this range yet.
         </div>
       ) : null}
     </div>

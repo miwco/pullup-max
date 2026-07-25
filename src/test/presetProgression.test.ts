@@ -29,6 +29,8 @@ describe('preset progression', () => {
   it('seeds the EMOM target from the latest max test tier', () => {
     const emomStep = getStepByTitle(allSteps, 'EMOM pull-up block')
 
+    expect(emomStep.emomReps).toBe(2)
+    expect(emomStep.reps).toBe(2)
     expect(resolvePresetTarget(emomStep, undefined, null).summary).toBe(
       '10m EMOM @ 2',
     )

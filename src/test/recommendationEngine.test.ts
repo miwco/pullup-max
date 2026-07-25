@@ -28,7 +28,6 @@ function createScenario(overrides: Partial<RecommendationInput> = {}): {
     exercises,
     input: {
       availableExercises: exercises.map((exercise) => exercise.name),
-      bandsAvailable: true,
       cycleMaxResults: [
         { date: '2026-04-01', reps: 10 },
         { date: '2026-04-09', reps: 11 },
@@ -389,7 +388,7 @@ describe('recommendation engine', () => {
     expect(template.maxDay.warmup.steps).toHaveLength(0)
     expect(template.maxDay.mainSet.steps).toHaveLength(0)
     expect(template.maxDay.volumeBlock.steps[0]?.emomMinutes).toBe(10)
-    expect(template.maxDay.volumeBlock.steps[0]?.emomReps).toBe(4)
+    expect(template.maxDay.volumeBlock.steps[0]?.emomReps).toBe(2)
     expect(template.maxDay.volumeBlock.steps[0]?.notes).toContain(
       'complete all 10 minutes with clean form',
     )
@@ -427,7 +426,7 @@ describe('recommendation engine', () => {
     const exercises = createDefaultExercises()
     const template = createDefaultProgramTemplate(exercises)
     const steps = getProgramStepsForSession(template, 'support', 'top')
-    const adjusted = applyEasySupportAdjustments(steps, true)
+    const adjusted = applyEasySupportAdjustments(steps)
 
     expect(adjusted[0]?.reps).toBe(3)
     expect(

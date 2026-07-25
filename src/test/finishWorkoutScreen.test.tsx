@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppState, type AppContextValue } from '../app/appContext'
 import { createSeedData } from '../domain/defaults'
 import { FinishWorkoutScreen } from '../features/finish/FinishWorkoutScreen'
+import { todayDateString } from '../lib/date'
 
 vi.mock('../app/appContext', async () => {
   const actual = await vi.importActual('../app/appContext')
@@ -16,7 +17,9 @@ vi.mock('../app/appContext', async () => {
 
 const mockedUseAppState = vi.mocked(useAppState)
 
-function createFinishAppState() {
+function createFinishAppState(
+  finishWorkoutDraft: AppContextValue['finishWorkoutDraft'] = null,
+) {
   const data = createSeedData('2026-07-04')
   const saveFinishWorkout = vi.fn(async () => true)
   const saveFinishWorkoutDraft = vi.fn(async () => true)
@@ -24,7 +27,7 @@ function createFinishAppState() {
 
   mockedUseAppState.mockReturnValue({
     data,
-    finishWorkoutDraft: null,
+    finishWorkoutDraft,
     saveFinishWorkout,
     saveFinishWorkoutDraft,
     saveFinishWorkoutProgression,
@@ -184,5 +187,67 @@ describe('FinishWorkoutScreen', () => {
         name: 'Pause',
       }),
     ).not.toBeInTheDocument()
+  })
+
+  it('allows only one manually started Finish exercise timer to run', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<FinishWorkoutScreen />)
+    const sections = container.querySelectorAll('.finish-exercise')
+    const backExtension = sections[0] as HTMLElement
+    const dips = sections[2] as HTMLElement
+
+    await user.click(
+      within(backExtension).getByRole('button', { name: 'Start' }),
+    )
+    expect(
+      within(backExtension).getByRole('button', { name: 'Pause' }),
+    ).toBeInTheDocument()
+
+    await user.click(within(dips).getByRole('button', { name: 'Start' }))
+
+    expect(
+      within(backExtension).queryByRole('button', { name: 'Pause' }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dips).getByRole('button', { name: 'Pause' }),
+    ).toBeInTheDocument()
+  })
+
+  it('stops an exercise timer when its transition rest starts', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<FinishWorkoutScreen />)
+    const backExtension = container.querySelectorAll(
+      '.finish-exercise',
+    )[0] as HTMLElement
+
+    await user.click(
+      within(backExtension).getByRole('button', { name: 'Start' }),
+    )
+    await user.click(
+      within(backExtension).getByRole('button', { name: 'pass' }),
+    )
+
+    expect(
+      within(backExtension).getAllByRole('button', { name: 'Pause' }),
+    ).toHaveLength(1)
+    expect(within(backExtension).getByText('Next exercise')).toBeInTheDocument()
+  })
+
+  it('restores at most one running transition timer from a saved draft', () => {
+    createFinishAppState({
+      id: 'current-finish-workout',
+      date: todayDateString(),
+      outcomes: {
+        'back-extension': 'pass',
+        abs: 'pass',
+        dips: 'pass',
+      },
+      updatedAt: new Date().toISOString(),
+    })
+
+    render(<FinishWorkoutScreen />)
+
+    expect(screen.getAllByRole('button', { name: 'Pause' })).toHaveLength(1)
+    expect(screen.getAllByText('Next exercise')).toHaveLength(3)
   })
 })

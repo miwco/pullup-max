@@ -44,6 +44,7 @@ export function TodayScreen({
     dismissOnboarding,
     latestBodyweightEntry,
     saveBodyweight,
+    startNextCycle,
     weeklyVolumeSummary,
   } = useAppState()
   const recommendation = data.recommendationState
@@ -67,6 +68,9 @@ export function TodayScreen({
   const [weightInput, setWeightInput] = useState<string | null>(null)
   const [weightError, setWeightError] = useState<string | null>(null)
   const [isSavingWeight, setIsSavingWeight] = useState(false)
+  const [isStartingCycle, setIsStartingCycle] = useState(false)
+  const cycleHasEnded =
+    cycleSummary.daysRemaining === 0 && today > cycleSummary.cycleWindow.end
   const resolvedWeightInput =
     weightInput ?? (todaysWeight === null ? '' : String(todaysWeight))
   const latestWeightLabel = latestBodyweightEntry
@@ -98,6 +102,16 @@ export function TodayScreen({
     if (saved) {
       setWeightInput(null)
     }
+  }
+
+  async function handleRepeatCycle() {
+    if (isStartingCycle) {
+      return
+    }
+
+    setIsStartingCycle(true)
+    await startNextCycle()
+    setIsStartingCycle(false)
   }
 
   return (
@@ -132,13 +146,26 @@ export function TodayScreen({
         </Section>
       ) : null}
 
-      {cycleSummary.daysRemaining === 0 ? (
-        <div className="notice">
+      {cycleHasEnded ? (
+        <div className="notice notice--warning" role="alert">
           <span>
-            Your training cycle has ended — start a new one in{' '}
-            <a href="#/settings">Settings</a> to keep phase and load tracking
-            accurate.
+            <strong>Your training cycle has ended.</strong> Start another{' '}
+            {data.settings.cycleLengthDays}-day cycle today, or choose a
+            different plan.
           </span>
+          <div className="notice__actions">
+            <button
+              type="button"
+              className="notice__action"
+              disabled={isStartingCycle}
+              onClick={() => void handleRepeatCycle()}
+            >
+              {isStartingCycle ? 'Starting...' : 'Repeat cycle'}
+            </button>
+            <a className="notice__action" href="#/settings">
+              Choose cycle
+            </a>
+          </div>
         </div>
       ) : null}
       {hasTrainingData && backupFreshness.isDue ? (

@@ -684,6 +684,14 @@ textarea:disabled {
   border-color: transparent;
 }
 
+.progress-view-toggle {
+  margin-bottom: 2px;
+}
+
+.progress-cycle-picker select {
+  font-weight: 650;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -1032,6 +1040,33 @@ textarea:disabled {
   fill: var(--success);
 }
 
+.chart-workout-marker--max {
+  fill: var(--accent);
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 1;
+}
+
+.chart-workout-marker--support {
+  fill: var(--muted-strong);
+}
+
+.chart-legend-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 999px;
+  background: var(--muted-strong);
+}
+
+.chart-legend-dot--max {
+  background: var(--accent);
+}
+
+.chart-legend-dot--support {
+  border-radius: 2px;
+}
+
 .chart-point-label {
   font-size: 10px;
   fill: var(--ink);
@@ -1045,6 +1080,20 @@ textarea:disabled {
 
 .chart-axis--cycle {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.chart-axis--cycle span {
+  display: grid;
+  gap: 1px;
+}
+
+.chart-axis--cycle small {
+  font: inherit;
+}
+
+.chart-axis--cycle strong {
+  color: var(--ink);
+  font-size: 0.78rem;
 }
 
 .chart-axis--cycle span:nth-child(2) {
@@ -1744,16 +1793,6 @@ textarea:disabled {
   .cycle-window-note,
   .workout-list__header {
     align-items: flex-start;
-  }
-
-  .chart-axis--cycle {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-axis--cycle span,
-  .chart-axis--cycle span:nth-child(2),
-  .chart-axis--cycle span:nth-child(3) {
-    text-align: left;
   }
 
   .timer-settings {

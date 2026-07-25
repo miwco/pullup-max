@@ -22,7 +22,10 @@ import {
   applyFinishProgression,
   buildFinishWorkoutEntries,
 } from '../domain/finishWorkout'
-import { getCycleEndDateForLength } from '../domain/cycle'
+import {
+  getCycleEndDateForLength,
+  getCycleLengthDaysFromDates,
+} from '../domain/cycle'
 import { getAllProgramSteps } from '../domain/programTemplate'
 import {
   applyWorkoutCorrection,
@@ -103,6 +106,7 @@ async function readStorageDurability(): Promise<
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(EMPTY_APP_DATA)
+  const [currentDate, setCurrentDate] = useState(todayDateString)
   const [isReady, setIsReady] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [notice, setNotice] = useState<AppNotice | null>(null)
@@ -120,6 +124,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshStorageDurability = useCallback(async () => {
     setStorageDurability(await readStorageDurability())
+  }, [])
+
+  useEffect(() => {
+    function refreshCurrentDate() {
+      setCurrentDate((previousDate) => {
+        const nextDate = todayDateString()
+        return nextDate === previousDate ? previousDate : nextDate
+      })
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        refreshCurrentDate()
+      }
+    }
+
+    const intervalId = window.setInterval(refreshCurrentDate, 60_000)
+    window.addEventListener('focus', refreshCurrentDate)
+    window.addEventListener('pageshow', refreshCurrentDate)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refreshCurrentDate)
+      window.removeEventListener('pageshow', refreshCurrentDate)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   useEffect(() => {
@@ -199,6 +230,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const currentData = useMemo(
+    () => withComputedRecommendation(data, currentDate),
+    [currentDate, data],
+  )
+
   const {
     cycleSummary,
     recentWorkouts,
@@ -216,67 +252,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
     daysSinceLastWorkout,
   } = useMemo(() => {
     const cycleWindow = getCurrentCycleWindow(
-      data.athleteProfile.cycleStartDate,
-      data.settings.cycleLengthDays,
-      todayDateString(),
-      data.athleteProfile.cycleEndDate,
+      currentData.athleteProfile.cycleStartDate,
+      currentData.settings.cycleLengthDays,
+      currentDate,
+      currentData.athleteProfile.cycleEndDate,
     )
     return {
-      cycleSummary: getCycleSummaryData(data),
+      cycleSummary: getCycleSummaryData(currentData, currentDate),
       recentWorkouts: buildRecentWorkouts(
-        data.sessions,
-        data.exerciseEntries,
-        data.exercises,
-        data.maxTests,
+        currentData.sessions,
+        currentData.exerciseEntries,
+        currentData.exercises,
+        currentData.maxTests,
       ),
       cycleMaxTrendPoints: buildMaxTrendPoints(
-        data.maxTests,
-        data.sessions,
-        data.athleteProfile.mainMovement,
+        currentData.maxTests,
+        currentData.sessions,
+        currentData.athleteProfile.mainMovement,
         cycleWindow,
       ),
       allTimeMaxTrendPoints: buildMaxTrendPoints(
-        data.maxTests,
-        data.sessions,
-        data.athleteProfile.mainMovement,
+        currentData.maxTests,
+        currentData.sessions,
+        currentData.athleteProfile.mainMovement,
       ),
       bodyweightTrendPoints: buildBodyweightPoints(
-        data.bodyweightEntries,
+        currentData.bodyweightEntries,
         cycleWindow,
       ),
-      painTrendPoints: buildPainTrendPoints(data.sessions, cycleWindow),
+      painTrendPoints: buildPainTrendPoints(currentData.sessions, cycleWindow),
       maxHistory: buildMaxHistory(
-        data.maxTests,
-        data.sessions,
-        data.athleteProfile.mainMovement,
+        currentData.maxTests,
+        currentData.sessions,
+        currentData.athleteProfile.mainMovement,
       ),
       allTimeBestMax: getBestMax(
-        data.maxTests,
-        data.sessions,
-        data.athleteProfile.mainMovement,
+        currentData.maxTests,
+        currentData.sessions,
+        currentData.athleteProfile.mainMovement,
       ),
       latestLoggedMaxReps: getLatestLoggedMaxReps(
-        data.maxTests,
-        data.sessions,
-        data.athleteProfile.mainMovement,
+        currentData.maxTests,
+        currentData.sessions,
+        currentData.athleteProfile.mainMovement,
       ),
-      activeExercises: data.exercises.filter((exercise) => exercise.active),
+      activeExercises: currentData.exercises.filter(
+        (exercise) => exercise.active,
+      ),
       latestBodyweightEntry: getLatestSavedBodyweightEntry(
-        data.bodyweightEntries,
+        currentData.bodyweightEntries,
       ),
-      weeklyVolumeSummary: getCurrentWeekVolumeSummary(data),
+      weeklyVolumeSummary: getCurrentWeekVolumeSummary(
+        currentData,
+        currentDate,
+      ),
       daysSinceLastMax: getDaysSinceLastMax(
-        data.sessions,
-        data.maxTests,
-        data.athleteProfile.mainMovement,
+        currentData.sessions,
+        currentData.maxTests,
+        currentData.athleteProfile.mainMovement,
+        currentDate,
       ),
       daysSinceLastWorkout: getDaysSinceLastWorkout(
-        data.sessions,
-        todayDateString(),
-        data.greaseGrooveEntries,
+        currentData.sessions,
+        currentDate,
+        currentData.greaseGrooveEntries,
       ),
     }
-  }, [data])
+  }, [currentData, currentDate])
 
   function saveNextData(
     update: AppData | ((current: AppData) => AppData),
@@ -685,24 +727,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function startNextCycle() {
     const startDate = todayDateString()
 
-    return saveNextData(
-      (current) =>
-        withComputedRecommendation(
-          {
-            ...current,
-            athleteProfile: {
-              ...current.athleteProfile,
-              cycleStartDate: startDate,
-              cycleEndDate: getCycleEndDateForLength(
-                startDate,
-                current.settings.cycleLengthDays,
-              ),
-            },
+    return saveNextData((current) => {
+      const { cycleStartDate, cycleEndDate } = current.athleteProfile
+      const archivedCycleId = `cycle-${cycleStartDate}-${cycleEndDate}`
+      const cycleAlreadyArchived = current.cycleHistory.some(
+        (cycle) =>
+          cycle.startDate === cycleStartDate && cycle.endDate === cycleEndDate,
+      )
+
+      return withComputedRecommendation(
+        {
+          ...current,
+          cycleHistory: cycleAlreadyArchived
+            ? current.cycleHistory
+            : [
+                ...current.cycleHistory,
+                {
+                  id: archivedCycleId,
+                  startDate: cycleStartDate,
+                  endDate: cycleEndDate,
+                  lengthDays:
+                    getCycleLengthDaysFromDates(cycleStartDate, cycleEndDate) ??
+                    current.settings.cycleLengthDays,
+                  completedAt: new Date().toISOString(),
+                },
+              ],
+          athleteProfile: {
+            ...current.athleteProfile,
+            cycleStartDate: startDate,
+            cycleEndDate: getCycleEndDateForLength(
+              startDate,
+              current.settings.cycleLengthDays,
+            ),
           },
-          startDate,
-        ),
-      'New cycle started. Previous workouts remain in all-time history.',
-    )
+        },
+        startDate,
+      )
+    }, 'New cycle started. Previous workouts remain in all-time history.')
   }
 
   const saveCurrentWorkoutDraft = useCallback(
@@ -873,7 +934,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cycleMaxTrendPoints,
     painTrendPoints,
     cycleSummary,
-    data,
+    data: currentData,
     daysSinceLastMax,
     daysSinceLastWorkout,
     clearWorkoutDraft: clearCurrentWorkoutDraft,

@@ -30,6 +30,7 @@ import type {
   ProgramTemplate,
   QualityFlag,
   TimerSoundId,
+  TrainingCycleRecord,
   TrendClassification,
   WorkoutSession,
 } from './types'
@@ -145,8 +146,6 @@ function normalizeSettings(value: unknown): AppSettings | null {
       typeof value.bodyweightTrackingEnabled === 'boolean'
         ? value.bodyweightTrackingEnabled
         : true,
-    bandsAvailable:
-      typeof value.bandsAvailable === 'boolean' ? value.bandsAvailable : true,
     cycleLengthDays: clampCycleLengthDays(
       typeof value.cycleLengthDays === 'number' ? value.cycleLengthDays : 90,
     ),
@@ -578,6 +577,49 @@ function normalizeBodyweightEntries(value: unknown) {
   })
 }
 
+function normalizeCycleHistory(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as TrainingCycleRecord[]
+  }
+
+  const uniqueWindows = new Set<string>()
+
+  return value.flatMap((item) => {
+    if (
+      !isRecord(item) ||
+      typeof item.id !== 'string' ||
+      typeof item.startDate !== 'string' ||
+      !isIsoDateString(item.startDate) ||
+      typeof item.endDate !== 'string' ||
+      !isIsoDateString(item.endDate) ||
+      item.endDate < item.startDate ||
+      typeof item.lengthDays !== 'number' ||
+      !Number.isInteger(item.lengthDays) ||
+      item.lengthDays < 1 ||
+      typeof item.completedAt !== 'string' ||
+      !isIsoDateTime(item.completedAt)
+    ) {
+      return []
+    }
+
+    const windowKey = `${item.startDate}:${item.endDate}`
+    if (uniqueWindows.has(windowKey)) {
+      return []
+    }
+    uniqueWindows.add(windowKey)
+
+    return [
+      {
+        id: item.id,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        lengthDays: item.lengthDays,
+        completedAt: item.completedAt,
+      } satisfies TrainingCycleRecord,
+    ]
+  })
+}
+
 function normalizeGreaseGrooveEntries(value: unknown) {
   if (!Array.isArray(value)) {
     return [] as GreaseGrooveEntry[]
@@ -849,6 +891,7 @@ export function normalizeAppData(value: unknown, today = todayDateString()) {
       ...settings,
       exportFormatVersion: EXPORT_FORMAT_VERSION,
     },
+    cycleHistory: normalizeCycleHistory(value.cycleHistory),
     exercises,
     bodyweightEntries: normalizeBodyweightEntries(value.bodyweightEntries),
     greaseGrooveEntries: normalizeGreaseGrooveEntries(

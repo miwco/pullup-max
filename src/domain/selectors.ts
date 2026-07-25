@@ -340,7 +340,6 @@ export function buildRecommendationInput(
     availableExercises: data.exercises
       .filter((exercise) => exercise.active)
       .map((exercise) => exercise.name),
-    bandsAvailable: data.settings.bandsAvailable,
     cycleMaxResults,
     currentPhase: getCurrentCyclePhase(
       cycleWindow,

@@ -13,7 +13,7 @@ import { createMovementExerciseSpecs, MAIN_MOVEMENTS } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 import { createDefaultFinishWorkoutData } from './finishWorkout'
 
-export const EXPORT_FORMAT_VERSION = 10
+export const EXPORT_FORMAT_VERSION = 11
 
 const DEFAULT_EXERCISE_SPECS: Array<
   Omit<Exercise, 'id' | 'active' | 'builtIn'>
@@ -49,7 +49,6 @@ export function createDefaultAthleteProfile(
 
 export function createDefaultSettings(): AppSettings {
   return {
-    bandsAvailable: true,
     bodyweightTrackingEnabled: true,
     cycleLengthDays: DEFAULT_CYCLE_LENGTH_DAYS,
     exportFormatVersion: EXPORT_FORMAT_VERSION,
@@ -85,6 +84,7 @@ export function createSeedData(today = todayDateString()): AppData {
   return {
     athleteProfile: createDefaultAthleteProfile(today),
     settings: createDefaultSettings(),
+    cycleHistory: [],
     exercises,
     bodyweightEntries: [],
     greaseGrooveEntries: [],

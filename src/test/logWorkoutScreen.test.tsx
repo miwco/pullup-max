@@ -6,6 +6,7 @@ import { useAppState } from '../app/appContext'
 import { createSeedData } from '../domain/defaults'
 import type { ProgramEntryDraft, SessionType } from '../domain/types'
 import { LogWorkoutScreen } from '../features/log-workout/LogWorkoutScreen'
+import { todayDateString } from '../lib/date'
 import { playTone } from '../lib/timerSound'
 
 vi.mock('../app/appContext', () => ({
@@ -744,6 +745,10 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.getByRole('button', { name: /^pass$/i })).toHaveAttribute(
       'aria-pressed',
       'true',
+    )
+    expect(screen.getByLabelText(/^date$/i)).toHaveValue(todayDateString())
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'session date was updated to today',
     )
   })
 

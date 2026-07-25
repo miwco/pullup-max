@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays } from '../lib/date'
+import { addDays, addMonths } from '../lib/date'
 import { createDefaultExercises } from '../domain/defaults'
 import {
   clampCycleLengthDays,
@@ -48,6 +48,12 @@ describe('cycle, bodyweight, and training-load logic', () => {
 
     expect(getCycleEndDateForLength('2026-04-19', 50)).toBe('2026-06-07')
     expect(getCycleEndDateForLength('2026-04-19', 90)).toBe('2026-07-17')
+  })
+
+  it('adds calendar months and clamps dates to the target month', () => {
+    expect(addMonths('2026-07-25', 2)).toBe('2026-09-25')
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-28')
+    expect(addMonths('2028-01-31', 1)).toBe('2028-02-29')
   })
 
   it('uses a shorter taper-minded peak instead of equal phase thirds', () => {

@@ -89,7 +89,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(10)
+      expect(parsed.value.version).toBe(11)
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
       expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
         seeded.athleteProfile.cycleEndDate,
@@ -158,7 +158,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(10)
+      expect(parsed.value.version).toBe(11)
       expect(parsed.value.data.sessions[0]?.sessionType).toBe('support')
       expect(parsed.value.data.exercises[0]?.type).toBe('support')
       expect(parsed.value.data.maxTests[0]?.failurePoint).toBe('top')
@@ -455,7 +455,7 @@ describe('import/export validation', () => {
     expect(parseImportBundle(unsupportedVersion)).toEqual({
       ok: false,
       error:
-        'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, 8, 9, or 10.',
+        'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, 8, 9, 10, or 11.',
     })
   })
 

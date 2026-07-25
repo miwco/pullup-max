@@ -31,6 +31,23 @@ export function addDays(dateString: string, days: number) {
   return todayDateString(date)
 }
 
+export function addMonths(dateString: string, months: number) {
+  const date = startOfLocalDay(dateString)
+  const originalDay = date.getDate()
+
+  date.setDate(1)
+  date.setMonth(date.getMonth() + months)
+
+  const lastDayOfTargetMonth = new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0,
+  ).getDate()
+  date.setDate(Math.min(originalDay, lastDayOfTargetMonth))
+
+  return todayDateString(date)
+}
+
 export function formatLongDate(dateString: string) {
   return startOfLocalDay(dateString).toLocaleDateString(undefined, {
     month: 'short',

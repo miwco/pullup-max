@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CycleLineChart } from '../../components/Charts'
 import { AccordionSection } from '../../components/AccordionSection'
 import { Section } from '../../components/Section'
 import { useAppState } from '../../app/appContext'
+import {
+  getProgressCycleOptions,
+  getProgressScope,
+} from '../../domain/progressCycles'
 import { getFailurePointPattern } from '../../domain/selectors'
 import {
   formatLongDate,
@@ -12,12 +16,16 @@ import {
 import { WorkoutHistory } from './WorkoutHistory'
 import { GreaseGrooveHistory } from './GreaseGrooveHistory'
 
+function formatChange(value: number | null) {
+  if (value === null) return 'Not available'
+  return `${value >= 0 ? '+' : ''}${value} reps`
+}
+
 export function ProgressScreen() {
   const {
     allTimeMaxTrendPoints,
-    bodyweightTrendPoints,
-    cycleMaxTrendPoints,
     cycleSummary,
+    cycleMaxTrendPoints,
     data,
     deleteGreaseGrooveEntry,
     deleteWorkout,
@@ -28,66 +36,107 @@ export function ProgressScreen() {
     updateWorkout,
     updateGreaseGrooveEntry,
   } = useAppState()
-  const [chartMode, setChartMode] = useState<'cycle' | 'all-time'>('cycle')
+  const today = todayDateString()
+  const cycleOptions = useMemo(() => getProgressCycleOptions(data), [data])
+  const [viewMode, setViewMode] = useState<'cycles' | 'lifetime'>('cycles')
+  const [selectedCycleId, setSelectedCycleId] = useState('current')
   const [painOpen, setPainOpen] = useState(false)
-  const hasPainData = painTrendPoints.some(
-    (p) => p.elbowAvg !== null || p.shoulderAvg !== null,
-  )
   const [showMax, setShowMax] = useState(true)
   const [showWeight, setShowWeight] = useState(false)
+  const selectedCycle =
+    cycleOptions.find((cycle) => cycle.id === selectedCycleId) ??
+    cycleOptions[0]!
+  const isLifetime = viewMode === 'lifetime'
+  const scope = useMemo(
+    () =>
+      getProgressScope(data, isLifetime ? null : selectedCycle, today, {
+        maxPoints: isLifetime
+          ? allTimeMaxTrendPoints
+          : selectedCycle.isCurrent
+            ? cycleMaxTrendPoints
+            : undefined,
+        workouts:
+          isLifetime || selectedCycle.isCurrent ? recentWorkouts : undefined,
+      }),
+    [
+      allTimeMaxTrendPoints,
+      cycleMaxTrendPoints,
+      data,
+      isLifetime,
+      recentWorkouts,
+      selectedCycle,
+      today,
+    ],
+  )
+  const hasPainData = painTrendPoints.some(
+    (point) => point.elbowAvg !== null || point.shoulderAvg !== null,
+  )
   const failurePattern = getFailurePointPattern(maxHistory)
-
-  const isAllTime = chartMode === 'all-time'
-  const activeMaxPoints = isAllTime
-    ? allTimeMaxTrendPoints
-    : cycleMaxTrendPoints
-  const activeWindow =
-    isAllTime && allTimeMaxTrendPoints.length > 0
-      ? {
-          start: allTimeMaxTrendPoints[0]!.date,
-          end: todayDateString(),
-        }
-      : cycleSummary.cycleWindow
+  const scopeLabel = isLifetime
+    ? 'Lifetime'
+    : selectedCycle.isCurrent
+      ? 'Current cycle'
+      : 'Completed cycle'
+  const historyKey = isLifetime ? 'lifetime' : selectedCycle.id
 
   return (
     <div className="screen-stack">
       <Section
-        eyebrow={isAllTime ? 'All time' : 'Current cycle'}
+        eyebrow={scopeLabel}
         title="Progress"
         className="section--compact"
       >
-        <div className="action-row action-row--compact">
+        <div className="segment-row progress-view-toggle">
           <button
             type="button"
-            className={`chip chip--button${!isAllTime ? ' is-active' : ''}`}
-            onClick={() => setChartMode('cycle')}
+            className={`segment-row__item${!isLifetime ? ' is-active' : ''}`}
+            aria-pressed={!isLifetime}
+            onClick={() => setViewMode('cycles')}
           >
-            Current cycle
+            Cycles
           </button>
           <button
             type="button"
-            className={`chip chip--button${isAllTime ? ' is-active' : ''}`}
-            onClick={() => setChartMode('all-time')}
+            className={`segment-row__item${isLifetime ? ' is-active' : ''}`}
+            aria-pressed={isLifetime}
+            onClick={() => setViewMode('lifetime')}
           >
-            All time
+            Lifetime
           </button>
         </div>
 
-        {!isAllTime ? (
-          <div className="cycle-window-note">
-            <p>
-              This graph shows max reps across the current cycle from{' '}
-              <strong>{formatLongDate(cycleSummary.cycleWindow.start)}</strong>{' '}
-              to <strong>{formatLongDate(cycleSummary.cycleWindow.end)}</strong>
-              .
-            </p>
-          </div>
+        {!isLifetime ? (
+          <label className="field progress-cycle-picker">
+            <span>Cycle to view</span>
+            <select
+              aria-label="Cycle to view"
+              value={selectedCycle.id}
+              onChange={(event) => setSelectedCycleId(event.target.value)}
+            >
+              {cycleOptions.map((cycle) => (
+                <option key={cycle.id} value={cycle.id}>
+                  {cycle.isCurrent ? 'Current - ' : ''}
+                  {formatShortDate(cycle.window.start)} to{' '}
+                  {formatShortDate(cycle.window.end)}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : null}
+
+        <div className="cycle-window-note">
+          <p>
+            {isLifetime
+              ? `Every saved workout and max test from ${formatLongDate(scope.window.start)} to ${formatLongDate(scope.window.end)}.`
+              : `${selectedCycle.isCurrent ? 'Current' : 'Completed'} ${selectedCycle.lengthDays}-day cycle from ${formatLongDate(scope.window.start)} to ${formatLongDate(scope.window.end)}.`}
+          </p>
+        </div>
 
         <div className="action-row action-row--compact">
           <button
             type="button"
             className={`chip chip--button${showMax ? ' is-active' : ''}`}
+            aria-pressed={showMax}
             onClick={() => setShowMax((current) => !current)}
           >
             Max reps
@@ -96,6 +145,7 @@ export function ProgressScreen() {
             <button
               type="button"
               className={`chip chip--button${showWeight ? ' is-active' : ''}`}
+              aria-pressed={showWeight}
               onClick={() => setShowWeight((current) => !current)}
             >
               Weight
@@ -105,83 +155,95 @@ export function ProgressScreen() {
 
         <CycleLineChart
           ariaLabel={
-            isAllTime
+            isLifetime
               ? 'Progress across all time'
-              : 'Progress across the current cycle'
+              : selectedCycle.isCurrent
+                ? 'Progress across the current cycle'
+                : 'Progress across the selected cycle'
           }
-          cycleWindow={activeWindow}
-          maxPoints={activeMaxPoints}
+          cycleWindow={scope.window}
+          maxPoints={scope.maxPoints}
+          rangeKind={isLifetime ? 'lifetime' : 'cycle'}
           showMax={showMax}
-          showPhaseBands={!isAllTime}
+          showPhaseBands={!isLifetime && selectedCycle.isCurrent}
           showWeight={showWeight}
-          today={todayDateString()}
-          weightPoints={isAllTime ? [] : bodyweightTrendPoints}
+          today={today}
+          weightPoints={scope.bodyweightPoints}
+          workoutPoints={scope.workoutPoints}
         />
 
-        {data.settings.bodyweightTrackingEnabled ? (
-          <p className="muted-text">
-            Toggle weight to compare bodyweight and max-rep changes on the same
-            dates.
-          </p>
-        ) : null}
+        <p className="muted-text">
+          Workout markers along the bottom show Max and Support days. Toggle
+          weight to compare it with max-rep changes.
+        </p>
       </Section>
 
-      <Section eyebrow="Cycle" title="Cycle snapshot">
+      <Section
+        eyebrow={isLifetime ? 'All records' : 'Selected cycle'}
+        title={isLifetime ? 'Lifetime snapshot' : 'Cycle snapshot'}
+      >
         <div className="mini-stat-grid mini-stat-grid--triple">
           <div className="mini-stat">
-            <span className="metric-label">Start</span>
-            <strong>{formatLongDate(cycleSummary.cycleWindow.start)}</strong>
+            <span className="metric-label">First max</span>
+            <strong>{scope.firstMax ?? 'No max yet'}</strong>
           </div>
           <div className="mini-stat">
-            <span className="metric-label">End</span>
-            <strong>{formatLongDate(cycleSummary.cycleWindow.end)}</strong>
+            <span className="metric-label">Latest max</span>
+            <strong>{scope.latestMax ?? 'No max yet'}</strong>
           </div>
           <div className="mini-stat">
-            <span className="metric-label">Length</span>
-            <strong>{data.settings.cycleLengthDays} days</strong>
+            <span className="metric-label">Best max</span>
+            <strong>{scope.bestMax ?? 'No max yet'}</strong>
           </div>
           <div className="mini-stat">
-            <span className="metric-label">Phase</span>
-            <strong>{cycleSummary.currentPhase}</strong>
+            <span className="metric-label">
+              {isLifetime ? 'Lifetime change' : 'Cycle change'}
+            </span>
+            <strong>{formatChange(scope.changeFromFirstMax)}</strong>
           </div>
           <div className="mini-stat">
-            <span className="metric-label">Days remaining</span>
-            <strong>{cycleSummary.daysRemaining}</strong>
-          </div>
-          <div className="mini-stat">
-            <span className="metric-label">Baseline</span>
-            <strong>{cycleSummary.baselineMax ?? 'No baseline yet'}</strong>
-          </div>
-          <div className="mini-stat">
-            <span className="metric-label">Cycle best</span>
-            <strong>{cycleSummary.cycleBestMax ?? 'No max yet'}</strong>
-          </div>
-          <div className="mini-stat">
-            <span className="metric-label">Best change</span>
+            <span className="metric-label">Workouts</span>
             <strong>
-              {cycleSummary.cycleBestDelta === null
-                ? 'Not available'
-                : `${cycleSummary.cycleBestDelta >= 0 ? '+' : ''}${cycleSummary.cycleBestDelta} reps`}
-            </strong>
-          </div>
-          <div className="mini-stat">
-            <span className="metric-label">Sessions</span>
-            <strong>
-              {cycleSummary.maxSessions} max / {cycleSummary.supportSessions}{' '}
-              support
+              {scope.maxSessions} max / {scope.supportSessions} support
             </strong>
           </div>
           <div className="mini-stat">
             <span className="metric-label">Training load</span>
-            <strong>{cycleSummary.trainingLoadPoints} pts</strong>
+            <strong>{scope.trainingLoadPoints} pts</strong>
           </div>
           <div className="mini-stat">
             <span className="metric-label">GG sets</span>
-            <strong>{cycleSummary.greaseGrooveSets}</strong>
+            <strong>{scope.greaseGrooveEntries.length}</strong>
           </div>
+          {!isLifetime && selectedCycle.isCurrent ? (
+            <>
+              <div className="mini-stat">
+                <span className="metric-label">Phase</span>
+                <strong>{cycleSummary.currentPhase}</strong>
+              </div>
+              <div className="mini-stat">
+                <span className="metric-label">Days remaining</span>
+                <strong>{cycleSummary.daysRemaining}</strong>
+              </div>
+            </>
+          ) : (
+            <div className="mini-stat">
+              <span className="metric-label">Date range</span>
+              <strong>
+                {formatShortDate(scope.window.start)} -{' '}
+                {formatShortDate(scope.window.end)}
+              </strong>
+            </div>
+          )}
         </div>
-        <p className="muted-text">{cycleSummary.summary}</p>
-        {cycleSummary.daysRemaining === 0 ? (
+        <p className="muted-text">
+          {scope.maxPoints.length === 0
+            ? 'No max tests are logged in this range yet.'
+            : `${scope.maxPoints.length} max test${scope.maxPoints.length === 1 ? '' : 's'} and ${scope.workouts.length} workout${scope.workouts.length === 1 ? '' : 's'} are included.`}
+        </p>
+        {!isLifetime &&
+        selectedCycle.isCurrent &&
+        cycleSummary.daysRemaining === 0 ? (
           <button
             type="button"
             className="button button--primary"
@@ -255,15 +317,26 @@ export function ProgressScreen() {
       ) : null}
 
       <WorkoutHistory
-        bodyweightEntries={data.bodyweightEntries}
+        key={historyKey}
+        bodyweightEntries={scope.bodyweightEntries}
         bodyweightTrackingEnabled={data.settings.bodyweightTrackingEnabled}
         exercises={data.exercises}
+        eyebrow={scopeLabel}
+        emptyMessage={`No workouts are logged in this ${isLifetime ? 'history' : 'cycle'} yet.`}
         onDeleteWorkout={deleteWorkout}
         onUpdateWorkout={updateWorkout}
-        workouts={recentWorkouts}
+        title={
+          isLifetime
+            ? 'All workouts'
+            : selectedCycle.isCurrent
+              ? 'Past workouts - current cycle'
+              : 'Past workouts - selected cycle'
+        }
+        workouts={scope.workouts}
       />
       <GreaseGrooveHistory
-        entries={data.greaseGrooveEntries}
+        key={`gg-${historyKey}`}
+        entries={scope.greaseGrooveEntries}
         onDelete={deleteGreaseGrooveEntry}
         onUpdate={updateGreaseGrooveEntry}
       />

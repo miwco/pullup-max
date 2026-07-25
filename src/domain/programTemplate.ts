@@ -79,7 +79,7 @@ function withEmomMinutes(step: ProgramStep, emomMinutes: number): ProgramStep {
   }
 }
 
-function applyBuildStepAdjustment(step: ProgramStep, bandsAvailable: boolean) {
+function applyBuildStepAdjustment(step: ProgramStep) {
   let nextStep = appendPhaseNote(
     step,
     'Build phase: use more easy exposures and stop every set clean.',
@@ -122,7 +122,7 @@ function applyBuildStepAdjustment(step: ProgramStep, bandsAvailable: boolean) {
     }
   }
 
-  if (bandsAvailable && nextStep.bandAllowed) {
+  if (nextStep.bandAllowed) {
     nextStep = appendPhaseNote(
       nextStep,
       'Use bands whenever needed to keep the reps crisp.',
@@ -238,9 +238,9 @@ export function createDefaultProgramTemplate(
             title: 'EMOM pull-up block',
             exerciseName: 'EMOM pull-up block',
             emomMinutes: 10,
-            emomReps: 4,
+            emomReps: 2,
             sets: 10,
-            reps: 4,
+            reps: 2,
             bodyweightOption: 'bodyweight',
             notes:
               'Adjust reps if needed so you can complete all 10 minutes with clean form.',
@@ -471,10 +471,7 @@ export function getAllProgramSteps(template: ProgramTemplate) {
   ]
 }
 
-export function applyEasySupportAdjustments(
-  steps: ProgramStep[],
-  bandsAvailable: boolean,
-) {
+export function applyEasySupportAdjustments(steps: ProgramStep[]) {
   return steps.map((step) => {
     const nextStep = {
       ...step,
@@ -486,7 +483,7 @@ export function applyEasySupportAdjustments(
       nextStep.reps = Math.max(1, nextStep.reps - 1)
     }
 
-    if (bandsAvailable && nextStep.bandAllowed) {
+    if (nextStep.bandAllowed) {
       nextStep.notes = nextStep.notes
         ? `${nextStep.notes} Use bands if needed to keep the work easy.`
         : 'Use bands if needed to keep the work easy.'
@@ -501,10 +498,9 @@ export function applyPhaseAdjustments(
   steps: ProgramStep[],
   sessionType: SessionType,
   phase: CyclePhase,
-  bandsAvailable: boolean,
 ) {
   if (phase === 'build') {
-    return steps.map((step) => applyBuildStepAdjustment(step, bandsAvailable))
+    return steps.map((step) => applyBuildStepAdjustment(step))
   }
 
   if (phase === 'develop') {

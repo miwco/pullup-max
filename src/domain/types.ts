@@ -43,6 +43,14 @@ export interface AthleteProfile {
   notes: string
 }
 
+export interface TrainingCycleRecord {
+  id: string
+  startDate: string
+  endDate: string
+  lengthDays: number
+  completedAt: string
+}
+
 export interface BodyweightEntry {
   id: string
   date: string
@@ -187,7 +195,6 @@ export type PresetProgressionState =
 
 export interface AppSettings {
   bodyweightTrackingEnabled: boolean
-  bandsAvailable: boolean
   cycleLengthDays: number
   exportFormatVersion: number
   onboardingDismissed: boolean
@@ -243,6 +250,7 @@ export interface SaveFinishWorkoutInput {
 export interface AppData {
   athleteProfile: AthleteProfile
   settings: AppSettings
+  cycleHistory: TrainingCycleRecord[]
   exercises: Exercise[]
   bodyweightEntries: BodyweightEntry[]
   greaseGrooveEntries: GreaseGrooveEntry[]
@@ -270,7 +278,6 @@ export interface MaxExposure {
 
 export interface RecommendationInput {
   availableExercises: string[]
-  bandsAvailable: boolean
   cycleMaxResults: MaxExposure[]
   currentPhase: CyclePhase
   daysSinceLastMax: number | null

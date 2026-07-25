@@ -15,7 +15,6 @@ import type {
   PresetOutcome,
 } from '../../domain/types'
 import { todayDateString } from '../../lib/date'
-import { requestTimerStop } from '../../lib/timerEvents'
 import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
 import { PersistentWorkoutTimer } from './PersistentWorkoutTimer'
 import { createDipSteps, createTimedSetSteps } from './finishTimerPlan'
@@ -27,6 +26,7 @@ const EXERCISES: Array<{ id: FinishExerciseId; label: string }> = [
   { id: 'dips', label: 'Dips' },
   { id: 'squat-jumps', label: 'Squat jumps' },
 ]
+const FINISH_TIMER_GROUP = 'finish-workout'
 
 function OutcomeButtons({
   label,
@@ -285,14 +285,6 @@ export function FinishWorkoutScreen() {
                 ? dipPlan.join(',')
                 : 'fixed'
         }`
-        const stopPreviousRestTimer = () => {
-          const previousExercise = EXERCISES[index - 1]
-
-          if (previousExercise) {
-            requestTimerStop(`${today}:transition:${previousExercise.id}`)
-          }
-        }
-
         return (
           <Section
             key={id}
@@ -439,8 +431,8 @@ export function FinishWorkoutScreen() {
             {timerSteps ? (
               <PersistentWorkoutTimer
                 key={timerKey}
+                exclusiveGroupId={FINISH_TIMER_GROUP}
                 label={id === 'dips' ? 'Dip EMOM' : exerciseLabel}
-                onStart={stopPreviousRestTimer}
                 soundSettings={soundSettings}
                 storageKey={`${today}:${id}`}
                 steps={timerSteps}
@@ -465,6 +457,7 @@ export function FinishWorkoutScreen() {
               <PersistentWorkoutTimer
                 key={`${id}-${restStartedFor[id] ?? 0}`}
                 autoStart
+                exclusiveGroupId={FINISH_TIMER_GROUP}
                 label="Next exercise"
                 soundSettings={soundSettings}
                 storageKey={`${today}:transition:${id}`}

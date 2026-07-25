@@ -137,7 +137,6 @@ export function getAdjustedProgramSteps(
     steps,
     sessionType,
     input.currentPhase,
-    input.bandsAvailable,
   )
 
   if (
@@ -145,7 +144,7 @@ export function getAdjustedProgramSteps(
     input.currentPhase !== 'build' &&
     shouldEaseSupport(input)
   ) {
-    steps = applyEasySupportAdjustments(steps, input.bandsAvailable)
+    steps = applyEasySupportAdjustments(steps)
   }
 
   return steps
@@ -162,8 +161,7 @@ function getSuggestedExercises(
 
   if (
     nextSessionType === 'support' &&
-    (input.currentPhase === 'build' || shouldEaseSupport(input)) &&
-    input.bandsAvailable
+    (input.currentPhase === 'build' || shouldEaseSupport(input))
   ) {
     const bandExerciseName = getSupportBandExerciseName(
       input.mainMovement,

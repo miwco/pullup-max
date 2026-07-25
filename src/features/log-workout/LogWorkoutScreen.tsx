@@ -20,7 +20,7 @@ import type {
   WorkoutLogDraft,
   WorkoutLogEntryDraft,
 } from '../../domain/types'
-import { todayDateString } from '../../lib/date'
+import { formatLongDate, todayDateString } from '../../lib/date'
 import { createId } from '../../lib/id'
 import { formatQualityFlag, getQualityTone } from '../../lib/qualityFlag'
 import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
@@ -921,6 +921,7 @@ function RestTimer({
 }
 
 export function LogWorkoutScreen({
+  prefill,
   requestedType,
   onSaved,
 }: LogWorkoutScreenProps) {
@@ -934,6 +935,9 @@ export function LogWorkoutScreen({
   } = useAppState()
   const recommendedType = data.recommendationState.nextSessionType
   const initialType = requestedType ?? recommendedType
+  const todayAtOpen = todayDateString()
+  const draftDateWasUpdated =
+    prefill && !!workoutDraft && workoutDraft.date < todayAtOpen
   const initialSessionType = workoutDraft?.sessionType ?? initialType
   const initialSupportFocus = normalizeSupportWorkoutFocus(
     workoutDraft?.supportFocus ?? data.recommendationState.defaultSupportFocus,
@@ -947,8 +951,8 @@ export function LogWorkoutScreen({
     useState<SessionType>(initialSessionType)
   const [supportFocus, setSupportFocus] =
     useState<SupportWorkoutFocus>(initialSupportFocus)
-  const [date, setDate] = useState(
-    () => workoutDraft?.date ?? todayDateString(),
+  const [date, setDate] = useState(() =>
+    draftDateWasUpdated ? todayAtOpen : (workoutDraft?.date ?? todayAtOpen),
   )
   const [maxReps, setMaxReps] = useState(
     workoutDraft?.maxReps ||
@@ -1311,6 +1315,15 @@ export function LogWorkoutScreen({
 
   return (
     <div className="screen-stack">
+      {draftDateWasUpdated ? (
+        <div className="notice notice--warning" role="status">
+          <span>
+            This saved draft was dated {formatLongDate(workoutDraft.date)}. Its
+            session date was updated to today; you can change it below if
+            needed.
+          </span>
+        </div>
+      ) : null}
       <form className="screen-stack" onSubmit={handleSubmit}>
         <Section eyebrow="Fast logging" title="Workout">
           <div className="summary-bar">
@@ -1393,6 +1406,7 @@ export function LogWorkoutScreen({
                 type="date"
                 name="session-date"
                 value={date}
+                max={todayAtOpen}
                 onChange={(event) => updateText(setDate, event.target.value)}
               />
             </label>

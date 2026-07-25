@@ -9,7 +9,7 @@ import {
 } from '../../domain/cycle'
 import { serializeMaxTestsCsv } from '../../domain/importExport'
 import type { TimerSoundId } from '../../domain/types'
-import { addDays, todayDateString } from '../../lib/date'
+import { addMonths, todayDateString } from '../../lib/date'
 import {
   BACKUP_STALE_AFTER_DAYS,
   getBackupFreshness,
@@ -19,11 +19,15 @@ import {
 import { playTone, TIMER_SOUND_OPTIONS } from '../../lib/timerSound'
 import { useUnsavedChangesPrompt } from '../../lib/useUnsavedChangesPrompt'
 
-const STANDARD_CYCLE_DAYS = 90
-type CyclePlanMode = 'standard' | 'competition'
+const FIXED_CYCLE_LENGTHS = [30, 60, 90, 120] as const
+type CyclePlanMode = 'fixed' | 'competition'
 
 function getInitialCyclePlanMode(cycleLengthDays: number): CyclePlanMode {
-  return cycleLengthDays === STANDARD_CYCLE_DAYS ? 'standard' : 'competition'
+  return FIXED_CYCLE_LENGTHS.includes(
+    cycleLengthDays as (typeof FIXED_CYCLE_LENGTHS)[number],
+  )
+    ? 'fixed'
+    : 'competition'
 }
 
 function getCyclePlannerError(
@@ -84,9 +88,6 @@ export function ProfileSettingsScreen() {
   const [bodyweightTrackingEnabled, setBodyweightTrackingEnabled] = useState(
     data.settings.bodyweightTrackingEnabled,
   )
-  const [bandsAvailable, setBandsAvailable] = useState(
-    data.settings.bandsAvailable,
-  )
   const [timerSoundId, setTimerSoundId] = useState<TimerSoundId>(
     data.settings.timerSoundId,
   )
@@ -104,7 +105,6 @@ export function ProfileSettingsScreen() {
     cycleEndDate !== data.athleteProfile.cycleEndDate ||
     cycleLengthDays !== String(data.settings.cycleLengthDays) ||
     bodyweightTrackingEnabled !== data.settings.bodyweightTrackingEnabled ||
-    bandsAvailable !== data.settings.bandsAvailable ||
     timerSoundId !== data.settings.timerSoundId ||
     timerVolume !== data.settings.timerVolume ||
     notes !== data.athleteProfile.notes
@@ -126,7 +126,6 @@ export function ProfileSettingsScreen() {
       setCycleEndDate(data.athleteProfile.cycleEndDate)
       setCycleLengthDays(String(data.settings.cycleLengthDays))
       setBodyweightTrackingEnabled(data.settings.bodyweightTrackingEnabled)
-      setBandsAvailable(data.settings.bandsAvailable)
       setTimerSoundId(data.settings.timerSoundId)
       setTimerVolume(data.settings.timerVolume)
       setNotes(data.athleteProfile.notes)
@@ -135,11 +134,9 @@ export function ProfileSettingsScreen() {
 
   function handleCycleStartDateChange(nextCycleStartDate: string) {
     setCycleStartDate(nextCycleStartDate)
-    if (cyclePlanMode === 'standard') {
-      setCycleLengthDays(String(STANDARD_CYCLE_DAYS))
-      setCycleEndDate(
-        getCycleEndDateForLength(nextCycleStartDate, STANDARD_CYCLE_DAYS),
-      )
+    if (cyclePlanMode === 'fixed') {
+      const fixedLength = Number(cycleLengthDays)
+      setCycleEndDate(getCycleEndDateForLength(nextCycleStartDate, fixedLength))
       return
     }
 
@@ -167,7 +164,7 @@ export function ProfileSettingsScreen() {
     const nextCycleEndDate =
       cyclePlanMode === 'competition' && cycleEndDate >= nextCycleStartDate
         ? cycleEndDate
-        : addDays(nextCycleStartDate, MIN_CYCLE_LENGTH_DAYS - 1)
+        : addMonths(nextCycleStartDate, 2)
     setCyclePlanMode('competition')
     setCycleStartDate(nextCycleStartDate)
     setCycleEndDate(nextCycleEndDate)
@@ -178,12 +175,14 @@ export function ProfileSettingsScreen() {
     setCycleLengthDays(derivedLength === null ? '' : String(derivedLength))
   }
 
-  function applyStandardCycle() {
-    setCyclePlanMode('standard')
-    setCycleLengthDays(String(STANDARD_CYCLE_DAYS))
-    setCycleEndDate(
-      getCycleEndDateForLength(cycleStartDate, STANDARD_CYCLE_DAYS),
-    )
+  function applyFixedCycle(lengthDays: number) {
+    const today = todayDateString()
+    const nextCycleStartDate = cycleEndDate < today ? today : cycleStartDate
+
+    setCyclePlanMode('fixed')
+    setCycleStartDate(nextCycleStartDate)
+    setCycleLengthDays(String(lengthDays))
+    setCycleEndDate(getCycleEndDateForLength(nextCycleStartDate, lengthDays))
   }
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
@@ -199,7 +198,6 @@ export function ProfileSettingsScreen() {
       },
       {
         bodyweightTrackingEnabled,
-        bandsAvailable,
         cycleLengthDays: Number(cycleLengthDays),
         timerSoundId,
         timerVolume,
@@ -293,17 +291,21 @@ export function ProfileSettingsScreen() {
             <div className="field field--span-2">
               <span>Cycle plan</span>
               <div className="button-row button-row--wrap">
-                <button
-                  type="button"
-                  className={`button button--compact${
-                    cyclePlanMode === 'standard'
-                      ? ' button--primary'
-                      : ' button--ghost'
-                  }`}
-                  onClick={applyStandardCycle}
-                >
-                  3 months
-                </button>
+                {FIXED_CYCLE_LENGTHS.map((lengthDays) => (
+                  <button
+                    key={lengthDays}
+                    type="button"
+                    className={`button button--compact${
+                      cyclePlanMode === 'fixed' &&
+                      Number(cycleLengthDays) === lengthDays
+                        ? ' button--primary'
+                        : ' button--ghost'
+                    }`}
+                    onClick={() => applyFixedCycle(lengthDays)}
+                  >
+                    {lengthDays} days
+                  </button>
+                ))}
                 <button
                   type="button"
                   className={`button button--compact${
@@ -328,7 +330,7 @@ export function ProfileSettingsScreen() {
                 type="date"
                 name="cycle-end-date"
                 value={cycleEndDate}
-                readOnly={cyclePlanMode === 'standard'}
+                readOnly={cyclePlanMode === 'fixed'}
                 onInput={(event) =>
                   handleCompetitionDateChange(event.currentTarget.value)
                 }
@@ -351,15 +353,6 @@ export function ProfileSettingsScreen() {
                 onChange={(event) =>
                   setBodyweightTrackingEnabled(event.target.checked)
                 }
-              />
-            </label>
-
-            <label className="field field--checkbox">
-              <span>Bands available</span>
-              <input
-                type="checkbox"
-                checked={bandsAvailable}
-                onChange={(event) => setBandsAvailable(event.target.checked)}
               />
             </label>
 
@@ -444,7 +437,7 @@ export function ProfileSettingsScreen() {
           </div>
           <div className="mini-stat">
             <span className="metric-label">Default cycle</span>
-            <strong>3 months</strong>
+            <strong>90 days</strong>
           </div>
           <div className="mini-stat">
             <span className="metric-label">Competition</span>

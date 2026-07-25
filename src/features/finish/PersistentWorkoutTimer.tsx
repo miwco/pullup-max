@@ -3,7 +3,10 @@ import { playTone, type TimerSoundSettings } from '../../lib/timerSound'
 import type { WorkoutTimerStep } from './finishTimerPlan'
 import { FINISH_TIMER_STORAGE_PREFIX } from './finishTimerStorage'
 import { useScreenWakeLock } from '../../lib/useScreenWakeLock'
-import { subscribeToTimerStop } from '../../lib/timerEvents'
+import {
+  requestExclusiveTimerStart,
+  subscribeToTimerStop,
+} from '../../lib/timerEvents'
 
 interface StoredTimer {
   isRunning: boolean
@@ -44,6 +47,7 @@ function writeTimer(key: string, timer: StoredTimer) {
 
 export function PersistentWorkoutTimer({
   autoStart = false,
+  exclusiveGroupId,
   label,
   onStart,
   soundSettings,
@@ -52,6 +56,7 @@ export function PersistentWorkoutTimer({
   totalSets,
 }: {
   autoStart?: boolean
+  exclusiveGroupId?: string
   label: string
   onStart?: () => void
   soundSettings: TimerSoundSettings
@@ -158,24 +163,33 @@ export function PersistentWorkoutTimer({
   const playAutoStartCueRef = useRef(
     autoStart && !storedTimer && timer.isRunning,
   )
+  const announceRunningTimerRef = useRef(timer.isRunning)
   const currentStep = steps[timer.stepIndex]
   const isComplete = timer.stepIndex >= steps.length
   const phase = isComplete ? 'complete' : (currentStep?.phase ?? 'ready')
   useScreenWakeLock(timer.isRunning)
 
   useEffect(() => {
-    return subscribeToTimerStop(storageKey, () => {
-      setTimer((current) => ({
-        ...current,
-        isRunning: false,
-        lastUpdatedAt: null,
-      }))
-    })
-  }, [storageKey])
+    return subscribeToTimerStop(
+      storageKey,
+      () => {
+        setTimer((current) => ({
+          ...current,
+          isRunning: false,
+          lastUpdatedAt: null,
+        }))
+      },
+      exclusiveGroupId,
+    )
+  }, [exclusiveGroupId, storageKey])
 
   const startTimer = useCallback(
     (playStartCue: boolean) => {
       onStart?.()
+
+      if (exclusiveGroupId) {
+        requestExclusiveTimerStart(exclusiveGroupId, storageKey)
+      }
 
       if (playStartCue) {
         playTone(soundSettings, 'start')
@@ -198,12 +212,19 @@ export function PersistentWorkoutTimer({
         }
       })
     },
-    [onStart, soundSettings, steps],
+    [exclusiveGroupId, onStart, soundSettings, steps, storageKey],
   )
 
   useEffect(() => {
     writeTimer(storageKey, timer)
   }, [storageKey, timer])
+
+  useEffect(() => {
+    if (announceRunningTimerRef.current && exclusiveGroupId) {
+      announceRunningTimerRef.current = false
+      requestExclusiveTimerStart(exclusiveGroupId, storageKey)
+    }
+  }, [exclusiveGroupId, storageKey])
 
   useEffect(() => {
     if (playAutoStartCueRef.current) {

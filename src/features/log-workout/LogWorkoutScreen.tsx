@@ -157,6 +157,30 @@ function getEmomRoundPlan(entry: WorkoutLogEntryDraft) {
   )
 }
 
+function formatEmomSetRepTarget(roundPlan: number[]) {
+  const groups = roundPlan.reduce<Array<{ sets: number; reps: number }>>(
+    (result, reps) => {
+      const latest = result[result.length - 1]
+
+      if (latest?.reps === reps) {
+        latest.sets += 1
+      } else {
+        result.push({ sets: 1, reps })
+      }
+
+      return result
+    },
+    [],
+  )
+
+  return groups
+    .map(
+      ({ sets, reps }) =>
+        `${sets} ${sets === 1 ? 'set' : 'sets'} × ${reps} ${reps === 1 ? 'rep' : 'reps'}`,
+    )
+    .join(' + ')
+}
+
 function getStoredTimerKey(key: string) {
   return `${TIMER_STORAGE_PREFIX}:${key}`
 }
@@ -460,9 +484,6 @@ function EmomTimer({
       ? Math.min(roundCount, timer.currentRound + 1)
       : timer.currentRound
   const nextReps = roundPlan[nextRound - 1] ?? currentReps
-  const workSeconds = getEmomWorkSeconds(
-    timer.phase === 'rest' ? nextReps : currentReps,
-  )
   const phaseLabel =
     timer.phase === 'complete'
       ? 'Block complete'
@@ -478,7 +499,7 @@ function EmomTimer({
       ? `Next set ${nextRound}: ${nextReps} reps`
       : timer.phase === 'work' || timer.phase === 'prep'
         ? `Set ${timer.currentRound}: ${currentReps} reps`
-        : `${roundCount} sets ready`
+        : formatEmomSetRepTarget(roundPlan)
 
   return (
     <div
@@ -487,10 +508,9 @@ function EmomTimer({
       <div>
         <p className="metric-label">Pull-up block timer</p>
         <strong>{phaseLabel}</strong>
-        <p className="muted-text">
-          10s prep before set 1 - {roundCount} sets - work {workSeconds}s - rest{' '}
-          {EMOM_REST_SECONDS}s
-        </p>
+        {timer.phase === 'ready' ? (
+          <p className="muted-text">10 seconds before first set</p>
+        ) : null}
       </div>
 
       <div className="timer-panel__readout">

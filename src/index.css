@@ -895,6 +895,11 @@ textarea:disabled {
   font-size: 1rem;
 }
 
+.timer-panel--emom .timer-panel__instruction strong {
+  font-size: clamp(1.35rem, 6vw, 1.8rem);
+  line-height: 1.15;
+}
+
 .timer-panel.is-active .timer-panel__readout span {
   font-size: clamp(2.35rem, 14vw, 4.6rem);
 }
@@ -902,6 +907,10 @@ textarea:disabled {
 .timer-panel.is-active .timer-panel__readout small,
 .timer-panel.is-active .timer-panel__instruction strong {
   font-size: 1.05rem;
+}
+
+.timer-panel--emom.is-active .timer-panel__instruction strong {
+  font-size: clamp(1.35rem, 6vw, 1.8rem);
 }
 
 .timer-panel__input {

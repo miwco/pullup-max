@@ -231,9 +231,10 @@ describe('LogWorkoutScreen preset rows', () => {
       emomTimer!.compareDocumentPosition(emomOutcome!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(screen.getAllByText(/10s prep/i)).toHaveLength(2)
-    expect(screen.getByText(/work 15s/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/rest 60s/i).length).toBeGreaterThan(0)
+    expect(screen.getByText('10 seconds before first set')).toBeInTheDocument()
+    expect(screen.getByText('10 sets × 3 reps')).toBeInTheDocument()
+    expect(screen.queryByText(/work 15s/i)).toBeNull()
+    expect(screen.queryByText(/rest 60s/i)).toBeNull()
     expect(screen.getByText(/rest 2:00/i)).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /add row/i }),
@@ -327,6 +328,7 @@ describe('LogWorkoutScreen preset rows', () => {
   })
 
   it('adds five seconds to the EMOM work window for each rep above three', () => {
+    vi.useFakeTimers()
     const customState = createMockAppState()
     vi.mocked(customState.getProgramPrefill).mockReturnValue([
       createPrefillRow({
@@ -346,11 +348,24 @@ describe('LogWorkoutScreen preset rows', () => {
     ])
     mockedUseAppState.mockReturnValue(customState)
 
-    render(
+    const { container } = render(
       <LogWorkoutScreen prefill={true} requestedType="max" onSaved={vi.fn()} />,
     )
 
-    expect(screen.getByText(/work 25s/i)).toBeInTheDocument()
+    const emomRow = container.querySelector('.entry-row') as HTMLElement
+    fireEvent.click(
+      emomRow.querySelector('.timer-panel--emom .button--primary')!,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(10000 + 24000)
+    })
+    expect(emomRow).toHaveTextContent('Work')
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(emomRow).toHaveTextContent('Rest')
   })
 
   it('uses the prep countdown only before the first EMOM set', () => {

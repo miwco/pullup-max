@@ -205,7 +205,7 @@ describe('LogWorkoutScreen preset rows', () => {
       '[aria-label="Outcome for EMOM pull-up block"]',
     )
 
-    expect(screen.getByText('10m EMOM @ 3')).toBeInTheDocument()
+    expect(screen.getByLabelText('10m EMOM @ 3')).toBeInTheDocument()
     expect(
       screen.getByRole('radiogroup', {
         name: /outcome for emom pull-up block/i,
@@ -317,14 +317,14 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.getByRole('button', { name: /^top$/i })).toHaveClass(
       'is-active',
     )
-    expect(screen.getByText('top target')).toBeInTheDocument()
+    expect(screen.getByLabelText('top target')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /^low$/i }))
 
     expect(screen.getByRole('button', { name: /^low$/i })).toHaveClass(
       'is-active',
     )
-    expect(screen.getByText('low target')).toBeInTheDocument()
+    expect(screen.getByLabelText('low target')).toBeInTheDocument()
   })
 
   it('adds five seconds to the EMOM work window for each rep above three', () => {
@@ -545,7 +545,7 @@ describe('LogWorkoutScreen preset rows', () => {
     await user.click(screen.getByRole('button', { name: /^support$/i }))
 
     expect(confirmSpy).not.toHaveBeenCalled()
-    expect(screen.getByText('2x22s hold')).toBeInTheDocument()
+    expect(screen.getByLabelText('2x22s hold')).toBeInTheDocument()
   })
 
   it('warns before switching session type after preset outcomes would be lost', async () => {
@@ -562,7 +562,7 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(confirmSpy).toHaveBeenCalledWith(
       'Discard the current row outcomes and load the default program?',
     )
-    expect(screen.getByText('10m EMOM @ 3')).toBeInTheDocument()
+    expect(screen.getByLabelText('10m EMOM @ 3')).toBeInTheDocument()
   })
 
   it('autosaves preset outcomes as an in-progress workout draft', async () => {

@@ -181,6 +181,81 @@ function formatEmomSetRepTarget(roundPlan: number[]) {
     .join(' + ')
 }
 
+function PresetTargetDisplay({ entry }: { entry: WorkoutLogEntryDraft }) {
+  if (entry.target.mode === 'emom') {
+    const roundPlan = getEmomRoundPlan(entry)
+    const distinctReps = [...new Set(roundPlan)]
+    const repsLabel =
+      distinctReps.length === 1
+        ? String(distinctReps[0])
+        : `${Math.min(...distinctReps)}-${Math.max(...distinctReps)}`
+
+    return (
+      <div
+        className="preset-target preset-target--emom"
+        aria-label={entry.target.summary}
+      >
+        <div className="preset-target__metric">
+          <strong>{roundPlan.length}</strong>
+          <span>sets</span>
+        </div>
+        <div className="preset-target__metric">
+          <strong>{repsLabel}</strong>
+          <span>reps</span>
+        </div>
+        <div className="preset-target__interval">
+          <span aria-hidden="true">60</span>
+          <strong>Every 60 sec</strong>
+        </div>
+        {distinctReps.length > 1 ? (
+          <p className="preset-target__detail">
+            {formatEmomSetRepTarget(roundPlan)}
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+
+  if (
+    entry.target.mode === 'hold-seconds' ||
+    entry.target.mode === 'duration-seconds'
+  ) {
+    return (
+      <div
+        className="preset-target preset-target--timed"
+        aria-label={entry.target.summary}
+      >
+        <div className="preset-target__metric">
+          <strong>{entry.target.entrySets}</strong>
+          <span>{entry.target.entrySets === 1 ? 'set' : 'sets'}</span>
+        </div>
+        <div className="preset-target__metric">
+          <strong>{entry.target.entryDurationSeconds ?? 0}</strong>
+          <span>seconds</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="preset-target preset-target--reps"
+      aria-label={entry.target.summary}
+    >
+      <div className="preset-target__metric">
+        <strong>{entry.target.entrySets}</strong>
+        <span>{entry.target.entrySets === 1 ? 'set' : 'sets'}</span>
+      </div>
+      {typeof entry.target.entryReps === 'number' ? (
+        <div className="preset-target__metric">
+          <strong>{entry.target.entryReps}</strong>
+          <span>reps</span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function getStoredTimerKey(key: string) {
   return `${TIMER_STORAGE_PREFIX}:${key}`
 }
@@ -1594,10 +1669,9 @@ export function LogWorkoutScreen({
                     <div className="preset-row__copy">
                       <p className="metric-label">{entry.exerciseName}</p>
                       <strong>{entry.label}</strong>
-                      <p className="preset-row__target">
-                        {entry.target.summary}
-                      </p>
                     </div>
+
+                    <PresetTargetDisplay entry={entry} />
 
                     {entry.target.mode === 'emom' ? (
                       <EmomTimer

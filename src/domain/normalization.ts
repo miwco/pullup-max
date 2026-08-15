@@ -435,6 +435,17 @@ function normalizeEntries(value: unknown) {
           VALID_PRESET_OUTCOMES.has(item.outcome as PresetOutcome)
             ? (item.outcome as PresetOutcome)
             : undefined,
+        setOutcomes: Array.isArray(item.setOutcomes)
+          ? item.setOutcomes.filter(
+              (outcome): outcome is PresetOutcome =>
+                typeof outcome === 'string' &&
+                VALID_PRESET_OUTCOMES.has(outcome as PresetOutcome),
+            )
+          : undefined,
+        setRestSeconds:
+          typeof item.setRestSeconds === 'number' && item.setRestSeconds > 0
+            ? item.setRestSeconds
+            : undefined,
         presetTargetMode:
           typeof item.presetTargetMode === 'string' &&
           VALID_PRESET_TARGET_MODES.has(

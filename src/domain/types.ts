@@ -98,6 +98,8 @@ export interface ExerciseEntry {
   notes?: string
   presetKey?: string
   outcome?: PresetOutcome
+  setOutcomes?: PresetOutcome[]
+  setRestSeconds?: number
   presetTargetMode?: PresetTargetMode
   presetTargetSummary?: string
   isMaxTest: boolean
@@ -382,6 +384,8 @@ export interface ProgramEntryDraft {
 
 export interface WorkoutLogEntryDraft extends ProgramEntryDraft {
   localId: string
+  setOutcomes?: PresetOutcome[]
+  setRestSeconds?: number
 }
 
 export interface WorkoutLogDraft {

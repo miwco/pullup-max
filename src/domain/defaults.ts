@@ -13,7 +13,7 @@ import { createMovementExerciseSpecs, MAIN_MOVEMENTS } from './mainMovement'
 import { createDefaultProgramTemplate } from './programTemplate'
 import { createDefaultFinishWorkoutData } from './finishWorkout'
 
-export const EXPORT_FORMAT_VERSION = 11
+export const EXPORT_FORMAT_VERSION = 12
 
 const DEFAULT_EXERCISE_SPECS: Array<
   Omit<Exercise, 'id' | 'active' | 'builtIn'>

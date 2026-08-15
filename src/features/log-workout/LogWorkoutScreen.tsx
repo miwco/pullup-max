@@ -13,6 +13,7 @@ import { StatusPill } from '../../components/StatusPill'
 import { useAppState } from '../../app/appContext'
 import type {
   FailurePoint,
+  PresetOutcome,
   ProgramEntryDraft,
   QualityFlag,
   SessionType,
@@ -65,6 +66,7 @@ const SUPPORT_WORKOUT_OPTIONS: Array<{
 const PREP_SECONDS = 10
 const DEFAULT_EXERCISE_REST_SECONDS = 5 * 60
 const DEFAULT_HOLD_REST_SECONDS = 2 * 60
+const DEFAULT_SUPPORT_SET_REST_SECONDS = 90
 const DEFAULT_MAX_TO_BLOCK_REST_SECONDS = 7 * 60
 const EMOM_REST_SECONDS = 60
 const COUNTDOWN_BEEP_SECONDS = 5
@@ -105,7 +107,11 @@ function serializeEntry(entry: ProgramEntryDraft) {
   return {
     templateStepId: entry.templateStepId,
     presetKey: entry.presetKey,
+    target: entry.target,
     outcome: entry.outcome,
+    setOutcomes: 'setOutcomes' in entry ? entry.setOutcomes : undefined,
+    setRestSeconds:
+      'setRestSeconds' in entry ? entry.setRestSeconds : undefined,
   }
 }
 
@@ -132,6 +138,23 @@ function formatTimer(seconds: number) {
   const minutes = Math.floor(safeSeconds / 60)
   const remainingSeconds = safeSeconds % 60
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+}
+
+function getSupportSetCount(entry: WorkoutLogEntryDraft) {
+  return entry.target.mode === 'emom'
+    ? (entry.target.emomMinutes ?? entry.target.entrySets)
+    : entry.target.entrySets
+}
+
+function getSupportSetOutcomes(entry: WorkoutLogEntryDraft) {
+  if (entry.setOutcomes) {
+    return entry.setOutcomes.slice(0, getSupportSetCount(entry))
+  }
+
+  const outcome = entry.outcome
+  return outcome
+    ? Array.from({ length: getSupportSetCount(entry) }, () => outcome)
+    : []
 }
 
 function getEmomWorkSeconds(reps: number) {
@@ -627,14 +650,18 @@ function EmomTimer({
 function HoldTimer({
   entry,
   onStart,
+  singleSet = false,
+  setNumber = 1,
   soundSettings,
 }: {
   entry: WorkoutLogEntryDraft
   onStart?: () => void
+  singleSet?: boolean
+  setNumber?: number
   soundSettings: TimerSoundSettings
 }) {
   const holdSeconds = entry.target.entryDurationSeconds ?? 0
-  const setCount = entry.target.entrySets
+  const setCount = singleSet ? 1 : entry.target.entrySets
   const { pause, reset, start, timer, updateRestMinutes } = useSetIntervalTimer(
     {
       onStart,
@@ -664,28 +691,32 @@ function HoldTimer({
         <p className="metric-label">Hold timer</p>
         <strong>{phaseLabel}</strong>
         <p className="muted-text">
-          {PREP_SECONDS}s prep before hold 1 - {setCount} holds - {holdSeconds}s
-          work - rest {formatTimer(timer.restSeconds)}
+          {singleSet
+            ? `${PREP_SECONDS}s prep - ${holdSeconds}s hold`
+            : `${PREP_SECONDS}s prep before hold 1 - ${setCount} holds - ${holdSeconds}s work - rest ${formatTimer(timer.restSeconds)}`}
         </p>
       </div>
 
       <div className="timer-panel__readout">
         <span>{formatTimer(timer.secondsRemaining)}</span>
         <small>
-          Set {Math.min(timer.currentSet, setCount)} / {setCount}
+          Set {singleSet ? setNumber : Math.min(timer.currentSet, setCount)} /{' '}
+          {singleSet ? entry.target.entrySets : setCount}
         </small>
       </div>
 
-      <label className="field timer-panel__input">
-        <span>Rest min</span>
-        <input
-          type="number"
-          min="1"
-          step="1"
-          value={Math.round(timer.restSeconds / 60)}
-          onChange={(event) => updateRestMinutes(event.target.value)}
-        />
-      </label>
+      {!singleSet ? (
+        <label className="field timer-panel__input">
+          <span>Rest min</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={Math.round(timer.restSeconds / 60)}
+            onChange={(event) => updateRestMinutes(event.target.value)}
+          />
+        </label>
+      ) : null}
 
       <div className="button-row">
         <button
@@ -714,18 +745,22 @@ function HoldTimer({
 function DurationTimer({
   entry,
   onStart,
+  singleSet = false,
+  setNumber = 1,
   soundSettings,
 }: {
   entry: WorkoutLogEntryDraft
   onStart?: () => void
+  singleSet?: boolean
+  setNumber?: number
   soundSettings: TimerSoundSettings
 }) {
   const workSeconds = entry.target.entryDurationSeconds ?? 0
-  const setCount = entry.target.entrySets
+  const setCount = singleSet ? 1 : entry.target.entrySets
   const { pause, reset, start, timer, updateRestMinutes } = useSetIntervalTimer(
     {
       onStart,
-      prepBetweenSets: true,
+      prepBetweenSets: !singleSet,
       prepSeconds: PREP_SECONDS,
       restSeconds: DEFAULT_HOLD_REST_SECONDS,
       setCount,
@@ -751,28 +786,32 @@ function DurationTimer({
         <p className="metric-label">Timed exercise timer</p>
         <strong>{phaseLabel}</strong>
         <p className="muted-text">
-          {PREP_SECONDS}s prep - {setCount} sets - {workSeconds}s work - rest{' '}
-          {formatTimer(timer.restSeconds)}
+          {singleSet
+            ? `${PREP_SECONDS}s prep - ${workSeconds}s work`
+            : `${PREP_SECONDS}s prep - ${setCount} sets - ${workSeconds}s work - rest ${formatTimer(timer.restSeconds)}`}
         </p>
       </div>
 
       <div className="timer-panel__readout">
         <span>{formatTimer(timer.secondsRemaining)}</span>
         <small>
-          Set {Math.min(timer.currentSet, setCount)} / {setCount}
+          Set {singleSet ? setNumber : Math.min(timer.currentSet, setCount)} /{' '}
+          {singleSet ? entry.target.entrySets : setCount}
         </small>
       </div>
 
-      <label className="field timer-panel__input">
-        <span>Rest min</span>
-        <input
-          type="number"
-          min="1"
-          step="1"
-          value={Math.round(timer.restSeconds / 60)}
-          onChange={(event) => updateRestMinutes(event.target.value)}
-        />
-      </label>
+      {!singleSet ? (
+        <label className="field timer-panel__input">
+          <span>Rest min</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={Math.round(timer.restSeconds / 60)}
+            onChange={(event) => updateRestMinutes(event.target.value)}
+          />
+        </label>
+      ) : null}
 
       <div className="button-row">
         <button
@@ -803,6 +842,7 @@ function RestTimer({
   defaultRestSeconds = DEFAULT_EXERCISE_REST_SECONDS,
   label = 'Rest before next exercise',
   onInteract,
+  showRestInput = true,
   soundSettings,
   storageKey,
 }: {
@@ -810,6 +850,7 @@ function RestTimer({
   defaultRestSeconds?: number
   label?: string
   onInteract?: () => void
+  showRestInput?: boolean
   soundSettings: TimerSoundSettings
   storageKey: string
 }) {
@@ -958,16 +999,18 @@ function RestTimer({
         </div>
       </div>
 
-      <label className="field timer-panel__input">
-        <span>Rest min</span>
-        <input
-          type="number"
-          min="1"
-          step="1"
-          value={Math.round(timer.restSeconds / 60)}
-          onChange={(event) => updateRestMinutes(event.target.value)}
-        />
-      </label>
+      {showRestInput ? (
+        <label className="field timer-panel__input">
+          <span>Rest min</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={Math.round(timer.restSeconds / 60)}
+            onChange={(event) => updateRestMinutes(event.target.value)}
+          />
+        </label>
+      ) : null}
 
       <div className="button-row">
         <button
@@ -1009,6 +1052,128 @@ function RestTimer({
           }}
         >
           Reset
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SupportExerciseEditor({
+  entry,
+  onCancel,
+  onSave,
+}: {
+  entry: WorkoutLogEntryDraft
+  onCancel: () => void
+  onSave: (updates: Partial<WorkoutLogEntryDraft>) => void
+}) {
+  const initialSets = getSupportSetCount(entry)
+  const initialMeasure =
+    entry.target.mode === 'reps' || entry.target.mode === 'emom'
+      ? (entry.target.entryReps ?? 1) /
+        (entry.target.mode === 'emom' ? initialSets : 1)
+      : (entry.target.entryDurationSeconds ?? 1)
+  const [sets, setSets] = useState(String(initialSets))
+  const [measure, setMeasure] = useState(String(Math.max(1, initialMeasure)))
+  const [restSeconds, setRestSeconds] = useState(
+    String(entry.setRestSeconds ?? DEFAULT_SUPPORT_SET_REST_SECONDS),
+  )
+  const measureLabel =
+    entry.target.mode === 'reps' || entry.target.mode === 'emom'
+      ? 'Reps per set'
+      : 'Seconds per set'
+
+  function save() {
+    const nextSets = Math.max(1, Math.min(50, Math.round(Number(sets) || 1)))
+    const nextMeasure = Math.max(
+      1,
+      Math.min(600, Math.round(Number(measure) || 1)),
+    )
+    const nextRestSeconds = Math.max(
+      15,
+      Math.min(1800, Math.round(Number(restSeconds) || 90)),
+    )
+    const targetChanged =
+      nextSets !== initialSets || nextMeasure !== initialMeasure
+    const target = { ...entry.target }
+
+    if (target.mode === 'emom') {
+      target.entrySets = 1
+      target.entryReps = nextSets * nextMeasure
+      target.emomMinutes = nextSets
+      target.emomSegments = [{ sets: nextSets, reps: nextMeasure }]
+      target.summary = `${nextSets}m EMOM @ ${nextMeasure}`
+    } else {
+      target.entrySets = nextSets
+
+      if (target.mode === 'reps') {
+        target.entryReps = nextMeasure
+        target.summary = `${nextSets}x${nextMeasure}`
+      } else {
+        target.entryDurationSeconds = nextMeasure
+        target.summary =
+          target.mode === 'hold-seconds'
+            ? `${nextSets}x${nextMeasure}s hold`
+            : `${nextSets}x${nextMeasure}s`
+      }
+    }
+
+    onSave({
+      target,
+      setRestSeconds: nextRestSeconds,
+      ...(targetChanged ? { outcome: '', setOutcomes: [] } : {}),
+    })
+  }
+
+  return (
+    <div className="support-editor" aria-label={`Edit ${entry.label}`}>
+      <div className="support-editor__fields">
+        <label className="field">
+          <span>Sets</span>
+          <input
+            type="number"
+            min="1"
+            max="50"
+            value={sets}
+            onChange={(event) => setSets(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>{measureLabel}</span>
+          <input
+            type="number"
+            min="1"
+            max="600"
+            value={measure}
+            onChange={(event) => setMeasure(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>Rest sec</span>
+          <input
+            type="number"
+            min="15"
+            max="1800"
+            step="5"
+            value={restSeconds}
+            onChange={(event) => setRestSeconds(event.target.value)}
+          />
+        </label>
+      </div>
+      <div className="button-row">
+        <button
+          type="button"
+          className="button button--primary button--compact"
+          onClick={save}
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          className="button button--ghost button--compact"
+          onClick={onCancel}
+        >
+          Cancel
         </button>
       </div>
     </div>
@@ -1098,6 +1263,11 @@ export function LogWorkoutScreen({
   const [restAutoStartByEntryId, setRestAutoStartByEntryId] = useState<
     Record<string, number>
   >({})
+  const [supportRestAutoStartByEntryId, setSupportRestAutoStartByEntryId] =
+    useState<Record<string, number>>({})
+  const [editingSupportEntryId, setEditingSupportEntryId] = useState<
+    string | null
+  >(null)
   const [maxRestAutoStartKey, setMaxRestAutoStartKey] = useState(0)
   const workoutRowsRef = useRef<HTMLDivElement | null>(null)
   const currentEntriesSignature = createEntriesSignature(entries)
@@ -1237,6 +1407,57 @@ export function LogWorkoutScreen({
     }))
   }
 
+  function recordSupportSet(localId: string, setOutcome: PresetOutcome) {
+    const entryIndex = entries.findIndex((entry) => entry.localId === localId)
+    const entry = entries[entryIndex]
+
+    if (!entry) {
+      return
+    }
+
+    const setCount = getSupportSetCount(entry)
+    const currentOutcomes = getSupportSetOutcomes(entry)
+
+    if (currentOutcomes.length >= setCount) {
+      return
+    }
+
+    requestTimerStop(`set-rest:${date}:${entry.presetKey}:${entry.localId}`)
+    const setOutcomes = [...currentOutcomes, setOutcome]
+    const isComplete = setOutcomes.length === setCount
+    const outcome = isComplete
+      ? setOutcomes.every((result) => result === 'pass')
+        ? 'pass'
+        : 'fail'
+      : ''
+
+    updateEntry(localId, { outcome, setOutcomes })
+
+    if (!isComplete) {
+      playTone(timerSoundSettings, 'start')
+      setSupportRestAutoStartByEntryId((current) => ({
+        ...current,
+        [localId]: (current[localId] ?? 0) + 1,
+      }))
+      return
+    }
+
+    if (entryIndex < entries.length - 1) {
+      playTone(timerSoundSettings, 'start')
+      setRestAutoStartByEntryId((current) => ({
+        ...current,
+        [localId]: (current[localId] ?? 0) + 1,
+      }))
+    }
+  }
+
+  function undoSupportSet(entry: WorkoutLogEntryDraft) {
+    const setOutcomes = getSupportSetOutcomes(entry).slice(0, -1)
+    requestTimerStop(`set-rest:${date}:${entry.presetKey}:${entry.localId}`)
+    requestTimerStop(`rest:${date}:${entry.presetKey}:${entry.localId}`)
+    updateEntry(entry.localId, { outcome: '', setOutcomes })
+  }
+
   function loadPrefill(nextType: SessionType, nextSupportFocus = supportFocus) {
     markInteracted()
     const nextEntries = toDrafts(
@@ -1361,7 +1582,7 @@ export function LogWorkoutScreen({
     }
 
     if (entries.some((entry) => !entry.outcome)) {
-      setFormError('Mark every preset row as Pass or Fail before saving.')
+      setFormError('Complete every preset exercise before saving.')
       return
     }
 
@@ -1375,6 +1596,8 @@ export function LogWorkoutScreen({
         notes: entry.label !== entry.exerciseName ? entry.label : undefined,
         presetKey: entry.presetKey,
         outcome: entry.outcome || undefined,
+        setOutcomes: entry.setOutcomes,
+        setRestSeconds: entry.setRestSeconds,
         presetTargetMode: entry.target.mode,
         presetTargetSummary: entry.target.summary,
         isMaxTest: false,
@@ -1656,6 +1879,15 @@ export function LogWorkoutScreen({
 
               {entries.map((entry, entryIndex) => {
                 const previousEntry = entries[entryIndex - 1]
+                const isSupportEntry = sessionType === 'support'
+                const setOutcomes = getSupportSetOutcomes(entry)
+                const supportSetCount = getSupportSetCount(entry)
+                const currentSupportSet = Math.min(
+                  setOutcomes.length + 1,
+                  supportSetCount,
+                )
+                const supportEntryComplete =
+                  setOutcomes.length >= supportSetCount
                 const stopPreviousRestTimer = () => {
                   if (previousEntry) {
                     requestTimerStop(
@@ -1667,13 +1899,44 @@ export function LogWorkoutScreen({
                 return (
                   <div key={entry.localId} className="entry-row preset-row">
                     <div className="preset-row__copy">
-                      <p className="metric-label">{entry.exerciseName}</p>
-                      <strong>{entry.label}</strong>
+                      <div>
+                        <p className="metric-label">{entry.exerciseName}</p>
+                        <strong>{entry.label}</strong>
+                      </div>
+                      {isSupportEntry ? (
+                        <button
+                          type="button"
+                          className="button button--ghost button--compact preset-row__edit"
+                          aria-expanded={
+                            editingSupportEntryId === entry.localId
+                          }
+                          onClick={() =>
+                            setEditingSupportEntryId((current) =>
+                              current === entry.localId ? null : entry.localId,
+                            )
+                          }
+                        >
+                          Edit
+                        </button>
+                      ) : null}
                     </div>
 
                     <PresetTargetDisplay entry={entry} />
 
-                    {entry.target.mode === 'emom' ? (
+                    {isSupportEntry &&
+                    editingSupportEntryId === entry.localId ? (
+                      <SupportExerciseEditor
+                        entry={entry}
+                        onCancel={() => setEditingSupportEntryId(null)}
+                        onSave={(updates) => {
+                          updateEntry(entry.localId, updates)
+                          setEditingSupportEntryId(null)
+                        }}
+                      />
+                    ) : null}
+
+                    {entry.target.mode === 'emom' &&
+                    (!isSupportEntry || !supportEntryComplete) ? (
                       <EmomTimer
                         entry={entry}
                         onInteract={markInteracted}
@@ -1684,44 +1947,139 @@ export function LogWorkoutScreen({
                     ) : null}
 
                     {entry.target.mode === 'hold-seconds' &&
-                    typeof entry.target.entryDurationSeconds === 'number' ? (
+                    typeof entry.target.entryDurationSeconds === 'number' &&
+                    (!isSupportEntry || !supportEntryComplete) ? (
                       <HoldTimer
+                        key={`${entry.localId}:${setOutcomes.length}:${entry.target.summary}`}
                         entry={entry}
                         onStart={stopPreviousRestTimer}
+                        singleSet={isSupportEntry}
+                        setNumber={currentSupportSet}
                         soundSettings={timerSoundSettings}
                       />
                     ) : null}
 
                     {entry.target.mode === 'duration-seconds' &&
-                    typeof entry.target.entryDurationSeconds === 'number' ? (
+                    typeof entry.target.entryDurationSeconds === 'number' &&
+                    (!isSupportEntry || !supportEntryComplete) ? (
                       <DurationTimer
+                        key={`${entry.localId}:${setOutcomes.length}:${entry.target.summary}`}
                         entry={entry}
                         onStart={stopPreviousRestTimer}
+                        singleSet={isSupportEntry}
+                        setNumber={currentSupportSet}
                         soundSettings={timerSoundSettings}
                       />
                     ) : null}
 
-                    <div
-                      className="segment-row preset-row__actions"
-                      role="radiogroup"
-                      aria-label={`Outcome for ${entry.label}`}
-                    >
-                      {(['pass', 'fail'] as const).map((outcome) => (
-                        <button
-                          key={outcome}
-                          type="button"
-                          className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
-                          aria-pressed={entry.outcome === outcome}
-                          onClick={() =>
-                            markEntryOutcome(entry.localId, outcome)
-                          }
-                        >
-                          {outcome}
-                        </button>
-                      ))}
-                    </div>
+                    {isSupportEntry ? (
+                      <div className="support-set-tracker">
+                        <div className="support-set-tracker__status">
+                          <strong>
+                            {supportEntryComplete
+                              ? entry.outcome === 'pass'
+                                ? 'Exercise passed'
+                                : 'Exercise failed'
+                              : `Set ${currentSupportSet} of ${supportSetCount}`}
+                          </strong>
+                          <span
+                            aria-label={`${setOutcomes.length} of ${supportSetCount} sets recorded`}
+                          >
+                            {Array.from(
+                              { length: supportSetCount },
+                              (_, index) => (
+                                <i
+                                  key={index}
+                                  className={
+                                    index >= setOutcomes.length
+                                      ? ''
+                                      : setOutcomes[index] === 'pass'
+                                        ? 'is-pass'
+                                        : 'is-fail'
+                                  }
+                                />
+                              ),
+                            )}
+                          </span>
+                        </div>
+                        <div className="support-set-tracker__actions">
+                          {!supportEntryComplete ? (
+                            <>
+                              <button
+                                type="button"
+                                className="button button--primary button--compact"
+                                onClick={() =>
+                                  recordSupportSet(entry.localId, 'pass')
+                                }
+                              >
+                                Done
+                              </button>
+                              <button
+                                type="button"
+                                className="button button--ghost button--compact"
+                                onClick={() =>
+                                  recordSupportSet(entry.localId, 'fail')
+                                }
+                              >
+                                Fail
+                              </button>
+                            </>
+                          ) : null}
+                          {setOutcomes.length > 0 ? (
+                            <button
+                              type="button"
+                              className="button button--ghost button--compact support-set-tracker__undo"
+                              onClick={() => undoSupportSet(entry)}
+                            >
+                              Undo
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="segment-row preset-row__actions"
+                        role="radiogroup"
+                        aria-label={`Outcome for ${entry.label}`}
+                      >
+                        {(['pass', 'fail'] as const).map((outcome) => (
+                          <button
+                            key={outcome}
+                            type="button"
+                            className={`segment-row__item${entry.outcome === outcome ? ' is-active' : ''}`}
+                            aria-pressed={entry.outcome === outcome}
+                            onClick={() =>
+                              markEntryOutcome(entry.localId, outcome)
+                            }
+                          >
+                            {outcome}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
-                    {entryIndex < entries.length - 1 ? (
+                    {isSupportEntry &&
+                    setOutcomes.length > 0 &&
+                    !supportEntryComplete ? (
+                      <RestTimer
+                        key={`${entry.localId}-set-${supportRestAutoStartByEntryId[entry.localId] ?? 0}-${entry.setRestSeconds ?? DEFAULT_SUPPORT_SET_REST_SECONDS}`}
+                        autoStartKey={
+                          supportRestAutoStartByEntryId[entry.localId] ?? 0
+                        }
+                        defaultRestSeconds={
+                          entry.setRestSeconds ??
+                          DEFAULT_SUPPORT_SET_REST_SECONDS
+                        }
+                        label={`Rest before set ${currentSupportSet}`}
+                        onInteract={markInteracted}
+                        showRestInput={false}
+                        soundSettings={timerSoundSettings}
+                        storageKey={`set-rest:${date}:${entry.presetKey}:${entry.localId}`}
+                      />
+                    ) : null}
+
+                    {entryIndex < entries.length - 1 &&
+                    (!isSupportEntry || supportEntryComplete) ? (
                       <RestTimer
                         key={`${entry.localId}-${restAutoStartByEntryId[entry.localId] ?? 0}`}
                         autoStartKey={

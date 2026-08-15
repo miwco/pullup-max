@@ -56,6 +56,8 @@ describe('import/export validation', () => {
             reps: 25,
             presetKey: 'step-emom',
             outcome: 'pass',
+            setOutcomes: ['pass', 'fail', 'pass'],
+            setRestSeconds: 90,
             presetTargetMode: 'emom',
             presetTargetSummary: '10m EMOM: 5x3 + 5x2',
             isMaxTest: false,
@@ -89,7 +91,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(11)
+      expect(parsed.value.version).toBe(12)
       expect(parsed.value.data.athleteProfile.mainMovement).toBe('Pull-up')
       expect(parsed.value.data.athleteProfile.cycleEndDate).toBe(
         seeded.athleteProfile.cycleEndDate,
@@ -106,6 +108,12 @@ describe('import/export validation', () => {
       )
       expect(parsed.value.data.maxTests[0]?.bodyweightKgSnapshot).toBe(79.2)
       expect(parsed.value.data.exerciseEntries[0]?.outcome).toBe('pass')
+      expect(parsed.value.data.exerciseEntries[0]?.setOutcomes).toEqual([
+        'pass',
+        'fail',
+        'pass',
+      ])
+      expect(parsed.value.data.exerciseEntries[0]?.setRestSeconds).toBe(90)
       expect(parsed.value.data.exerciseEntries[0]?.presetTargetSummary).toBe(
         '10m EMOM: 5x3 + 5x2',
       )
@@ -158,7 +166,7 @@ describe('import/export validation', () => {
     expect(parsed.ok).toBe(true)
 
     if (parsed.ok) {
-      expect(parsed.value.version).toBe(11)
+      expect(parsed.value.version).toBe(12)
       expect(parsed.value.data.sessions[0]?.sessionType).toBe('support')
       expect(parsed.value.data.exercises[0]?.type).toBe('support')
       expect(parsed.value.data.maxTests[0]?.failurePoint).toBe('top')
@@ -455,7 +463,7 @@ describe('import/export validation', () => {
     expect(parseImportBundle(unsupportedVersion)).toEqual({
       ok: false,
       error:
-        'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, 8, 9, 10, or 11.',
+        'Unsupported backup version. Expected 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, or 12.',
     })
   })
 

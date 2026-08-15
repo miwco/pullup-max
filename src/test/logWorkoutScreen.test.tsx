@@ -327,6 +327,81 @@ describe('LogWorkoutScreen preset rows', () => {
     expect(screen.getByLabelText('low target')).toBeInTheDocument()
   })
 
+  it('tracks every support set and derives the exercise outcome', async () => {
+    const user = userEvent.setup()
+    const saveSession = vi.fn(async () => true)
+    mockedUseAppState.mockReturnValue({
+      ...createMockAppState(),
+      saveSession,
+    })
+
+    render(
+      <LogWorkoutScreen
+        prefill={true}
+        requestedType="support"
+        onSaved={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Set 1 of 2')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('radiogroup', { name: /outcome for/i }),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^done$/i }))
+
+    expect(screen.getByText('Set 2 of 2')).toBeInTheDocument()
+    expect(screen.getByText('1:30')).toBeInTheDocument()
+    expect(screen.getByText('Resting')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^fail$/i }))
+
+    expect(screen.getByText('Exercise failed')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^done$/i })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /save workout/i }))
+
+    expect(saveSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: [
+          expect.objectContaining({
+            outcome: 'fail',
+            setOutcomes: ['pass', 'fail'],
+          }),
+        ],
+      }),
+    )
+  })
+
+  it('edits support targets and the between-set rest', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <LogWorkoutScreen
+        prefill={true}
+        requestedType="support"
+        onSaved={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
+    expect(screen.getByLabelText('Edit Top holds')).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Sets'))
+    await user.type(screen.getByLabelText('Sets'), '3')
+    await user.clear(screen.getByLabelText('Seconds per set'))
+    await user.type(screen.getByLabelText('Seconds per set'), '25')
+    await user.clear(screen.getByLabelText('Rest sec'))
+    await user.type(screen.getByLabelText('Rest sec'), '75')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    expect(screen.getByLabelText('3x25s hold')).toBeInTheDocument()
+    expect(screen.getByText('Set 1 of 3')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^done$/i }))
+    expect(screen.getByText('1:15')).toBeInTheDocument()
+  })
+
   it('adds five seconds to the EMOM work window for each rep above three', () => {
     vi.useFakeTimers()
     const customState = createMockAppState()

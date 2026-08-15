@@ -2216,6 +2216,10 @@ textarea:focus-visible {
 }
 
 .preset-row__copy {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 14px 12px;
   border-bottom: 1px solid var(--line);
 }
@@ -2224,9 +2228,15 @@ textarea:focus-visible {
   color: var(--accent);
 }
 
-.preset-row__copy > strong {
+.preset-row__copy strong {
   font-size: 1.08rem;
   letter-spacing: 0.01em;
+}
+
+.preset-row__edit {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 0.72rem;
 }
 
 .preset-target {
@@ -2325,6 +2335,93 @@ textarea:focus-visible {
 .preset-row__actions {
   width: auto;
   margin: 12px 14px 14px;
+}
+
+.support-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #0e1418;
+}
+
+.support-editor__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.support-editor .field {
+  gap: 5px;
+  min-width: 0;
+}
+
+.support-editor .field span {
+  font-size: 0.68rem;
+}
+
+.support-editor .field input {
+  min-width: 0;
+  padding: 8px 7px;
+}
+
+.support-set-tracker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.support-set-tracker__status {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.support-set-tracker__status > strong {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.support-set-tracker__status > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.support-set-tracker__status i {
+  width: 15px;
+  height: 4px;
+  border-radius: 1px;
+  background: #30383d;
+}
+
+.support-set-tracker__status i.is-pass {
+  background: var(--accent);
+}
+
+.support-set-tracker__status i.is-fail {
+  background: var(--danger, #f36f5b);
+}
+
+.support-set-tracker__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.support-set-tracker__actions .button {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 0.72rem;
+}
+
+.support-set-tracker__undo {
+  color: var(--muted-strong);
 }
 
 .accordion-section {
